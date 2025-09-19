@@ -3,54 +3,61 @@ package org.javaguru.travel.insurance.core;
 import org.javaguru.travel.insurance.rest.TravelCalculatePremiumRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class TravelCalculatePremiumServiceImplTest {
 
-    private DateTimeService dateTimeService;
+    @Mock private DateTimeService dateTimeService;
+
+    @InjectMocks
     private TravelCalculatePremiumServiceImpl service;
+
+    private TravelCalculatePremiumRequest request;
 
     @BeforeEach
     public void setUp() {
-        dateTimeService = new DateTimeService();
-        service = new TravelCalculatePremiumServiceImpl(dateTimeService);
+        request = createRequestWithAllFields();
+        when(dateTimeService.getDaysBetween(request.getAgreementDateFrom(),
+                request.getAgreementDateTo())).thenReturn(0L);
     }
 
     @Test
     public void shouldPopulatePersonFirstName() {
-        var request = createRequestWithAllFields();
         var response = service.calculatePremium(request);
         assertEquals(response.getPersonFirstName(), request.getPersonFirstName());
     }
 
     @Test
     public void shouldPopulatePersonLastName() {
-        var request = createRequestWithAllFields();
         var response = service.calculatePremium(request);
         assertEquals(response.getPersonLastName(), request.getPersonLastName());
     }
 
     @Test
     public void shouldPopulateAgreementDateFrom() {
-        var request = createRequestWithAllFields();
         var response = service.calculatePremium(request);
         assertEquals(response.getAgreementDateFrom(), request.getAgreementDateFrom());
     }
 
     @Test
     public void shouldPopulateAgreementDateTo() {
-        var request = createRequestWithAllFields();
         var response = service.calculatePremium(request);
         assertEquals(response.getAgreementDateTo(), request.getAgreementDateTo());
     }
 
     @Test
     public void shouldPopulateAgreementPrice() {
-        var request = createRequestWithAllFields();
         var response = service.calculatePremium(request);
         assertNotNull(response.getAgreementPrice());
     }
@@ -63,5 +70,4 @@ class TravelCalculatePremiumServiceImplTest {
         request.setAgreementDateTo(new Date());
         return request;
     }
-
 }
