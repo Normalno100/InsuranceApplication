@@ -38,12 +38,17 @@ public class TravelCalculatePremiumRequestValidator {
     }
 
     private Optional<ValidationError> validateAgreementDateTo(TravelCalculatePremiumRequest request){
-        return (request.getAgreementDateTo() == null
-                || request.getAgreementDateTo().equals(new Date(0)))
-                || request.getAgreementDateTo().after(request.getAgreementDateFrom())
-                ? Optional.of(new ValidationError("agreementDateTo", "Must not be empty!"))
-                : Optional.empty();
+
+        if (request.getAgreementDateTo() == null || request.getAgreementDateTo().equals(new Date(0))) {
+            return Optional.of(new ValidationError("agreementDateTo", "Must not be empty!"));
+        }
+
+        if (request.getAgreementDateFrom() != null
+                && request.getAgreementDateTo().before(request.getAgreementDateFrom())) {
+            return Optional.of(new ValidationError("agreementDateTo",
+                    "Must be after agreementDateFrom!"));
+        }
+
+        return Optional.empty();
     }
-
-
 }
