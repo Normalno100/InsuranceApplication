@@ -14,7 +14,7 @@ import java.util.List;
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class TravelCalculatePremiumServiceImpl implements TravelCalculatePremiumService {
 
-    DateTimeService dateTimeService;
+    private final DateTimeService dateTimeService;
     private final TravelCalculatePremiumRequestValidator requestValidator;
 
     @Override
