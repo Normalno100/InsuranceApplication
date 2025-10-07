@@ -4,6 +4,7 @@ import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 import org.javaguru.travel.insurance.dto.ValidationError;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
 import java.util.Date;
 import java.util.List;
 
@@ -95,21 +96,11 @@ class TravelCalculatePremiumRequestValidatorTest {
         assertEquals("agreementDateFrom", errors.get(0).getField());
     }
 
-    @Test
-    void shouldReturnErrorWhenAgreementDateFromIsZeroDate() {
-        TravelCalculatePremiumRequest request = validRequest();
-        request.setAgreementDateFrom(new Date(0));
-
-        List<ValidationError> errors = requestValidator.validate(request);
-
-        assertEquals(1, errors.size());
-        assertEquals("agreementDateFrom", errors.get(0).getField());
-    }
 
     @Test
     void shouldNotReturnErrorWhenAgreementDateFromIsValid() {
         TravelCalculatePremiumRequest request = validRequest();
-        request.setAgreementDateFrom(new Date());
+        request.setAgreementDateFrom(LocalDate.now());
 
         List<ValidationError> errors = requestValidator.validate(request);
 
@@ -130,21 +121,10 @@ class TravelCalculatePremiumRequestValidatorTest {
     }
 
     @Test
-    void shouldReturnErrorWhenAgreementDateToIsZeroDate() {
-        TravelCalculatePremiumRequest request = validRequest();
-        request.setAgreementDateTo(new Date(0));
-
-        List<ValidationError> errors = requestValidator.validate(request);
-
-        assertEquals(1, errors.size());
-        assertEquals("agreementDateTo", errors.get(0).getField());
-    }
-
-    @Test
     void shouldReturnErrorWhenAgreementDateToIsBeforeAgreementDateFrom() {
         TravelCalculatePremiumRequest request = validRequest();
-        request.setAgreementDateFrom(new Date(System.currentTimeMillis() + 100000)); // будущее
-        request.setAgreementDateTo(new Date()); // прошлое
+        request.setAgreementDateFrom(LocalDate.now().plusDays(10)); // будущее
+        request.setAgreementDateTo(LocalDate.now()); // прошлое
 
         List<ValidationError> errors = requestValidator.validate(request);
 
@@ -155,8 +135,20 @@ class TravelCalculatePremiumRequestValidatorTest {
     @Test
     void shouldNotReturnErrorWhenAgreementDateToIsAfterAgreementDateFrom() {
         TravelCalculatePremiumRequest request = validRequest();
-        request.setAgreementDateFrom(new Date());
-        request.setAgreementDateTo(new Date(System.currentTimeMillis() + 100000));
+        request.setAgreementDateFrom(LocalDate.now());
+        request.setAgreementDateTo(LocalDate.now().plusDays(10));
+
+        List<ValidationError> errors = requestValidator.validate(request);
+
+        assertTrue(errors.isEmpty());
+    }
+
+    @Test
+    void shouldNotReturnErrorWhenAgreementDateToEqualsAgreementDateFrom() {
+        TravelCalculatePremiumRequest request = validRequest();
+        LocalDate sameDate = LocalDate.now();
+        request.setAgreementDateFrom(sameDate);
+        request.setAgreementDateTo(sameDate);
 
         List<ValidationError> errors = requestValidator.validate(request);
 
@@ -169,8 +161,8 @@ class TravelCalculatePremiumRequestValidatorTest {
         TravelCalculatePremiumRequest request = new TravelCalculatePremiumRequest();
         request.setPersonFirstName("John");
         request.setPersonLastName("Smith");
-        request.setAgreementDateFrom(new Date());
-        request.setAgreementDateTo(new Date(System.currentTimeMillis() + 100000));
+        request.setAgreementDateFrom(LocalDate.now());
+        request.setAgreementDateTo(LocalDate.now().plusDays(10));
         return request;
     }
 }

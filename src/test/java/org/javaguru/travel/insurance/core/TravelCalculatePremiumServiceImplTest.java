@@ -8,6 +8,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,6 +21,8 @@ class TravelCalculatePremiumServiceImplTest {
 
     @Mock private DateTimeService dateTimeService;
 
+    @Mock private TravelCalculatePremiumRequestValidator requestValidator;
+
     @InjectMocks
     private TravelCalculatePremiumServiceImpl service;
 
@@ -28,8 +31,11 @@ class TravelCalculatePremiumServiceImplTest {
     @BeforeEach
     public void setUp() {
         request = createRequestWithAllFields();
-        when(dateTimeService.getDaysBetween(request.getAgreementDateFrom(),
-                request.getAgreementDateTo())).thenReturn(0L);
+        when(dateTimeService.getDaysBetween(
+                request.getAgreementDateFrom(),
+                request.getAgreementDateTo()
+        )).thenReturn(0L);
+        when(requestValidator.validate(request)).thenReturn(java.util.Collections.emptyList());
     }
 
     @Test
@@ -66,8 +72,8 @@ class TravelCalculatePremiumServiceImplTest {
         var request = new TravelCalculatePremiumRequest();
         request.setPersonFirstName("John");
         request.setPersonLastName("Peterson");
-        request.setAgreementDateFrom(new Date());
-        request.setAgreementDateTo(new Date());
+        request.setAgreementDateFrom(LocalDate.now());
+        request.setAgreementDateTo(LocalDate.now().plusDays(10));
         return request;
     }
 }

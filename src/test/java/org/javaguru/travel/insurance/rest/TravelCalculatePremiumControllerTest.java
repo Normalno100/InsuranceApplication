@@ -13,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Date;
 import java.util.List;
 
@@ -70,7 +71,7 @@ class TravelCalculatePremiumControllerTest {
         mockMvc.perform(post("/insurance/travel/")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
+                .andExpect(status().isBadRequest())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.errors").isArray())
                 .andExpect(jsonPath("$.errors[0].field").value("personFirstName"))
@@ -98,7 +99,7 @@ class TravelCalculatePremiumControllerTest {
         mockMvc.perform(post("/insurance/travel/")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
+                .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors").isArray())
                 .andExpect(jsonPath("$.errors.length()").value(4));
     }
@@ -108,8 +109,8 @@ class TravelCalculatePremiumControllerTest {
         TravelCalculatePremiumRequest request = new TravelCalculatePremiumRequest();
         request.setPersonFirstName("John");
         request.setPersonLastName("Smith");
-        request.setAgreementDateFrom(new Date(System.currentTimeMillis() + 100000));
-        request.setAgreementDateTo(new Date());
+        request.setAgreementDateFrom(LocalDate.now().plusDays(10));
+        request.setAgreementDateTo(LocalDate.now());
 
         TravelCalculatePremiumResponse response = new TravelCalculatePremiumResponse(
                 List.of(new ValidationError("agreementDateTo", "Must be after agreementDateFrom!"))
@@ -121,7 +122,7 @@ class TravelCalculatePremiumControllerTest {
         mockMvc.perform(post("/insurance/travel/")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
+                .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("agreementDateTo"))
                 .andExpect(jsonPath("$.errors[0].message").value("Must be after agreementDateFrom!"));
     }
@@ -149,8 +150,8 @@ class TravelCalculatePremiumControllerTest {
         TravelCalculatePremiumRequest request = new TravelCalculatePremiumRequest();
         request.setPersonFirstName("John");
         request.setPersonLastName("Smith");
-        request.setAgreementDateFrom(new Date());
-        request.setAgreementDateTo(new Date(System.currentTimeMillis() + 864000000L)); // +10 days
+        request.setAgreementDateFrom(LocalDate.now());
+        request.setAgreementDateTo(LocalDate.now().plusDays(10)); // +10 days
         return request;
     }
 
