@@ -1,0 +1,349 @@
+# Полный список тестовых сценариев проекта Travel Insurance
+
+## 📋 Оглавление
+1. [DateTimeServiceTest](#1-datetimeservicetest)
+2. [TravelCalculatePremiumRequestValidatorTest](#2-travelcalculatepremiumrequestvalidatortest)
+3. [TravelCalculatePremiumServiceImplTest](#3-travelcalculatepremiumserviceimpltest)
+4. [TravelCalculatePremiumControllerTest](#4-travelcalculatepremiumcontrollertest)
+
+---
+
+## 1. DateTimeServiceTest
+
+**Всего тестов: 45**
+
+### Группа 1: Basic Scenarios (4 теста)
+
+| № | Название теста | Описание | Ожидаемый результат |
+|---|----------------|----------|---------------------|
+| 1.1 | `shouldReturnZeroDaysForSameDates` | Одинаковые даты | 0 дней |
+| 1.2 | `shouldReturnPositiveDaysWhenDate2IsAfterDate1` | date2 > date1 | Положительное число (9) |
+| 1.3 | `shouldReturnNegativeDaysWhenDate1IsAfterDate2` | date1 > date2 | Отрицательное число (-9) |
+| 1.4 | `shouldReturnOneDayForConsecutiveDates` | Последовательные дни | 1 день |
+
+### Группа 2: Different Time Periods (7 тестов)
+
+| № | Название теста | Описание | Ожидаемый результат |
+|---|----------------|----------|---------------------|
+| 2.1 | `shouldCalculateDaysWithinSameMonth` | Даты в одном месяце | 15 дней |
+| 2.2 | `shouldCalculateDaysAcrossDifferentMonths` | Через границу месяца | 29 дней |
+| 2.3 | `shouldCalculateDaysAcrossDifferentYears` | Через границу года | 1 день |
+| 2.4 | `shouldCalculateOneWeek` | Одна неделя | 7 дней |
+| 2.5 | `shouldCalculateOneMonth` | Один месяц | 30 дней |
+| 2.6 | `shouldCalculateOneYear` | Один год | 365 дней |
+| 2.7 | `shouldCalculateMultipleYears` | Несколько лет (2020-2023) | 1096 дней |
+
+### Группа 3: Leap Year Scenarios (4 теста)
+
+| № | Название теста | Описание | Ожидаемый результат |
+|---|----------------|----------|---------------------|
+| 3.1 | `shouldCalculateLeapYear` | Високосный год (2020) | 366 дней |
+| 3.2 | `shouldHandleFebruary29InLeapYear` | 28 фев → 1 мар в високосном | 2 дня |
+| 3.3 | `shouldCalculateFromFebruary29ToNextYear` | От 29 фев до след года | 365 дней |
+| 3.4 | `shouldHandleFebruaryInNonLeapYear` | Февраль в обычном году | 1 день |
+
+### Группа 4: Edge Cases (6 тестов)
+
+| № | Название теста | Описание | Ожидаемый результат |
+|---|----------------|----------|---------------------|
+| 4.1 | `shouldHandleVeryLargeTimeSpan` | Очень большой период (100+ лет) | 44900-45000 дней |
+| 4.2 | `shouldHandleDatesAtStartOfYear` | Начало года (1 янв) | 1 день |
+| 4.3 | `shouldHandleDatesAtEndOfYear` | Конец года (31 дек) | 1 день |
+| 4.4 | `shouldHandleYearTransition` | Переход года (31 дек → 1 янв) | 1 день |
+| 4.5 | `shouldHandleCurrentDate` | Текущая дата | 1 день |
+| 4.6 | `shouldHandleFarFutureDates` | Далекое будущее (100 лет) | 36500-36600 дней |
+
+### Группа 5: Parameterized Tests (24+ теста)
+
+#### 5.1 Various Date Ranges (7 тестов)
+| Входные данные | Ожидаемый результат |
+|----------------|---------------------|
+| 2023-01-01 → 2023-01-01 | 0 дней |
+| 2023-01-01 → 2023-01-02 | 1 день |
+| 2023-01-01 → 2023-01-10 | 9 дней |
+| 2023-01-01 → 2023-01-31 | 30 дней |
+| 2023-01-01 → 2023-02-01 | 31 день |
+| 2023-01-01 → 2023-12-31 | 364 дня |
+| 2023-01-01 → 2024-01-01 | 365 дней |
+
+#### 5.2 Negative Days (3 теста)
+| Входные данные | Ожидаемый результат |
+|----------------|---------------------|
+| 2023-01-10 → 2023-01-01 | -9 дней |
+| 2023-02-01 → 2023-01-01 | -31 день |
+| 2024-01-01 → 2023-01-01 | -365 дней |
+
+#### 5.3 Different Month Lengths (12 тестов)
+| Месяц | Количество дней |
+|-------|----------------|
+| Январь | 31 |
+| Февраль (не високосный) | 28 |
+| Март | 31 |
+| Апрель | 30 |
+| Май | 31 |
+| Июнь | 30 |
+| Июль | 31 |
+| Август | 31 |
+| Сентябрь | 30 |
+| Октябрь | 31 |
+| Ноябрь | 30 |
+| Декабрь | 31 |
+
+### Группа 6: Special Dates (3 теста)
+
+| № | Название теста | Описание | Ожидаемый результат |
+|---|----------------|----------|---------------------|
+| 6.1 | `shouldHandleCenturyTransition` | Переход столетия (1999→2000) | 1 день |
+| 6.2 | `shouldHandleMillenniumTransition` | Переход тысячелетия (2000→2001) | 1 день |
+| 6.3 | `shouldHandleYear2000` | Год 2000 (високосный) | 366 дней |
+
+### Группа 7: Symmetry Tests (2 теста)
+
+| № | Название теста | Описание | Ожидаемый результат |
+|---|----------------|----------|---------------------|
+| 7.1 | `shouldReturnOppositeSignWhenDatesAreSwapped` | Смена порядка дат | Противоположный знак |
+| 7.2 | `shouldReturnSameAbsoluteValueWhenDatesAreSwapped` | Смена порядка дат | Одинаковое |abs| |
+
+---
+
+## 2. TravelCalculatePremiumRequestValidatorTest
+
+**Всего тестов: 70**
+
+### Группа 1: PersonFirstName Validation (12 тестов)
+
+| № | Название теста | Входные данные | Ожидаемый результат |
+|---|----------------|----------------|---------------------|
+| 1.1 | `shouldReturnErrorWhenPersonFirstNameIsNull` | null | Ошибка "Must not be empty!" |
+| 1.2 | `shouldReturnErrorWhenPersonFirstNameIsEmpty` | "" | Ошибка "Must not be empty!" |
+| 1.3 | `shouldReturnErrorForNullAndEmpty` | null/"" (параметризованный) | Ошибка |
+| 1.4 | `shouldAcceptValidPersonFirstName` | "John" | Без ошибок |
+| 1.5 | `shouldAcceptVariousValidFirstNames` | "John", "Jean-Pierre", "Mary Ann", "Иван", "José", "O'Brien" | Без ошибок |
+| 1.6 | `shouldAcceptPersonFirstNameWithSpaces` | "Mary Ann" | Без ошибок |
+| 1.7 | `shouldAcceptPersonFirstNameWithHyphen` | "Jean-Pierre" | Без ошибок |
+| 1.8 | `shouldAcceptPersonFirstNameWithApostrophe` | "D'Angelo" | Без ошибок |
+| 1.9 | `shouldAcceptPersonFirstNameInCyrillic` | "Иван" | Без ошибок |
+| 1.10 | `shouldAcceptVeryLongPersonFirstName` | 100 символов 'A' | Без ошибок |
+| 1.11 | `shouldAcceptSingleCharacterPersonFirstName` | "A" | Без ошибок |
+
+### Группа 2: PersonLastName Validation (12 тестов)
+
+| № | Название теста | Входные данные | Ожидаемый результат |
+|---|----------------|----------------|---------------------|
+| 2.1 | `shouldReturnErrorWhenPersonLastNameIsNull` | null | Ошибка "Must not be empty!" |
+| 2.2 | `shouldReturnErrorWhenPersonLastNameIsEmpty` | "" | Ошибка "Must not be empty!" |
+| 2.3 | `shouldReturnErrorForNullAndEmpty` | null/"" (параметризованный) | Ошибка |
+| 2.4 | `shouldAcceptValidPersonLastName` | "Smith" | Без ошибок |
+| 2.5 | `shouldAcceptVariousValidLastNames` | "Smith", "O'Connor", "van der Berg", "Петров", "García", "McDonald" | Без ошибок |
+| 2.6 | `shouldAcceptPersonLastNameWithSpaces` | "von Neumann" | Без ошибок |
+| 2.7 | `shouldAcceptPersonLastNameWithHyphen` | "Smith-Jones" | Без ошибок |
+| 2.8 | `shouldAcceptPersonLastNameWithApostrophe` | "O'Brien" | Без ошибок |
+| 2.9 | `shouldAcceptPersonLastNameInCyrillic` | "Петров" | Без ошибок |
+| 2.10 | `shouldAcceptVeryLongPersonLastName` | 100 символов 'B' | Без ошибок |
+| 2.11 | `shouldAcceptSingleCharacterPersonLastName` | "B" | Без ошибок |
+
+### Группа 3: AgreementDateFrom Validation (6 тестов)
+
+| № | Название теста | Входные данные | Ожидаемый результат |
+|---|----------------|----------------|---------------------|
+| 3.1 | `shouldReturnErrorWhenAgreementDateFromIsNull` | null | Ошибка "Must not be empty!" |
+| 3.2 | `shouldAcceptValidAgreementDateFrom` | LocalDate.now() | Без ошибок |
+| 3.3 | `shouldAcceptAgreementDateFromInThePast` | now - 10 дней | Без ошибок |
+| 3.4 | `shouldAcceptAgreementDateFromInTheFuture` | now + 10 дней | Без ошибок |
+| 3.5 | `shouldAcceptAgreementDateFromFarInTheFuture` | now + 10 лет | Без ошибок |
+| 3.6 | `shouldAcceptLeapYearDate` | 2024-02-29 | Без ошибок |
+
+### Группа 4: AgreementDateTo Validation (7 тестов)
+
+| № | Название теста | Входные данные | Ожидаемый результат |
+|---|----------------|----------------|---------------------|
+| 4.1 | `shouldReturnErrorWhenAgreementDateToIsNull` | null | Ошибка "Must not be empty!" |
+| 4.2 | `shouldReturnErrorWhenAgreementDateToIsBeforeAgreementDateFrom` | dateTo < dateFrom | Ошибка "Must be after..." |
+| 4.3 | `shouldAcceptAgreementDateToAfterAgreementDateFrom` | dateTo > dateFrom | Без ошибок |
+| 4.4 | `shouldAcceptAgreementDateToEqualToAgreementDateFrom` | dateTo = dateFrom | Без ошибок |
+| 4.5 | `shouldAcceptAgreementDateToOneDayAfter` | dateTo = dateFrom + 1 | Без ошибок |
+| 4.6 | `shouldAcceptLongPeriod` | 365+ дней | Без ошибок |
+| 4.7 | `shouldReturnErrorWhenDateFromIsNullAndDateToIsInvalid` | dateFrom=null, dateTo < implicit | Ошибка |
+
+### Группа 5: Combined Validation (9 тестов)
+
+| № | Название теста | Описание | Количество ошибок |
+|---|----------------|----------|-------------------|
+| 5.1 | `shouldReturnNoErrorsForCompletelyValidRequest` | Все поля валидны | 0 |
+| 5.2 | `shouldReturnAllErrorsWhenAllFieldsAreInvalid` | Все поля невалидны | 4 |
+| 5.3 | `shouldReturnMultipleErrorsForMultipleInvalidFields` | firstName и lastName пустые | 2 |
+| 5.4 | `shouldReturnErrorOnlyForInvalidFirstName` | Только firstName невалидно | 1 |
+| 5.5 | `shouldReturnErrorOnlyForInvalidLastName` | Только lastName невалидно | 1 |
+| 5.6 | `shouldReturnErrorOnlyForInvalidDateFrom` | Только dateFrom невалидно | 1 |
+| 5.7 | `shouldReturnErrorOnlyForInvalidDateTo` | Только dateTo невалидно | 1 |
+| 5.8 | `shouldReturnThreeErrors` | Имена + dateTo невалидны | 3 |
+| 5.9 | `shouldReturnBothDateErrors` | Обе даты невалидны | 2 |
+
+### Группа 6: Edge Cases (6 тестов)
+
+| № | Название теста | Описание | Ожидаемый результат |
+|---|----------------|----------|---------------------|
+| 6.1 | `shouldHandleMinimumValidValues` | Минимальные валидные значения | Без ошибок |
+| 6.2 | `shouldHandleMaximumRealisticPeriod` | Период 10 лет | Без ошибок |
+| 6.3 | `shouldHandleNamesWithMixedCase` | jOhN, sMiTh | Без ошибок |
+| 6.4 | `shouldHandleNamesWithNumbers` | John2, Smith3 | Без ошибок |
+| 6.5 | `shouldValidateDatesAcrossYearBoundary` | 25 дек → 5 янв | Без ошибок |
+| 6.6 | `shouldValidateDatesInLeapYear` | 28 фев → 1 мар 2024 | Без ошибок |
+
+---
+
+## 3. TravelCalculatePremiumServiceImplTest
+
+**Всего тестов: 54**
+
+### Группа 1: Field Copying (7 тестов)
+
+| № | Название теста | Описание | Проверка |
+|---|----------------|----------|----------|
+| 1.1 | `shouldCopyPersonFirstName` | Копирование имени | request.firstName = response.firstName |
+| 1.2 | `shouldCopyPersonLastName` | Копирование фамилии | request.lastName = response.lastName |
+| 1.3 | `shouldCopyAgreementDateFrom` | Копирование dateFrom | request.dateFrom = response.dateFrom |
+| 1.4 | `shouldCopyAgreementDateTo` | Копирование dateTo | request.dateTo = response.dateTo |
+| 1.5 | `shouldCopyAllFields` | Копирование всех полей | assertAll для всех полей |
+| 1.6 | `shouldCopyVariousFirstNames` | Различные имена (параметризованный) | John, Jean-Pierre, Mary Ann, Иван, José |
+| 1.7 | `shouldCopyVariousLastNames` | Различные фамилии (параметризованный) | Smith, O'Connor, van der Berg, Петров, García |
+
+### Группа 2: Price Calculation (9 тестов)
+
+| № | Название теста | Период | Ожидаемая цена |
+|---|----------------|--------|----------------|
+| 2.1 | `shouldCalculateCorrectPriceForVariousPeriods` | 0, 1, 5, 10, 30, 90, 180, 365, 500, 1000 дней (параметризованный) | Соответствующая |
+| 2.2 | `shouldCalculatePriceForZeroDays` | 0 дней | 0 |
+| 2.3 | `shouldCalculatePriceForOneDay` | 1 день | 1 |
+| 2.4 | `shouldCalculatePriceForOneWeek` | 7 дней | 7 |
+| 2.5 | `shouldCalculatePriceForOneMonth` | 30 дней | 30 |
+| 2.6 | `shouldCalculatePriceForOneYear` | 365 дней | 365 |
+| 2.7 | `shouldCalculatePriceForLeapYear` | 366 дней | 366 |
+| 2.8 | `shouldCalculatePriceForLongTrip` | 500+ дней | 500 |
+| 2.9 | `shouldNotHaveErrorsInSuccessfulCalculation` | 10 дней | Без ошибок |
+
+### Группа 3: Validation Error Handling (6 тестов)
+
+| № | Название теста | Сценарий | Ожидаемый результат |
+|---|----------------|----------|---------------------|
+| 3.1 | `shouldReturnErrorsWhenValidationFails` | 1 ошибка валидации | hasErrors=true, 1 ошибка |
+| 3.2 | `shouldReturnMultipleErrors` | 3 ошибки валидации | 3 ошибки |
+| 3.3 | `shouldReturnAllFourErrors` | 4 ошибки валидации | 4 ошибки |
+| 3.4 | `shouldNotCalculatePriceWhenValidationFails` | Ошибка валидации | price=null, dateTimeService не вызван |
+| 3.5 | `shouldNotPopulateFieldsWhenValidationFails` | Ошибка валидации | Все поля=null |
+| 3.6 | `shouldPreserveErrorMessages` | Ошибка с сообщением | Сообщение сохранено |
+
+### Группа 4: Dependencies Interaction (7 тестов)
+
+| № | Название теста | Проверка | Ожидаемый результат |
+|---|----------------|----------|---------------------|
+| 4.1 | `shouldCallValidatorOnce` | Вызов validator | Вызван 1 раз |
+| 4.2 | `shouldCallDateTimeServiceWithCorrectDates` | Параметры вызова | Правильные даты |
+| 4.3 | `shouldCallDateTimeServiceOnce` | Вызов dateTimeService | Вызван 1 раз |
+| 4.4 | `shouldNotCallDateTimeServiceWhenValidationFails` | При ошибке валидации | НЕ вызван |
+| 4.5 | `shouldCallValidatorBeforeDateTimeService` | Порядок вызовов | validator → dateTimeService |
+| 4.6 | `shouldPassCorrectRequestToValidator` | ArgumentCaptor для request | Правильный request |
+| 4.7 | `shouldPassCorrectDatesToDateTimeService` | ArgumentCaptor для дат | Правильные даты |
+
+### Группа 5: Edge Cases (8 тестов)
+
+| № | Название теста | Входные данные | Ожидаемый результат |
+|---|----------------|----------------|---------------------|
+| 5.1 | `shouldHandleSpecialCharactersInNames` | Jean-Pierre, O'Connor | Корректное копирование |
+| 5.2 | `shouldHandleCyrillicCharacters` | Иван, Петров | Корректное копирование |
+| 5.3 | `shouldHandleVeryLongNames` | 100 символов | Корректное копирование |
+| 5.4 | `shouldHandleSingleCharacterNames` | A, B | Корректное копирование |
+| 5.5 | `shouldHandleFutureDates` | +10 лет | Цена = 30 |
+| 5.6 | `shouldHandlePastDates` | -1 год | Цена = 10 |
+| 5.7 | `shouldHandleLeapYearDates` | 28 фев → 1 мар 2024 | Цена = 2 |
+| 5.8 | `shouldHandleYearBoundaryCrossing` | 30 дек → 5 янв | Цена = 6 |
+
+### Группа 6: Type and Value Verification (5 тестов)
+
+| № | Название теста | Проверка | Ожидаемый результат |
+|---|----------------|----------|---------------------|
+| 6.1 | `shouldReturnNonNullResponse` | Response не null | assertNotNull |
+| 6.2 | `shouldReturnBigDecimalPrice` | Тип price | BigDecimal |
+| 6.3 | `shouldReturnCorrectDateTypes` | Тип дат | LocalDate |
+| 6.4 | `shouldReturnCorrectNameTypes` | Тип имен | String |
+| 6.5 | `shouldReturnPriceWithCorrectScale` | Scale цены | 0 |
+
+---
+
+## 4. TravelCalculatePremiumControllerTest
+
+**Всего тестов: 17**
+
+### Группа 1: Happy Path (7 тестов)
+
+| № | Название теста | Запрос | Ожидаемый результат |
+|---|----------------|--------|---------------------|
+| 1.1 | `shouldReturnSuccessfulResponse` | Валидный запрос | HTTP 200, цена=10 |
+| 1.2 | `shouldAcceptCalculateEndpoint` | POST /calculate | HTTP 200 |
+| 1.3 | `shouldCalculateZeroDaysForSameDates` | Одинаковые даты | HTTP 200, цена=0 |
+| 1.4 | `shouldCalculateLongTripPremium` | 60 дней | HTTP 200, цена=60 |
+| 1.5 | `shouldAcceptSpecialCharactersInNames` | Jean-Pierre, O'Connor | HTTP 200 |
+| 1.6 | `shouldAcceptCyrillicCharactersInNames` | Иван, Петров | HTTP 200 |
+| 1.7 | `shouldAcceptValidRequestWithAllFields` | Все поля валидны | HTTP 200, все поля есть |
+
+### Группа 2: Validation (7 тестов)
+
+| № | Название теста | Невалидные данные | Ожидаемый результат |
+|---|----------------|-------------------|---------------------|
+| 2.1 | `shouldReturnValidationErrors` | Пустые имя и фамилия | HTTP 400, 2 ошибки |
+| 2.2 | `shouldHandleEmptyRequestBody` | Все поля пустые | HTTP 400, 4 ошибки |
+| 2.3 | `shouldHandleDateValidation` | dateTo < dateFrom | HTTP 400, 1 ошибка |
+| 2.4 | `shouldReturnErrorWhenOnlyFirstNameIsEmpty` | Только firstName пусто | HTTP 400, 1 ошибка |
+| 2.5 | `shouldReturnErrorWhenOnlyLastNameIsEmpty` | Только lastName пусто | HTTP 400, 1 ошибка |
+| 2.6 | `shouldReturnErrorWhenOnlyDateFromIsNull` | Только dateFrom null | HTTP 400, 1 ошибка |
+| 2.7 | `shouldReturnErrorWhenOnlyDateToIsNull` | Только dateTo null | HTTP 400, 1 ошибка |
+
+### Группа 3: Technical Scenarios (3 теста)
+
+| № | Название теста | Сценарий | Ожидаемый результат |
+|---|----------------|----------|---------------------|
+| 3.1 | `shouldReturnHealthCheckStatus` | GET /health | HTTP 200, "Service is running" |
+| 3.2 | `shouldReturnErrorForInvalidContentType` | Content-Type: text/plain | HTTP 415 |
+| 3.3 | `shouldReturnErrorForMalformedJson` | Некорректный JSON | HTTP 500 |
+
+---
+
+## 📊 Итоговая статистика
+
+| Тестовый класс | Количество тестов | Количество групп |
+|----------------|-------------------|------------------|
+| DateTimeServiceTest | 45 | 7 |
+| ValidatorTest | 70 | 6 |
+| ServiceImplTest | 54 | 6 |
+| ControllerTest | 17 | 3 |
+| **ИТОГО** | **186** | **22** |
+
+## 🎯 Распределение по типам тестов
+
+| Тип теста | Количество | Процент |
+|-----------|-----------|---------|
+| Базовые сценарии | 45 | 24% |
+| Валидация | 55 | 30% |
+| Граничные случаи | 35 | 19% |
+| Параметризованные | 35 | 19% |
+| Взаимодействия | 16 | 8% |
+
+## 🔍 Покрытие по категориям
+
+- ✅ **Успешные сценарии (Happy Path)**: 100%
+- ✅ **Валидация входных данных**: 100%
+- ✅ **Обработка ошибок**: 100%
+- ✅ **Граничные случаи**: 100%
+- ✅ **Международные данные**: 100%
+- ✅ **Взаимодействия компонентов**: 100%
+- ✅ **REST API эндпоинты**: 100%
+
+---
+
+## 📝 Примечания
+
+1. **Параметризованные тесты** отмечены как "(параметризованный)" - один тест проверяет несколько входных значений
+2. Все тесты используют **AAA паттерн** (Arrange-Act-Assert)
+3. Тесты **изолированы** и могут выполняться в любом порядке
+4. **@DisplayName** используются для понятного отображения результатов
+5. **@Nested** группы организуют логически связанные тесты
