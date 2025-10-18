@@ -348,7 +348,7 @@ class TravelCalculatePremiumControllerTest {
 
     @Test
     void shouldReturnErrorForMalformedJson() throws Exception {
-        String malformedJson = "{\"personFirstName\": \"John\"";
+        String malformedJson = "{\"personFirstName\": \"John\"}";
 
         mockMvc.perform(post("/insurance/travel/")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -368,16 +368,12 @@ class TravelCalculatePremiumServiceImplTest {
     @DisplayName("Dependencies Interaction")
     class DependenciesInteraction {
 
-        @BeforeEach
-        void setUp() {
-            when(requestValidator.validate(any())).thenReturn(Collections.emptyList());
-            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
-        }
-
         @Test
         @DisplayName("Should call validator exactly once")
         void shouldCallValidatorOnce() {
             TravelCalculatePremiumRequest request = createValidRequest();
+            when(requestValidator.validate(any())).thenReturn(Collections.emptyList());
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
 
             service.calculatePremium(request);
 
@@ -388,6 +384,8 @@ class TravelCalculatePremiumServiceImplTest {
         @DisplayName("Should call dateTimeService with correct dates")
         void shouldCallDateTimeServiceWithCorrectDates() {
             TravelCalculatePremiumRequest request = createValidRequest();
+            when(requestValidator.validate(any())).thenReturn(Collections.emptyList());
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
 
             service.calculatePremium(request);
 
@@ -401,6 +399,8 @@ class TravelCalculatePremiumServiceImplTest {
         @DisplayName("Should call dateTimeService exactly once on success")
         void shouldCallDateTimeServiceOnce() {
             TravelCalculatePremiumRequest request = createValidRequest();
+            when(requestValidator.validate(any())).thenReturn(Collections.emptyList());
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
 
             service.calculatePremium(request);
 
@@ -424,6 +424,8 @@ class TravelCalculatePremiumServiceImplTest {
         @DisplayName("Should call validator before dateTimeService")
         void shouldCallValidatorBeforeDateTimeService() {
             TravelCalculatePremiumRequest request = createValidRequest();
+            when(requestValidator.validate(any())).thenReturn(Collections.emptyList());
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
 
             service.calculatePremium(request);
 
@@ -436,6 +438,8 @@ class TravelCalculatePremiumServiceImplTest {
         @DisplayName("Should pass correct request to validator")
         void shouldPassCorrectRequestToValidator() {
             TravelCalculatePremiumRequest request = createValidRequest();
+            when(requestValidator.validate(any())).thenReturn(Collections.emptyList());
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
             ArgumentCaptor<TravelCalculatePremiumRequest> captor =
                     ArgumentCaptor.forClass(TravelCalculatePremiumRequest.class);
 
@@ -449,6 +453,8 @@ class TravelCalculatePremiumServiceImplTest {
         @DisplayName("Should pass correct dates to dateTimeService")
         void shouldPassCorrectDatesToDateTimeService() {
             TravelCalculatePremiumRequest request = createValidRequest();
+            when(requestValidator.validate(any())).thenReturn(Collections.emptyList());
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
             ArgumentCaptor<LocalDate> dateFromCaptor = ArgumentCaptor.forClass(LocalDate.class);
             ArgumentCaptor<LocalDate> dateToCaptor = ArgumentCaptor.forClass(LocalDate.class);
 
