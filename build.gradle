@@ -1,38 +1,52 @@
 plugins {
 	id 'java'
+	id 'org.springframework.boot' version '3.2.5'
+	id 'io.spring.dependency-management' version '1.1.4'
+}
+
+group = 'org.javaguru.travel'
+version = '1.0.0'
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
 }
 
 repositories {
 	mavenCentral()
 }
 
-java {
-	sourceCompatibility = '21'
-	targetCompatibility = '21'
-}
-
-
 dependencies {
+	// --- Основное приложение ---
+	implementation 'org.springframework.boot:spring-boot-starter-web:3.2.5'
 
-	implementation('org.springframework.boot:spring-boot-starter-web:3.2.5')
+	// --- Lombok ---
+	compileOnly 'org.projectlombok:lombok:1.18.32'
+	annotationProcessor 'org.projectlombok:lombok:1.18.32'
 
-	compileOnly('org.projectlombok:lombok:1.18.32')
-	annotationProcessor('org.projectlombok:lombok:1.18.32')
+	testCompileOnly 'org.projectlombok:lombok:1.18.32'
+	testAnnotationProcessor 'org.projectlombok:lombok:1.18.32'
 
-	testCompileOnly('org.projectlombok:lombok:1.18.32')
-	testAnnotationProcessor('org.projectlombok:lombok:1.18.32')
-
-	testImplementation('org.springframework.boot:spring-boot-starter-test:3.2.5')
-
-	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.3'
-	testImplementation 'org.junit.jupiter:junit-jupiter-params:5.9.3'  // ← Эта строка ОБЯЗАТЕЛЬНА!
-	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.3'
-
-	testImplementation 'org.mockito:mockito-core:5.3.1'
-	testImplementation 'org.mockito:mockito-junit-jupiter:5.3.1'
-
-	test {
-		useJUnitPlatform()
+	// --- Тестирование ---
+	testImplementation('org.springframework.boot:spring-boot-starter-test:3.2.5') {
+		exclude group: 'junit', module: 'junit' // убираем JUnit 4
 	}
 
+	// Дополнительные модули JUnit 5 (необязательно, но допустимо)
+	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.2'
+	testImplementation 'org.junit.jupiter:junit-jupiter-params:5.10.2'
+	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
+
+	// Mockito (если нужен ручной мокинг)
+	testImplementation 'org.mockito:mockito-core:5.12.0'
+	testImplementation 'org.mockito:mockito-junit-jupiter:5.12.0'
 }
+
+tasks.named('test') {
+	useJUnitPlatform() // гарантирует запуск JUnit 5
+	testLogging {
+		events 'passed', 'failed', 'skipped'
+		exceptionFormat 'full'
+	}
+}
+

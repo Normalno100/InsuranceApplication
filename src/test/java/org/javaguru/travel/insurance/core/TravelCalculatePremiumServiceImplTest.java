@@ -27,7 +27,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("TravelCalculatePremiumServiceImpl Tests")
-class TravelCalculatePremiumServiceImplTest {
+public class TravelCalculatePremiumServiceImplTest {
 
     @Mock
     private DateTimeService dateTimeService;

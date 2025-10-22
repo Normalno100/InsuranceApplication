@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(TravelCalculatePremiumController.class)
-class TravelCalculatePremiumControllerTest {
+public class TravelCalculatePremiumControllerTest {
 
     @Autowired
     private MockMvc mockMvc;

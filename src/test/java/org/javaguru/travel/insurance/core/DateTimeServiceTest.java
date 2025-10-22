@@ -12,7 +12,7 @@ import java.time.LocalDate;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("DateTimeService Tests")
-class DateTimeServiceTest {
+public class DateTimeServiceTest {
 
     private DateTimeService dateTimeService;
 
