@@ -5,21 +5,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Assertions;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Улучшенная версия JsonComparator с поддержкой опций сравнения
- */
 public class JsonComparator {
 
     private static final ObjectMapper objectMapper = TestDataLoader.getObjectMapper();
 
-    /**
-     * Опции для настройки поведения сравнения
-     */
+    // ========== OPTIONS ==========
     public static class ComparisonOptions {
         private boolean ignoreExtraFields = false;
         private boolean ignoreNullFields = false;
@@ -45,16 +41,12 @@ public class JsonComparator {
         }
     }
 
-    /**
-     * Сравнивает два JSON с опциями по умолчанию
-     */
+    // ========== MAIN ASSERT METHODS ==========
+
     public static void assertJsonEquals(String expectedJson, String actualJson) {
         assertJsonEquals(expectedJson, actualJson, ComparisonOptions.defaults());
     }
 
-    /**
-     * Сравнивает два JSON с указанными опциями
-     */
     public static void assertJsonEquals(String expectedJson, String actualJson, ComparisonOptions options) {
         try {
             JsonNode expectedNode = objectMapper.readTree(expectedJson);
@@ -74,29 +66,16 @@ public class JsonComparator {
         }
     }
 
-    /**
-     * Сравнивает JSON, игнорируя дополнительные поля в actual
-     * (полезно когда в actual есть null поля, которых нет в expected)
-     */
     public static void assertJsonEqualsIgnoringExtraFields(String expectedJson, String actualJson) {
-        ComparisonOptions options = ComparisonOptions.defaults()
-                .ignoreExtraFields(true);
+        ComparisonOptions options = ComparisonOptions.defaults().ignoreExtraFields(true);
         assertJsonEquals(expectedJson, actualJson, options);
     }
 
-    /**
-     * Сравнивает JSON, игнорируя все null поля
-     * (полезно для error responses где все поля кроме errors = null)
-     */
     public static void assertJsonEqualsIgnoringNullFields(String expectedJson, String actualJson) {
-        ComparisonOptions options = ComparisonOptions.defaults()
-                .ignoreNullFields(true);
+        ComparisonOptions options = ComparisonOptions.defaults().ignoreNullFields(true);
         assertJsonEquals(expectedJson, actualJson, options);
     }
 
-    /**
-     * Комбинированный метод: игнорирует и дополнительные поля, и null значения
-     */
     public static void assertJsonEqualsLenient(String expectedJson, String actualJson) {
         ComparisonOptions options = ComparisonOptions.defaults()
                 .ignoreExtraFields(true)
@@ -104,13 +83,13 @@ public class JsonComparator {
         assertJsonEquals(expectedJson, actualJson, options);
     }
 
+    // ========== CORE COMPARISON LOGIC ==========
+
     private static List<String> compareNodes(String path, JsonNode expected, JsonNode actual,
                                              ComparisonOptions options) {
         List<String> differences = new ArrayList<>();
 
-        if (expected == null && actual == null) {
-            return differences;
-        }
+        if (expected == null && actual == null) return differences;
 
         if (expected == null) {
             if (!options.ignoreNullFields) {
@@ -126,11 +105,8 @@ public class JsonComparator {
             return differences;
         }
 
-        // Игнорируем null значения если включена опция
-        if (options.ignoreNullFields) {
-            if (expected.isNull() || actual.isNull()) {
-                return differences;
-            }
+        if (options.ignoreNullFields && (expected.isNull() || actual.isNull())) {
+            return differences;
         }
 
         if (expected.getNodeType() != actual.getNodeType()) {
@@ -146,8 +122,14 @@ public class JsonComparator {
             case ARRAY:
                 differences.addAll(compareArrays(path, expected, actual, options));
                 break;
-            case STRING:
             case NUMBER:
+                BigDecimal expectedNum = expected.decimalValue();
+                BigDecimal actualNum = actual.decimalValue();
+                if (expectedNum.compareTo(actualNum) != 0) {
+                    differences.add(path + ": Expected '" + expectedNum + "' but got '" + actualNum + "'");
+                }
+                break;
+            case STRING:
             case BOOLEAN:
                 if (!expected.equals(actual)) {
                     differences.add(path + ": Expected '" + expected.asText()
@@ -155,7 +137,6 @@ public class JsonComparator {
                 }
                 break;
             case NULL:
-                // Both are null
                 break;
         }
 
@@ -167,7 +148,6 @@ public class JsonComparator {
         List<String> differences = new ArrayList<>();
         String currentPath = path.isEmpty() ? "" : path + ".";
 
-        // Check for missing fields in actual
         Iterator<Map.Entry<String, JsonNode>> expectedFields = expected.fields();
         while (expectedFields.hasNext()) {
             Map.Entry<String, JsonNode> entry = expectedFields.next();
@@ -175,10 +155,7 @@ public class JsonComparator {
             JsonNode expectedValue = entry.getValue();
             JsonNode actualValue = actual.get(fieldName);
 
-            // Игнорируем null поля если включена опция
-            if (options.ignoreNullFields && expectedValue.isNull()) {
-                continue;
-            }
+            if (options.ignoreNullFields && expectedValue.isNull()) continue;
 
             if (actualValue == null) {
                 differences.add(currentPath + fieldName + ": Field is missing in actual JSON");
@@ -187,7 +164,6 @@ public class JsonComparator {
             }
         }
 
-        // Check for extra fields in actual (только если не игнорируем)
         if (!options.ignoreExtraFields) {
             Iterator<Map.Entry<String, JsonNode>> actualFields = actual.fields();
             while (actualFields.hasNext()) {
@@ -195,11 +171,7 @@ public class JsonComparator {
                 String fieldName = entry.getKey();
                 JsonNode actualValue = entry.getValue();
 
-                // Игнорируем null поля если включена опция
-                if (options.ignoreNullFields && actualValue.isNull()) {
-                    continue;
-                }
-
+                if (options.ignoreNullFields && actualValue.isNull()) continue;
                 if (!expected.has(fieldName)) {
                     differences.add(currentPath + fieldName + ": Unexpected field in actual JSON");
                 }
@@ -220,11 +192,52 @@ public class JsonComparator {
         }
 
         for (int i = 0; i < expected.size(); i++) {
-            differences.addAll(compareNodes(path + "[" + i + "]",
-                    expected.get(i), actual.get(i), options));
+            differences.addAll(compareNodes(path + "[" + i + "]", expected.get(i), actual.get(i), options));
         }
 
         return differences;
+    }
+
+    // ========== OTHER METHODS ==========
+
+    public static void assertJsonContains(String expectedJson, String actualJson) {
+        try {
+            JsonNode expectedNode = objectMapper.readTree(expectedJson);
+            JsonNode actualNode = objectMapper.readTree(actualJson);
+
+            List<String> missingFields = findMissingFields("", expectedNode, actualNode);
+
+            if (!missingFields.isEmpty()) {
+                StringBuilder message = new StringBuilder("JSON is missing expected fields:\n");
+                missingFields.forEach(field -> message.append("  - ").append(field).append("\n"));
+                Assertions.fail(message.toString());
+            }
+        } catch (IOException e) {
+            Assertions.fail("Failed to parse JSON: " + e.getMessage());
+        }
+    }
+
+    private static List<String> findMissingFields(String path, JsonNode expected, JsonNode actual) {
+        List<String> missingFields = new ArrayList<>();
+        String currentPath = path.isEmpty() ? "" : path + ".";
+
+        if (expected.isObject()) {
+            Iterator<Map.Entry<String, JsonNode>> fields = expected.fields();
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> entry = fields.next();
+                String fieldName = entry.getKey();
+                JsonNode expectedValue = entry.getValue();
+                JsonNode actualValue = actual.get(fieldName);
+
+                if (actualValue == null) {
+                    missingFields.add(currentPath + fieldName);
+                } else if (expectedValue.isObject() || expectedValue.isArray()) {
+                    missingFields.addAll(findMissingFields(currentPath + fieldName, expectedValue, actualValue));
+                }
+            }
+        }
+
+        return missingFields;
     }
 
     private static String prettyPrint(String json) {
@@ -234,12 +247,6 @@ public class JsonComparator {
         } catch (IOException e) {
             return json;
         }
-    }
-
-    // Все остальные методы из оригинального JsonComparator остаются без изменений
-
-    public static void assertJsonContains(String expectedJson, String actualJson) {
-        // ... (тот же код что и раньше)
     }
 
     public static void assertJsonEqualsFromFile(String expectedJsonFileName, Object actualObject) {
@@ -262,6 +269,8 @@ public class JsonComparator {
         }
     }
 
+    // ========== FIXED PartialJsonBuilder ==========
+
     public static PartialJsonBuilder partialJson() {
         return new PartialJsonBuilder();
     }
@@ -277,8 +286,13 @@ public class JsonComparator {
             firstField = false;
 
             json.append("\"").append(name).append("\":");
-            if (value instanceof String) {
-                json.append("\"").append(value).append("\"");
+
+            if (value instanceof String str) {
+                if (str.trim().startsWith("{") || str.trim().startsWith("[")) {
+                    json.append(str);
+                } else {
+                    json.append("\"").append(str).append("\"");
+                }
             } else if (value instanceof Number || value instanceof Boolean) {
                 json.append(value);
             } else if (value == null) {
