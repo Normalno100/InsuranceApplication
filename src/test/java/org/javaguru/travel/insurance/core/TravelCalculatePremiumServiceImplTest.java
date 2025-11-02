@@ -16,11 +16,14 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 
+import static org.javaguru.travel.insurance.util.TestAssertions.*;
+import static org.javaguru.travel.insurance.util.TestFixtures.*;
+import static org.javaguru.travel.insurance.util.TestFixtures.ErrorMessages.*;
+import static org.javaguru.travel.insurance.util.TestFixtures.StandardValues.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -38,7 +41,7 @@ public class TravelCalculatePremiumServiceImplTest {
     @InjectMocks
     private TravelCalculatePremiumServiceImpl service;
 
-    // ========== ГРУППА 1: УСПЕШНЫЕ СЦЕНАРИИ - КОПИРОВАНИЕ ПОЛЕЙ ==========
+    // ========== FIELD COPYING ==========
 
     @Nested
     @DisplayName("Successful Calculation - Field Copying")
@@ -47,69 +50,64 @@ public class TravelCalculatePremiumServiceImplTest {
         @BeforeEach
         void setUp() {
             when(requestValidator.validate(any())).thenReturn(Collections.emptyList());
-            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(STANDARD_DAYS);
         }
 
         @Test
         @DisplayName("Should copy personFirstName from request to response")
         void shouldCopyPersonFirstName() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals(request.getPersonFirstName(), response.getPersonFirstName());
+            assertFirstNameCopied(request, response);
         }
 
         @Test
         @DisplayName("Should copy personLastName from request to response")
         void shouldCopyPersonLastName() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals(request.getPersonLastName(), response.getPersonLastName());
+            assertLastNameCopied(request, response);
         }
 
         @Test
         @DisplayName("Should copy agreementDateFrom from request to response")
         void shouldCopyAgreementDateFrom() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals(request.getAgreementDateFrom(), response.getAgreementDateFrom());
+            assertDateFromCopied(request, response);
         }
 
         @Test
         @DisplayName("Should copy agreementDateTo from request to response")
         void shouldCopyAgreementDateTo() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals(request.getAgreementDateTo(), response.getAgreementDateTo());
+            assertDateToCopied(request, response);
         }
 
         @Test
         @DisplayName("Should copy all fields correctly in one response")
         void shouldCopyAllFields() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertAll(
-                    () -> assertEquals(request.getPersonFirstName(), response.getPersonFirstName()),
-                    () -> assertEquals(request.getPersonLastName(), response.getPersonLastName()),
-                    () -> assertEquals(request.getAgreementDateFrom(), response.getAgreementDateFrom()),
-                    () -> assertEquals(request.getAgreementDateTo(), response.getAgreementDateTo())
-            );
+            assertFieldsCopied(request, response);
         }
 
         @ParameterizedTest
         @ValueSource(strings = {"John", "Jean-Pierre", "Mary Ann", "Иван", "José"})
         @DisplayName("Should correctly copy various first names")
         void shouldCopyVariousFirstNames(String firstName) {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             request.setPersonFirstName(firstName);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
@@ -121,7 +119,7 @@ public class TravelCalculatePremiumServiceImplTest {
         @ValueSource(strings = {"Smith", "O'Connor", "van der Berg", "Петров", "García"})
         @DisplayName("Should correctly copy various last names")
         void shouldCopyVariousLastNames(String lastName) {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             request.setPersonLastName(lastName);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
@@ -130,7 +128,7 @@ public class TravelCalculatePremiumServiceImplTest {
         }
     }
 
-    // ========== ГРУППА 2: РАСЧЕТ ЦЕНЫ ДЛЯ РАЗНЫХ ПЕРИОДОВ ==========
+    // ========== PRICE CALCULATION ==========
 
     @Nested
     @DisplayName("Price Calculation for Different Periods")
@@ -156,107 +154,104 @@ public class TravelCalculatePremiumServiceImplTest {
         })
         @DisplayName("Should calculate correct price for various periods")
         void shouldCalculateCorrectPriceForVariousPeriods(long days, int expectedPrice) {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             when(dateTimeService.getDaysBetween(any(), any())).thenReturn(days);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals(new BigDecimal(expectedPrice), response.getAgreementPrice());
+            assertPrice(response, expectedPrice);
         }
 
         @Test
         @DisplayName("Should calculate price for zero days (same dates)")
         void shouldCalculatePriceForZeroDays() {
-            TravelCalculatePremiumRequest request = createValidRequest();
-            request.setAgreementDateFrom(LocalDate.now());
-            request.setAgreementDateTo(LocalDate.now());
+            TravelCalculatePremiumRequest request = requestWithSameDates();
             when(dateTimeService.getDaysBetween(any(), any())).thenReturn(0L);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals(BigDecimal.ZERO, response.getAgreementPrice());
+            assertPrice(response, 0);
         }
 
         @Test
         @DisplayName("Should calculate price for one day")
         void shouldCalculatePriceForOneDay() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             when(dateTimeService.getDaysBetween(any(), any())).thenReturn(1L);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals(new BigDecimal("1"), response.getAgreementPrice());
+            assertPrice(response, 1);
         }
 
         @Test
         @DisplayName("Should calculate price for one week (7 days)")
         void shouldCalculatePriceForOneWeek() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             when(dateTimeService.getDaysBetween(any(), any())).thenReturn(7L);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals(new BigDecimal("7"), response.getAgreementPrice());
+            assertPrice(response, 7);
         }
 
         @Test
         @DisplayName("Should calculate price for one month (30 days)")
         void shouldCalculatePriceForOneMonth() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             when(dateTimeService.getDaysBetween(any(), any())).thenReturn(30L);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals(new BigDecimal("30"), response.getAgreementPrice());
+            assertPrice(response, 30);
         }
 
         @Test
         @DisplayName("Should calculate price for one year (365 days)")
         void shouldCalculatePriceForOneYear() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             when(dateTimeService.getDaysBetween(any(), any())).thenReturn(365L);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals(new BigDecimal("365"), response.getAgreementPrice());
+            assertPrice(response, 365);
         }
 
         @Test
         @DisplayName("Should calculate price for leap year (366 days)")
         void shouldCalculatePriceForLeapYear() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             when(dateTimeService.getDaysBetween(any(), any())).thenReturn(366L);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals(new BigDecimal("366"), response.getAgreementPrice());
+            assertPrice(response, 366);
         }
 
         @Test
         @DisplayName("Should calculate price for very long trip (500+ days)")
         void shouldCalculatePriceForLongTrip() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             when(dateTimeService.getDaysBetween(any(), any())).thenReturn(500L);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals(new BigDecimal("500"), response.getAgreementPrice());
+            assertPrice(response, 500);
         }
 
         @Test
         @DisplayName("Should not have errors in successful price calculation")
         void shouldNotHaveErrorsInSuccessfulCalculation() {
-            TravelCalculatePremiumRequest request = createValidRequest();
-            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
+            TravelCalculatePremiumRequest request = validRequest();
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(STANDARD_DAYS);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertFalse(response.hasErrors());
-            assertNull(response.getErrors());
+            assertSuccessfulResponse(response);
         }
     }
 
-    // ========== ГРУППА 3: ОБРАБОТКА ОШИБОК ВАЛИДАЦИИ ==========
+    // ========== VALIDATION ERROR HANDLING ==========
 
     @Nested
     @DisplayName("Validation Error Handling")
@@ -265,104 +260,97 @@ public class TravelCalculatePremiumServiceImplTest {
         @Test
         @DisplayName("Should return errors when validation fails")
         void shouldReturnErrorsWhenValidationFails() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             List<ValidationError> errors = List.of(
-                    new ValidationError("personFirstName", "Must not be empty!")
+                    error("personFirstName", MUST_NOT_BE_EMPTY)
             );
             when(requestValidator.validate(request)).thenReturn(errors);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertTrue(response.hasErrors());
-            assertEquals(1, response.getErrors().size());
-            assertEquals("personFirstName", response.getErrors().get(0).getField());
-            assertEquals("Must not be empty!", response.getErrors().get(0).getMessage());
+            assertHasErrors(response);
+            assertErrorCount(response, 1);
+            assertHasError(response, "personFirstName", MUST_NOT_BE_EMPTY);
         }
 
         @Test
         @DisplayName("Should return multiple validation errors")
         void shouldReturnMultipleErrors() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             List<ValidationError> errors = List.of(
-                    new ValidationError("personFirstName", "Must not be empty!"),
-                    new ValidationError("personLastName", "Must not be empty!"),
-                    new ValidationError("agreementDateFrom", "Must not be empty!")
+                    error("personFirstName", MUST_NOT_BE_EMPTY),
+                    error("personLastName", MUST_NOT_BE_EMPTY),
+                    error("agreementDateFrom", MUST_NOT_BE_EMPTY)
             );
             when(requestValidator.validate(request)).thenReturn(errors);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertTrue(response.hasErrors());
-            assertEquals(3, response.getErrors().size());
+            assertErrorCount(response, 3);
         }
 
         @Test
         @DisplayName("Should return all 4 errors when all fields are invalid")
         void shouldReturnAllFourErrors() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = invalidRequest();
             List<ValidationError> errors = List.of(
-                    new ValidationError("personFirstName", "Must not be empty!"),
-                    new ValidationError("personLastName", "Must not be empty!"),
-                    new ValidationError("agreementDateFrom", "Must not be empty!"),
-                    new ValidationError("agreementDateTo", "Must not be empty!")
+                    error("personFirstName", MUST_NOT_BE_EMPTY),
+                    error("personLastName", MUST_NOT_BE_EMPTY),
+                    error("agreementDateFrom", MUST_NOT_BE_EMPTY),
+                    error("agreementDateTo", MUST_NOT_BE_EMPTY)
             );
             when(requestValidator.validate(request)).thenReturn(errors);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertTrue(response.hasErrors());
-            assertEquals(4, response.getErrors().size());
+            assertCompleteErrorResponse(response, 4);
         }
 
         @Test
         @DisplayName("Should NOT calculate price when validation fails")
         void shouldNotCalculatePriceWhenValidationFails() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             List<ValidationError> errors = List.of(
-                    new ValidationError("personFirstName", "Must not be empty!")
+                    error("personFirstName", MUST_NOT_BE_EMPTY)
             );
             when(requestValidator.validate(request)).thenReturn(errors);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertNull(response.getAgreementPrice());
+            assertPriceIsNull(response);
             verify(dateTimeService, never()).getDaysBetween(any(), any());
         }
 
         @Test
         @DisplayName("Should NOT populate fields when validation fails")
         void shouldNotPopulateFieldsWhenValidationFails() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             List<ValidationError> errors = List.of(
-                    new ValidationError("personFirstName", "Must not be empty!")
+                    error("personFirstName", MUST_NOT_BE_EMPTY)
             );
             when(requestValidator.validate(request)).thenReturn(errors);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertNull(response.getPersonFirstName());
-            assertNull(response.getPersonLastName());
-            assertNull(response.getAgreementDateFrom());
-            assertNull(response.getAgreementDateTo());
-            assertNull(response.getAgreementPrice());
+            assertFieldsAreNull(response);
         }
 
         @Test
         @DisplayName("Should preserve error messages from validator")
         void shouldPreserveErrorMessages() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             List<ValidationError> errors = List.of(
-                    new ValidationError("agreementDateTo", "Must be after agreementDateFrom!")
+                    error("agreementDateTo", MUST_BE_AFTER)
             );
             when(requestValidator.validate(request)).thenReturn(errors);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals("Must be after agreementDateFrom!", response.getErrors().get(0).getMessage());
+            assertHasError(response, "agreementDateTo", MUST_BE_AFTER);
         }
     }
 
-    // ========== ГРУППА 4: ВЗАИМОДЕЙСТВИЕ С ЗАВИСИМОСТЯМИ ==========
+    // ========== DEPENDENCIES INTERACTION ==========
 
     @Nested
     @DisplayName("Dependencies Interaction")
@@ -371,9 +359,9 @@ public class TravelCalculatePremiumServiceImplTest {
         @Test
         @DisplayName("Should call validator exactly once")
         void shouldCallValidatorOnce() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             when(requestValidator.validate(any())).thenReturn(Collections.emptyList());
-            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(STANDARD_DAYS);
 
             service.calculatePremium(request);
 
@@ -383,9 +371,9 @@ public class TravelCalculatePremiumServiceImplTest {
         @Test
         @DisplayName("Should call dateTimeService with correct dates")
         void shouldCallDateTimeServiceWithCorrectDates() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             when(requestValidator.validate(any())).thenReturn(Collections.emptyList());
-            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(STANDARD_DAYS);
 
             service.calculatePremium(request);
 
@@ -398,9 +386,9 @@ public class TravelCalculatePremiumServiceImplTest {
         @Test
         @DisplayName("Should call dateTimeService exactly once on success")
         void shouldCallDateTimeServiceOnce() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             when(requestValidator.validate(any())).thenReturn(Collections.emptyList());
-            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(STANDARD_DAYS);
 
             service.calculatePremium(request);
 
@@ -410,9 +398,9 @@ public class TravelCalculatePremiumServiceImplTest {
         @Test
         @DisplayName("Should NOT call dateTimeService when validation fails")
         void shouldNotCallDateTimeServiceWhenValidationFails() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             when(requestValidator.validate(request)).thenReturn(
-                    List.of(new ValidationError("personFirstName", "Must not be empty!"))
+                    List.of(error("personFirstName", MUST_NOT_BE_EMPTY))
             );
 
             service.calculatePremium(request);
@@ -423,9 +411,9 @@ public class TravelCalculatePremiumServiceImplTest {
         @Test
         @DisplayName("Should call validator before dateTimeService")
         void shouldCallValidatorBeforeDateTimeService() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             when(requestValidator.validate(any())).thenReturn(Collections.emptyList());
-            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(STANDARD_DAYS);
 
             service.calculatePremium(request);
 
@@ -437,9 +425,9 @@ public class TravelCalculatePremiumServiceImplTest {
         @Test
         @DisplayName("Should pass correct request to validator")
         void shouldPassCorrectRequestToValidator() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             when(requestValidator.validate(any())).thenReturn(Collections.emptyList());
-            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(STANDARD_DAYS);
             ArgumentCaptor<TravelCalculatePremiumRequest> captor =
                     ArgumentCaptor.forClass(TravelCalculatePremiumRequest.class);
 
@@ -452,9 +440,9 @@ public class TravelCalculatePremiumServiceImplTest {
         @Test
         @DisplayName("Should pass correct dates to dateTimeService")
         void shouldPassCorrectDatesToDateTimeService() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             when(requestValidator.validate(any())).thenReturn(Collections.emptyList());
-            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(STANDARD_DAYS);
             ArgumentCaptor<LocalDate> dateFromCaptor = ArgumentCaptor.forClass(LocalDate.class);
             ArgumentCaptor<LocalDate> dateToCaptor = ArgumentCaptor.forClass(LocalDate.class);
 
@@ -466,7 +454,7 @@ public class TravelCalculatePremiumServiceImplTest {
         }
     }
 
-    // ========== ГРУППА 5: ГРАНИЧНЫЕ СЛУЧАИ ==========
+    // ========== EDGE CASES ==========
 
     @Nested
     @DisplayName("Edge Cases")
@@ -480,39 +468,35 @@ public class TravelCalculatePremiumServiceImplTest {
         @Test
         @DisplayName("Should handle request with special characters in names")
         void shouldHandleSpecialCharactersInNames() {
-            TravelCalculatePremiumRequest request = createValidRequest();
-            request.setPersonFirstName("Jean-Pierre");
-            request.setPersonLastName("O'Connor");
-            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
+            TravelCalculatePremiumRequest request = requestWithSpecialCharacters();
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(STANDARD_DAYS);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals("Jean-Pierre", response.getPersonFirstName());
-            assertEquals("O'Connor", response.getPersonLastName());
+            assertEquals(SPECIAL_FIRST_NAME, response.getPersonFirstName());
+            assertEquals(SPECIAL_LAST_NAME, response.getPersonLastName());
         }
 
         @Test
         @DisplayName("Should handle request with Cyrillic characters")
         void shouldHandleCyrillicCharacters() {
-            TravelCalculatePremiumRequest request = createValidRequest();
-            request.setPersonFirstName("Иван");
-            request.setPersonLastName("Петров");
-            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
+            TravelCalculatePremiumRequest request = requestWithCyrillicNames();
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(STANDARD_DAYS);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals("Иван", response.getPersonFirstName());
-            assertEquals("Петров", response.getPersonLastName());
+            assertEquals(CYRILLIC_FIRST_NAME, response.getPersonFirstName());
+            assertEquals(CYRILLIC_LAST_NAME, response.getPersonLastName());
         }
 
         @Test
         @DisplayName("Should handle very long names")
         void shouldHandleVeryLongNames() {
-            TravelCalculatePremiumRequest request = createValidRequest();
             String longName = "A".repeat(100);
+            TravelCalculatePremiumRequest request = validRequest();
             request.setPersonFirstName(longName);
             request.setPersonLastName(longName);
-            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(STANDARD_DAYS);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
@@ -523,10 +507,10 @@ public class TravelCalculatePremiumServiceImplTest {
         @Test
         @DisplayName("Should handle single character names")
         void shouldHandleSingleCharacterNames() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             request.setPersonFirstName("A");
             request.setPersonLastName("B");
-            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(STANDARD_DAYS);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
@@ -537,59 +521,58 @@ public class TravelCalculatePremiumServiceImplTest {
         @Test
         @DisplayName("Should handle dates far in the future")
         void shouldHandleFutureDates() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             request.setAgreementDateFrom(LocalDate.now().plusYears(10));
             request.setAgreementDateTo(LocalDate.now().plusYears(10).plusDays(30));
             when(dateTimeService.getDaysBetween(any(), any())).thenReturn(30L);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertNotNull(response.getAgreementPrice());
-            assertEquals(new BigDecimal("30"), response.getAgreementPrice());
+            assertPrice(response, 30);
         }
 
         @Test
         @DisplayName("Should handle dates in the past")
         void shouldHandlePastDates() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             request.setAgreementDateFrom(LocalDate.now().minusYears(1));
             request.setAgreementDateTo(LocalDate.now().minusYears(1).plusDays(10));
             when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertNotNull(response.getAgreementPrice());
-            assertEquals(new BigDecimal("10"), response.getAgreementPrice());
+            assertPrice(response, 10);
         }
 
         @Test
         @DisplayName("Should handle leap year dates")
         void shouldHandleLeapYearDates() {
-            TravelCalculatePremiumRequest request = createValidRequest();
-            request.setAgreementDateFrom(LocalDate.of(2024, 2, 28));
-            request.setAgreementDateTo(LocalDate.of(2024, 3, 1));
+            TravelCalculatePremiumRequest request = validRequest();
+            request.setAgreementDateFrom(SpecialDates.leapYearDate().minusDays(1));
+            request.setAgreementDateTo(SpecialDates.leapYearDate().plusDays(1));
             when(dateTimeService.getDaysBetween(any(), any())).thenReturn(2L);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals(new BigDecimal("2"), response.getAgreementPrice());
+            assertPrice(response, 2);
         }
 
         @Test
         @DisplayName("Should handle year boundary crossing")
         void shouldHandleYearBoundaryCrossing() {
-            TravelCalculatePremiumRequest request = createValidRequest();
-            request.setAgreementDateFrom(LocalDate.of(2023, 12, 30));
-            request.setAgreementDateTo(LocalDate.of(2024, 1, 5));
+            LocalDate[] dates = SpecialDates.yearBoundaryDates();
+            TravelCalculatePremiumRequest request = validRequest();
+            request.setAgreementDateFrom(dates[0]);
+            request.setAgreementDateTo(dates[1]);
             when(dateTimeService.getDaysBetween(any(), any())).thenReturn(6L);
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertEquals(new BigDecimal("6"), response.getAgreementPrice());
+            assertPrice(response, 6);
         }
     }
 
-    // ========== ГРУППА 6: ПРОВЕРКА ТИПОВ И ЗНАЧЕНИЙ ==========
+    // ========== TYPE AND VALUE VERIFICATION ==========
 
     @Nested
     @DisplayName("Type and Value Verification")
@@ -598,47 +581,43 @@ public class TravelCalculatePremiumServiceImplTest {
         @BeforeEach
         void setUp() {
             when(requestValidator.validate(any())).thenReturn(Collections.emptyList());
-            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(STANDARD_DAYS);
         }
 
         @Test
         @DisplayName("Should return non-null response")
         void shouldReturnNonNullResponse() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertNotNull(response);
+            assertResponseNotNull(response);
         }
 
         @Test
         @DisplayName("Should return response with BigDecimal price")
         void shouldReturnBigDecimalPrice() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertNotNull(response.getAgreementPrice());
-            assertTrue(response.getAgreementPrice() instanceof BigDecimal);
+            assertPriceType(response);
         }
 
         @Test
         @DisplayName("Should return response with correct LocalDate types")
         void shouldReturnCorrectDateTypes() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            assertNotNull(response.getAgreementDateFrom());
-            assertNotNull(response.getAgreementDateTo());
-            assertTrue(response.getAgreementDateFrom() instanceof LocalDate);
-            assertTrue(response.getAgreementDateTo() instanceof LocalDate);
+            assertDateTypes(response);
         }
 
         @Test
         @DisplayName("Should return response with correct String types for names")
         void shouldReturnCorrectNameTypes() {
-            TravelCalculatePremiumRequest request = createValidRequest();
+            TravelCalculatePremiumRequest request = validRequest();
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
@@ -651,24 +630,88 @@ public class TravelCalculatePremiumServiceImplTest {
         @Test
         @DisplayName("Should return price with correct scale")
         void shouldReturnPriceWithCorrectScale() {
-            TravelCalculatePremiumRequest request = createValidRequest();
-            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
+            TravelCalculatePremiumRequest request = validRequest();
 
             TravelCalculatePremiumResponse response = service.calculatePremium(request);
 
-            // BigDecimal created from long should have scale 0
-            assertEquals(0, response.getAgreementPrice().scale());
+            assertPriceScale(response);
         }
     }
 
-    // ========== HELPER METHODS ==========
+    // ========== COMPLETE SCENARIOS ==========
 
-    private TravelCalculatePremiumRequest createValidRequest() {
-        TravelCalculatePremiumRequest request = new TravelCalculatePremiumRequest();
-        request.setPersonFirstName("John");
-        request.setPersonLastName("Peterson");
-        request.setAgreementDateFrom(LocalDate.now());
-        request.setAgreementDateTo(LocalDate.now().plusDays(10));
-        return request;
+    @Nested
+    @DisplayName("Complete Scenarios - Integration")
+    class CompleteScenarios {
+
+        @BeforeEach
+        void setUp() {
+            when(requestValidator.validate(any())).thenReturn(Collections.emptyList());
+        }
+
+        @Test
+        @DisplayName("Complete successful scenario: valid request -> successful response")
+        void completeSuccessfulScenario() {
+            TravelCalculatePremiumRequest request = validRequest();
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(STANDARD_DAYS);
+
+            TravelCalculatePremiumResponse response = service.calculatePremium(request);
+
+            assertCompleteSuccessfulResponse(request, response, STANDARD_DAYS);
+        }
+
+        @Test
+        @DisplayName("Complete error scenario: invalid request -> error response")
+        void completeErrorScenario() {
+            TravelCalculatePremiumRequest request = invalidRequest();
+            when(requestValidator.validate(request)).thenReturn(List.of(
+                    error("personFirstName", MUST_NOT_BE_EMPTY),
+                    error("personLastName", MUST_NOT_BE_EMPTY),
+                    error("agreementDateFrom", MUST_NOT_BE_EMPTY),
+                    error("agreementDateTo", MUST_NOT_BE_EMPTY)
+            ));
+
+            TravelCalculatePremiumResponse response = service.calculatePremium(request);
+
+            assertCompleteErrorResponse(response, 4);
+        }
+
+        @Test
+        @DisplayName("Complete scenario: special characters -> successful response")
+        void completeScenarioWithSpecialCharacters() {
+            TravelCalculatePremiumRequest request = requestWithSpecialCharacters();
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(STANDARD_DAYS);
+
+            TravelCalculatePremiumResponse response = service.calculatePremium(request);
+
+            assertAll(
+                    () -> assertSuccessfulResponse(response),
+                    () -> assertEquals(SPECIAL_FIRST_NAME, response.getPersonFirstName()),
+                    () -> assertEquals(SPECIAL_LAST_NAME, response.getPersonLastName()),
+                    () -> assertPrice(response, STANDARD_DAYS)
+            );
+        }
+
+        @Test
+        @DisplayName("Complete scenario: zero days -> zero price")
+        void completeScenarioZeroDays() {
+            TravelCalculatePremiumRequest request = requestWithSameDates();
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(0L);
+
+            TravelCalculatePremiumResponse response = service.calculatePremium(request);
+
+            assertCompleteSuccessfulResponse(request, response, 0);
+        }
+
+        @Test
+        @DisplayName("Complete scenario: long trip -> correct price")
+        void completeScenarioLongTrip() {
+            TravelCalculatePremiumRequest request = requestWithDays(365);
+            when(dateTimeService.getDaysBetween(any(), any())).thenReturn(365L);
+
+            TravelCalculatePremiumResponse response = service.calculatePremium(request);
+
+            assertCompleteSuccessfulResponse(request, response, 365);
+        }
     }
 }
