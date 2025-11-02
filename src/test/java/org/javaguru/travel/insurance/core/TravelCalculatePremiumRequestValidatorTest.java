@@ -13,7 +13,9 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.time.LocalDate;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.javaguru.travel.insurance.util.TestAssertions.*;
+import static org.javaguru.travel.insurance.util.TestFixtures.*;
+import static org.javaguru.travel.insurance.util.TestFixtures.ErrorMessages.*;
 
 @DisplayName("TravelCalculatePremiumRequestValidator Tests")
 public class TravelCalculatePremiumRequestValidatorTest {
@@ -37,9 +39,8 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(1, errors.size());
-            assertEquals("personFirstName", errors.get(0).getField());
-            assertEquals("Must not be empty!", errors.get(0).getMessage());
+            assertErrorCount(errors, 1);
+            assertContainsError(errors, "personFirstName", MUST_NOT_BE_EMPTY);
         }
 
         @Test
@@ -50,9 +51,8 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(1, errors.size());
-            assertEquals("personFirstName", errors.get(0).getField());
-            assertEquals("Must not be empty!", errors.get(0).getMessage());
+            assertErrorCount(errors, 1);
+            assertContainsError(errors, "personFirstName", MUST_NOT_BE_EMPTY);
         }
 
         @ParameterizedTest
@@ -64,8 +64,8 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(1, errors.size());
-            assertEquals("personFirstName", errors.get(0).getField());
+            assertErrorCount(errors, 1);
+            assertContainsErrorForField(errors, "personFirstName");
         }
 
         @Test
@@ -76,7 +76,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @ParameterizedTest
@@ -88,7 +88,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -99,7 +99,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -110,7 +110,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -121,18 +121,17 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
         @DisplayName("Should accept personFirstName in Cyrillic")
         void shouldAcceptPersonFirstNameInCyrillic() {
-            TravelCalculatePremiumRequest request = validRequest();
-            request.setPersonFirstName("Иван");
+            TravelCalculatePremiumRequest request = requestWithCyrillicNames();
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -143,7 +142,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -154,7 +153,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
     }
 
@@ -170,9 +169,8 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(1, errors.size());
-            assertEquals("personLastName", errors.get(0).getField());
-            assertEquals("Must not be empty!", errors.get(0).getMessage());
+            assertErrorCount(errors, 1);
+            assertContainsError(errors, "personLastName", MUST_NOT_BE_EMPTY);
         }
 
         @Test
@@ -183,9 +181,8 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(1, errors.size());
-            assertEquals("personLastName", errors.get(0).getField());
-            assertEquals("Must not be empty!", errors.get(0).getMessage());
+            assertErrorCount(errors, 1);
+            assertContainsError(errors, "personLastName", MUST_NOT_BE_EMPTY);
         }
 
         @ParameterizedTest
@@ -197,8 +194,8 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(1, errors.size());
-            assertEquals("personLastName", errors.get(0).getField());
+            assertErrorCount(errors, 1);
+            assertContainsErrorForField(errors, "personLastName");
         }
 
         @Test
@@ -209,7 +206,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @ParameterizedTest
@@ -221,7 +218,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -232,7 +229,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -243,7 +240,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -254,18 +251,17 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
         @DisplayName("Should accept personLastName in Cyrillic")
         void shouldAcceptPersonLastNameInCyrillic() {
-            TravelCalculatePremiumRequest request = validRequest();
-            request.setPersonLastName("Петров");
+            TravelCalculatePremiumRequest request = requestWithCyrillicNames();
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -276,7 +272,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -287,7 +283,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
     }
 
@@ -298,25 +294,22 @@ public class TravelCalculatePremiumRequestValidatorTest {
         @Test
         @DisplayName("Should return error when agreementDateFrom is null")
         void shouldReturnErrorWhenAgreementDateFromIsNull() {
-            TravelCalculatePremiumRequest request = validRequest();
-            request.setAgreementDateFrom(null);
+            TravelCalculatePremiumRequest request = requestWithNullDateFrom();
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(1, errors.size());
-            assertEquals("agreementDateFrom", errors.get(0).getField());
-            assertEquals("Must not be empty!", errors.get(0).getMessage());
+            assertErrorCount(errors, 1);
+            assertContainsError(errors, "agreementDateFrom", MUST_NOT_BE_EMPTY);
         }
 
         @Test
         @DisplayName("Should accept valid agreementDateFrom")
         void shouldAcceptValidAgreementDateFrom() {
             TravelCalculatePremiumRequest request = validRequest();
-            request.setAgreementDateFrom(LocalDate.now());
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -328,7 +321,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -340,7 +333,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -352,19 +345,19 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
         @DisplayName("Should accept leap year date (Feb 29)")
         void shouldAcceptLeapYearDate() {
             TravelCalculatePremiumRequest request = validRequest();
-            request.setAgreementDateFrom(LocalDate.of(2024, 2, 29));
-            request.setAgreementDateTo(LocalDate.of(2024, 3, 10));
+            request.setAgreementDateFrom(SpecialDates.leapYearDate());
+            request.setAgreementDateTo(SpecialDates.leapYearDate().plusDays(10));
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
     }
 
@@ -375,77 +368,63 @@ public class TravelCalculatePremiumRequestValidatorTest {
         @Test
         @DisplayName("Should return error when agreementDateTo is null")
         void shouldReturnErrorWhenAgreementDateToIsNull() {
-            TravelCalculatePremiumRequest request = validRequest();
-            request.setAgreementDateTo(null);
+            TravelCalculatePremiumRequest request = requestWithNullDateTo();
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(1, errors.size());
-            assertEquals("agreementDateTo", errors.get(0).getField());
-            assertEquals("Must not be empty!", errors.get(0).getMessage());
+            assertErrorCount(errors, 1);
+            assertContainsError(errors, "agreementDateTo", MUST_NOT_BE_EMPTY);
         }
 
         @Test
         @DisplayName("Should return error when agreementDateTo is before agreementDateFrom")
         void shouldReturnErrorWhenAgreementDateToIsBeforeAgreementDateFrom() {
-            TravelCalculatePremiumRequest request = validRequest();
-            request.setAgreementDateFrom(LocalDate.now().plusDays(10));
-            request.setAgreementDateTo(LocalDate.now());
+            TravelCalculatePremiumRequest request = requestWithInvalidDateOrder();
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(1, errors.size());
-            assertEquals("agreementDateTo", errors.get(0).getField());
-            assertEquals("Must be after agreementDateFrom!", errors.get(0).getMessage());
+            assertErrorCount(errors, 1);
+            assertContainsError(errors, "agreementDateTo", MUST_BE_AFTER);
         }
 
         @Test
         @DisplayName("Should accept agreementDateTo after agreementDateFrom")
         void shouldAcceptAgreementDateToAfterAgreementDateFrom() {
             TravelCalculatePremiumRequest request = validRequest();
-            request.setAgreementDateFrom(LocalDate.now());
-            request.setAgreementDateTo(LocalDate.now().plusDays(10));
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
         @DisplayName("Should accept agreementDateTo equal to agreementDateFrom")
         void shouldAcceptAgreementDateToEqualToAgreementDateFrom() {
-            TravelCalculatePremiumRequest request = validRequest();
-            LocalDate sameDate = LocalDate.now();
-            request.setAgreementDateFrom(sameDate);
-            request.setAgreementDateTo(sameDate);
+            TravelCalculatePremiumRequest request = requestWithSameDates();
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
         @DisplayName("Should accept agreementDateTo one day after agreementDateFrom")
         void shouldAcceptAgreementDateToOneDayAfter() {
-            TravelCalculatePremiumRequest request = validRequest();
-            request.setAgreementDateFrom(LocalDate.now());
-            request.setAgreementDateTo(LocalDate.now().plusDays(1));
+            TravelCalculatePremiumRequest request = requestWithDays(1);
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
         @DisplayName("Should accept long period (365+ days)")
         void shouldAcceptLongPeriod() {
-            TravelCalculatePremiumRequest request = validRequest();
-            request.setAgreementDateFrom(LocalDate.now());
-            request.setAgreementDateTo(LocalDate.now().plusDays(365));
+            TravelCalculatePremiumRequest request = requestWithDays(365);
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -457,9 +436,8 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertFalse(errors.isEmpty());
-            assertTrue(errors.stream()
-                    .anyMatch(e -> e.getField().equals("agreementDateTo")));
+            assertHasErrors(errors);
+            assertContainsErrorForField(errors, "agreementDateTo");
         }
     }
 
@@ -474,25 +452,21 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
         @DisplayName("Should return all errors when all fields are invalid")
         void shouldReturnAllErrorsWhenAllFieldsAreInvalid() {
-            TravelCalculatePremiumRequest request = new TravelCalculatePremiumRequest();
-            request.setPersonFirstName(null);
-            request.setPersonLastName(null);
-            request.setAgreementDateFrom(null);
-            request.setAgreementDateTo(null);
+            TravelCalculatePremiumRequest request = invalidRequest();
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(4, errors.size());
-            assertTrue(errors.stream().anyMatch(e -> e.getField().equals("personFirstName")));
-            assertTrue(errors.stream().anyMatch(e -> e.getField().equals("personLastName")));
-            assertTrue(errors.stream().anyMatch(e -> e.getField().equals("agreementDateFrom")));
-            assertTrue(errors.stream().anyMatch(e -> e.getField().equals("agreementDateTo")));
+            assertErrorCount(errors, 4);
+            assertContainsErrorForField(errors, "personFirstName");
+            assertContainsErrorForField(errors, "personLastName");
+            assertContainsErrorForField(errors, "agreementDateFrom");
+            assertContainsErrorForField(errors, "agreementDateTo");
         }
 
         @Test
@@ -504,9 +478,9 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(2, errors.size());
-            assertTrue(errors.stream().anyMatch(e -> e.getField().equals("personFirstName")));
-            assertTrue(errors.stream().anyMatch(e -> e.getField().equals("personLastName")));
+            assertErrorCount(errors, 2);
+            assertContainsErrorForField(errors, "personFirstName");
+            assertContainsErrorForField(errors, "personLastName");
         }
 
         @Test
@@ -517,8 +491,8 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(1, errors.size());
-            assertEquals("personFirstName", errors.get(0).getField());
+            assertErrorCount(errors, 1);
+            assertContainsErrorForField(errors, "personFirstName");
         }
 
         @Test
@@ -529,32 +503,30 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(1, errors.size());
-            assertEquals("personLastName", errors.get(0).getField());
+            assertErrorCount(errors, 1);
+            assertContainsErrorForField(errors, "personLastName");
         }
 
         @Test
         @DisplayName("Should return error only for invalid dateFrom when others are valid")
         void shouldReturnErrorOnlyForInvalidDateFrom() {
-            TravelCalculatePremiumRequest request = validRequest();
-            request.setAgreementDateFrom(null);
+            TravelCalculatePremiumRequest request = requestWithNullDateFrom();
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(1, errors.size());
-            assertEquals("agreementDateFrom", errors.get(0).getField());
+            assertErrorCount(errors, 1);
+            assertContainsErrorForField(errors, "agreementDateFrom");
         }
 
         @Test
         @DisplayName("Should return error only for invalid dateTo when others are valid")
         void shouldReturnErrorOnlyForInvalidDateTo() {
-            TravelCalculatePremiumRequest request = validRequest();
-            request.setAgreementDateTo(null);
+            TravelCalculatePremiumRequest request = requestWithNullDateTo();
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(1, errors.size());
-            assertEquals("agreementDateTo", errors.get(0).getField());
+            assertErrorCount(errors, 1);
+            assertContainsErrorForField(errors, "agreementDateTo");
         }
 
         @Test
@@ -567,7 +539,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(3, errors.size());
+            assertErrorCount(errors, 3);
         }
 
         @Test
@@ -579,10 +551,9 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertEquals(1, errors.size());
-            assertTrue(errors.stream().anyMatch(e -> e.getField().equals("agreementDateFrom")));
+            assertErrorCount(errors, 1);
+            assertContainsErrorForField(errors, "agreementDateFrom");
         }
-
     }
 
     @Nested
@@ -592,7 +563,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
         @Test
         @DisplayName("Should handle request with all fields at minimum valid values")
         void shouldHandleMinimumValidValues() {
-            TravelCalculatePremiumRequest request = new TravelCalculatePremiumRequest();
+            TravelCalculatePremiumRequest request = validRequest();
             request.setPersonFirstName("A");
             request.setPersonLastName("B");
             request.setAgreementDateFrom(LocalDate.now());
@@ -600,19 +571,17 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
         @DisplayName("Should handle request with maximum realistic period (10 years)")
         void shouldHandleMaximumRealisticPeriod() {
-            TravelCalculatePremiumRequest request = validRequest();
-            request.setAgreementDateFrom(LocalDate.now());
-            request.setAgreementDateTo(LocalDate.now().plusYears(10));
+            TravelCalculatePremiumRequest request = requestWithDays(3650); // 10 years
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -624,7 +593,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -636,20 +605,20 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            // Предполагаем, что цифры в именах допустимы
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
         @DisplayName("Should validate dates across year boundary")
         void shouldValidateDatesAcrossYearBoundary() {
+            LocalDate[] dates = SpecialDates.yearBoundaryDates();
             TravelCalculatePremiumRequest request = validRequest();
-            request.setAgreementDateFrom(LocalDate.of(2023, 12, 25));
-            request.setAgreementDateTo(LocalDate.of(2024, 1, 5));
+            request.setAgreementDateFrom(dates[0]);
+            request.setAgreementDateTo(dates[1]);
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
 
         @Test
@@ -661,16 +630,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
             List<ValidationError> errors = validator.validate(request);
 
-            assertTrue(errors.isEmpty());
+            assertNoErrors(errors);
         }
-    }
-
-    private TravelCalculatePremiumRequest validRequest() {
-        TravelCalculatePremiumRequest request = new TravelCalculatePremiumRequest();
-        request.setPersonFirstName("John");
-        request.setPersonLastName("Smith");
-        request.setAgreementDateFrom(LocalDate.now());
-        request.setAgreementDateTo(LocalDate.now().plusDays(10));
-        return request;
     }
 }
