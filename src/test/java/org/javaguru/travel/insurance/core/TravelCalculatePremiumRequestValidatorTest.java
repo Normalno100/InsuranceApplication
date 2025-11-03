@@ -1,5 +1,10 @@
 package org.javaguru.travel.insurance.core;
 
+import org.javaguru.travel.insurance.core.validation.ValidationRule;
+import org.javaguru.travel.insurance.core.validation.field.AgreementDateFromValidation;
+import org.javaguru.travel.insurance.core.validation.field.AgreementDateToValidation;
+import org.javaguru.travel.insurance.core.validation.field.PersonFirstNameValidation;
+import org.javaguru.travel.insurance.core.validation.field.PersonLastNameValidation;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 import org.javaguru.travel.insurance.dto.ValidationError;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,6 +16,7 @@ import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.javaguru.travel.insurance.util.TestAssertions.*;
@@ -24,12 +30,21 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
     @BeforeEach
     void setUp() {
-        validator = new TravelCalculatePremiumRequestValidator();
+        // Создаем список всех правил валидации
+        List<ValidationRule> validationRules = Arrays.asList(
+                new PersonFirstNameValidation(),
+                new PersonLastNameValidation(),
+                new AgreementDateFromValidation(),
+                new AgreementDateToValidation()
+        );
+
+        // Создаем валидатор с правилами
+        validator = new TravelCalculatePremiumRequestValidator(validationRules);
     }
 
     @Nested
     @DisplayName("PersonFirstName Validation")
-    class PersonFirstNameValidation {
+    class PersonFirstNameValidationTest {
 
         @Test
         @DisplayName("Should return error when personFirstName is null")
@@ -159,7 +174,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
     @Nested
     @DisplayName("PersonLastName Validation")
-    class PersonLastNameValidation {
+    class PersonLastNameValidationTest {
 
         @Test
         @DisplayName("Should return error when personLastName is null")
@@ -289,7 +304,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
     @Nested
     @DisplayName("AgreementDateFrom Validation")
-    class AgreementDateFromValidation {
+    class AgreementDateFromValidationTest {
 
         @Test
         @DisplayName("Should return error when agreementDateFrom is null")
@@ -363,7 +378,7 @@ public class TravelCalculatePremiumRequestValidatorTest {
 
     @Nested
     @DisplayName("AgreementDateTo Validation")
-    class AgreementDateToValidation {
+    class AgreementDateToValidationTest {
 
         @Test
         @DisplayName("Should return error when agreementDateTo is null")
