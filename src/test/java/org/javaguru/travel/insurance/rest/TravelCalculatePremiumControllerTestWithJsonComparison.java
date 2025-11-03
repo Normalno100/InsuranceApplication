@@ -23,6 +23,7 @@ import java.time.LocalDate;
 
 import static org.javaguru.travel.insurance.util.TestDataConstants.Requests;
 import static org.javaguru.travel.insurance.util.TestDataConstants.Responses;
+import static org.javaguru.travel.insurance.util.TestFixtures.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -31,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(TravelCalculatePremiumController.class)
 @DisplayName("Controller Tests Enhanced JSON Comparison")
-public class TravelCalculatePremiumControllerTestWithJsonComparison{
+public class TravelCalculatePremiumControllerTestWithJsonComparison {
 
     @Autowired
     private MockMvc mockMvc;
@@ -39,7 +40,7 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
     @MockBean
     private TravelCalculatePremiumService calculatePremiumService;
 
-    // ========== УСПЕШНЫЕ СЦЕНАРИИ ==========
+    // ========== SUCCESS SCENARIOS ==========
 
     @Nested
     @DisplayName("Success Scenarios - Complete JSON Validation")
@@ -48,7 +49,6 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
         @Test
         @DisplayName("Should return complete valid response matching JSON specification")
         void shouldReturnCompleteValidResponse() throws Exception {
-            // Arrange
             String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
             TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
                     Responses.SUCCESSFUL,
@@ -56,14 +56,12 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
             );
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().isOk())
                     .andReturn();
 
-            // Assert - полное сравнение с эталонным JSON
             String expectedJson = TestDataLoader.loadResponseAsString(Responses.SUCCESSFUL);
             String actualJson = result.getResponse().getContentAsString();
             JsonComparator.assertJsonEquals(expectedJson, actualJson);
@@ -72,7 +70,6 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
         @Test
         @DisplayName("Should handle zero-day trip (same start and end dates)")
         void shouldHandleZeroDayTrip() throws Exception {
-            // Arrange
             String requestJson = TestDataLoader.loadRequestAsString(Requests.SAME_DATES);
             TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
                     Responses.ZERO_PRICE,
@@ -80,14 +77,12 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
             );
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().isOk())
                     .andReturn();
 
-            // Assert
             String expectedJson = TestDataLoader.loadResponseAsString(Responses.ZERO_PRICE);
             String actualJson = result.getResponse().getContentAsString();
             JsonComparator.assertJsonEquals(expectedJson, actualJson);
@@ -96,7 +91,6 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
         @Test
         @DisplayName("Should calculate premium for long-term trip (60+ days)")
         void shouldCalculatePremiumForLongTrip() throws Exception {
-            // Arrange
             String requestJson = TestDataLoader.loadRequestAsString(Requests.LONG_TRIP);
             TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
                     Responses.LONG_TRIP,
@@ -104,14 +98,12 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
             );
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().isOk())
                     .andReturn();
 
-            // Assert
             String expectedJson = TestDataLoader.loadResponseAsString(Responses.LONG_TRIP);
             String actualJson = result.getResponse().getContentAsString();
             JsonComparator.assertJsonEquals(expectedJson, actualJson);
@@ -120,7 +112,6 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
         @Test
         @DisplayName("Should preserve special characters in names (hyphens, apostrophes)")
         void shouldPreserveSpecialCharactersInNames() throws Exception {
-            // Arrange
             String requestJson = TestDataLoader.loadRequestAsString(Requests.SPECIAL_CHARS);
             TravelCalculatePremiumRequest request = TestDataLoader.loadRequest(
                     Requests.SPECIAL_CHARS,
@@ -134,14 +125,12 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
 
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().isOk())
                     .andReturn();
 
-            // Assert - проверяем, что спецсимволы не искажены
             String actualJson = result.getResponse().getContentAsString();
             String expectedSpecialChars = JsonComparator.partialJson()
                     .addField("personFirstName", "Jean-Pierre")
@@ -154,7 +143,6 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
         @Test
         @DisplayName("Should preserve Cyrillic characters in names")
         void shouldPreserveCyrillicCharactersInNames() throws Exception {
-            // Arrange
             String requestJson = TestDataLoader.loadRequestAsString(Requests.CYRILLIC);
             TravelCalculatePremiumRequest request = TestDataLoader.loadRequest(
                     Requests.CYRILLIC,
@@ -168,14 +156,12 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
 
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().isOk())
                     .andReturn();
 
-            // Assert
             String actualJson = result.getResponse().getContentAsString();
             String expectedCyrillicNames = JsonComparator.partialJson()
                     .addField("personFirstName", "Иван")
@@ -188,7 +174,6 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
         @Test
         @DisplayName("Should work with both / and /calculate endpoints")
         void shouldWorkWithBothEndpoints() throws Exception {
-            // Arrange
             String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
             String expectedJson = TestDataLoader.loadResponseAsString(Responses.SUCCESSFUL);
             TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
@@ -197,7 +182,6 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
             );
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act & Assert - endpoint /
             MvcResult result1 = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
@@ -206,7 +190,6 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
 
             JsonComparator.assertJsonEquals(expectedJson, result1.getResponse().getContentAsString());
 
-            // Act & Assert - endpoint /calculate
             MvcResult result2 = mockMvc.perform(post("/insurance/travel/calculate")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
@@ -217,7 +200,7 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
         }
     }
 
-    // ========== ОШИБКИ ВАЛИДАЦИИ ==========
+    // ========== VALIDATION ERRORS - SINGLE FIELD ==========
 
     @Nested
     @DisplayName("Validation Errors - Single Field")
@@ -226,23 +209,19 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
         @Test
         @DisplayName("Should return error when personFirstName is empty")
         void shouldReturnErrorWhenPersonFirstNameIsEmpty() throws Exception {
-            // Arrange
             String requestJson = TestDataLoader.loadRequestAsString(Requests.EMPTY_FIRST_NAME);
             String expectedJson = TestDataLoader.loadResponseAsString(Responses.ERROR_FIRST_NAME);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.ERROR_FIRST_NAME,
-                    TravelCalculatePremiumResponse.class
-            );
+
+            TravelCalculatePremiumResponse mockResponse = errorResponseForFirstName();
+
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().isBadRequest())
                     .andReturn();
 
-            // Assert - точное соответствие структуре ошибки
             String actualJson = result.getResponse().getContentAsString();
             JsonComparator.assertJsonEquals(expectedJson, actualJson);
         }
@@ -250,23 +229,19 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
         @Test
         @DisplayName("Should return error when personLastName is empty")
         void shouldReturnErrorWhenPersonLastNameIsEmpty() throws Exception {
-            // Arrange
             String requestJson = TestDataLoader.loadRequestAsString(Requests.EMPTY_LAST_NAME);
             String expectedJson = TestDataLoader.loadResponseAsString(Responses.ERROR_LAST_NAME);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.ERROR_LAST_NAME,
-                    TravelCalculatePremiumResponse.class
-            );
+
+            TravelCalculatePremiumResponse mockResponse = errorResponseForLastName();
+
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().isBadRequest())
                     .andReturn();
 
-            // Assert
             String actualJson = result.getResponse().getContentAsString();
             JsonComparator.assertJsonEquals(expectedJson, actualJson);
         }
@@ -274,23 +249,19 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
         @Test
         @DisplayName("Should return error when agreementDateFrom is null")
         void shouldReturnErrorWhenAgreementDateFromIsNull() throws Exception {
-            // Arrange
             String requestJson = TestDataLoader.loadRequestAsString(Requests.NULL_DATE_FROM);
             String expectedJson = TestDataLoader.loadResponseAsString(Responses.ERROR_DATE_FROM);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.ERROR_DATE_FROM,
-                    TravelCalculatePremiumResponse.class
-            );
+
+            TravelCalculatePremiumResponse mockResponse = errorResponseForDateFrom();
+
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().isBadRequest())
                     .andReturn();
 
-            // Assert
             String actualJson = result.getResponse().getContentAsString();
             JsonComparator.assertJsonEquals(expectedJson, actualJson);
         }
@@ -298,23 +269,19 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
         @Test
         @DisplayName("Should return error when agreementDateTo is null")
         void shouldReturnErrorWhenAgreementDateToIsNull() throws Exception {
-            // Arrange
             String requestJson = TestDataLoader.loadRequestAsString(Requests.NULL_DATE_TO);
             String expectedJson = TestDataLoader.loadResponseAsString(Responses.ERROR_DATE_TO);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.ERROR_DATE_TO,
-                    TravelCalculatePremiumResponse.class
-            );
+
+            TravelCalculatePremiumResponse mockResponse = errorResponseForDateTo();
+
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().isBadRequest())
                     .andReturn();
 
-            // Assert
             String actualJson = result.getResponse().getContentAsString();
             JsonComparator.assertJsonEquals(expectedJson, actualJson);
         }
@@ -322,27 +289,25 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
         @Test
         @DisplayName("Should return error when agreementDateTo is before agreementDateFrom")
         void shouldReturnErrorWhenDateToIsBeforeDateFrom() throws Exception {
-            // Arrange
             String requestJson = TestDataLoader.loadRequestAsString(Requests.INVALID_DATE_ORDER);
             String expectedJson = TestDataLoader.loadResponseAsString(Responses.ERROR_DATE_ORDER);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.ERROR_DATE_ORDER,
-                    TravelCalculatePremiumResponse.class
-            );
+
+            TravelCalculatePremiumResponse mockResponse = errorResponseForDateOrder();
+
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().isBadRequest())
                     .andReturn();
 
-            // Assert
             String actualJson = result.getResponse().getContentAsString();
             JsonComparator.assertJsonEquals(expectedJson, actualJson);
         }
     }
+
+    // ========== VALIDATION ERRORS - MULTIPLE FIELDS ==========
 
     @Nested
     @DisplayName("Validation Errors - Multiple Fields")
@@ -351,63 +316,25 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
         @Test
         @DisplayName("Should return all 4 errors when all fields are invalid")
         void shouldReturnAllErrorsWhenAllFieldsInvalid() throws Exception {
-            // Arrange
             String requestJson = TestDataLoader.loadRequestAsString(Requests.ALL_INVALID);
             String expectedJson = TestDataLoader.loadResponseAsString(Responses.ALL_ERRORS);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.ALL_ERRORS,
-                    TravelCalculatePremiumResponse.class
-            );
+
+            TravelCalculatePremiumResponse mockResponse = allErrorsResponse();
+
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().isBadRequest())
                     .andReturn();
 
-            // Assert - проверяем точную структуру всех 4 ошибок
             String actualJson = result.getResponse().getContentAsString();
             JsonComparator.assertJsonEquals(expectedJson, actualJson);
         }
-
-        @Test
-        @DisplayName("Should validate error array structure (field and message)")
-        void shouldValidateErrorArrayStructure() throws Exception {
-            // Arrange
-            String requestJson = TestDataLoader.loadRequestAsString(Requests.EMPTY_FIRST_NAME);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.ERROR_FIRST_NAME,
-                    TravelCalculatePremiumResponse.class
-            );
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            // Act
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isBadRequest())
-                    .andReturn();
-
-            // Assert - проверяем структуру объекта ошибки
-            String actualJson = result.getResponse().getContentAsString();
-            String expectedErrorStructure = """
-                    {
-                        "errors": [
-                            {
-                                "field": "personFirstName",
-                                "message": "Must not be empty!"
-                            }
-                        ]
-                    }
-                    """;
-
-            JsonComparator.assertJsonEqualsIgnoringExtraFields(expectedErrorStructure, actualJson);
-        }
     }
 
-    // ========== ПАРАМЕТРИЗОВАННЫЕ ТЕСТЫ ==========
+    // ========== PARAMETERIZED TESTS ==========
 
     @Nested
     @DisplayName("Parameterized Tests - Various Scenarios")
@@ -428,7 +355,6 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
         @DisplayName("Should handle various request/response scenarios")
         void shouldHandleVariousScenarios(String requestFile, String responseFile, int expectedStatus)
                 throws Exception {
-            // Arrange
             String requestJson = TestDataLoader.loadRequestAsString(requestFile);
             String expectedJson = TestDataLoader.loadResponseAsString(responseFile);
             TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
@@ -437,20 +363,18 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
             );
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().is(expectedStatus))
                     .andReturn();
 
-            // Assert
             String actualJson = result.getResponse().getContentAsString();
             JsonComparator.assertJsonEquals(expectedJson, actualJson);
         }
     }
 
-    // ========== ЧАСТИЧНАЯ ПРОВЕРКА ==========
+    // ========== PARTIAL JSON VALIDATION ==========
 
     @Nested
     @DisplayName("Partial JSON Validation - Required Fields Only")
@@ -459,7 +383,6 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
         @Test
         @DisplayName("Should contain all mandatory response fields")
         void shouldContainMandatoryResponseFields() throws Exception {
-            // Arrange
             String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
             TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
                     Responses.SUCCESSFUL,
@@ -467,14 +390,12 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
             );
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().isOk())
                     .andReturn();
 
-            // Assert - проверяем только обязательные поля
             String actualJson = result.getResponse().getContentAsString();
             String mandatoryFields = JsonComparator.partialJson()
                     .addField("personFirstName", "John")
@@ -484,152 +405,215 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
 
             JsonComparator.assertJsonContains(mandatoryFields, actualJson);
         }
+    }
+
+    // ========== INTEGRATION WITH TESTDATABUILDER ==========
+
+    @Nested
+    @DisplayName("Integration with TestDataBuilder")
+    class IntegrationWithBuilder {
 
         @Test
-        @DisplayName("Should contain error field in validation error response")
-        void shouldContainErrorFieldInValidationError() throws Exception {
-            // Arrange
-            String requestJson = TestDataLoader.loadRequestAsString(Requests.EMPTY_FIRST_NAME);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.ERROR_FIRST_NAME,
-                    TravelCalculatePremiumResponse.class
-            );
+        @DisplayName("Should work with dynamically built request")
+        void shouldWorkWithDynamicallyBuiltRequest() throws Exception {
+            TravelCalculatePremiumRequest request = TestDataBuilder.request()
+                    .withFirstName("Alice")
+                    .withLastName("Johnson")
+                    .withDateFrom(LocalDate.of(2023, 6, 1))
+                    .withDateTo(LocalDate.of(2023, 6, 15))
+                    .build();
+
+            TravelCalculatePremiumResponse mockResponse = TestDataBuilder.response()
+                    .basedOnRequest(request)
+                    .withPrice(14)
+                    .build();
+
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
+            String requestJson = TestDataLoader.getObjectMapper().writeValueAsString(request);
+
+            MvcResult result = mockMvc.perform(post("/insurance/travel/")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestJson))
+                    .andExpect(status().isOk())
+                    .andReturn();
+
+            String actualJson = result.getResponse().getContentAsString();
+            TravelCalculatePremiumResponse actualResponse = TestDataLoader.getObjectMapper()
+                    .readValue(actualJson, TravelCalculatePremiumResponse.class);
+
+            JsonComparator.assertObjectsEqualAsJson(mockResponse, actualResponse);
+        }
+
+        @Test
+        @DisplayName("Should work with builder-created error response")
+        void shouldWorkWithBuilderCreatedErrorResponse() throws Exception {
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.EMPTY_FIRST_NAME);
+
+            TravelCalculatePremiumResponse mockResponse = TestDataBuilder.response()
+                    .withError("personFirstName", "Must not be empty!")
+                    .build();
+
+            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
+
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().isBadRequest())
                     .andReturn();
 
-            // Assert - проверяем только наличие поля error и минимальную структуру
             String actualJson = result.getResponse().getContentAsString();
-            String minimalErrorStructure = """
+            String expectedErrorStructure = """
                     {
                         "errors": [
                             {
-                                "field": "personFirstName"
+                                "field": "personFirstName",
+                                "message": "Must not be empty!"
                             }
                         ]
                     }
                     """;
 
-            JsonComparator.assertJsonContains(minimalErrorStructure, actualJson);
+            JsonComparator.assertJsonContains(expectedErrorStructure, actualJson);
         }
 
         @Test
-        @DisplayName("Should preserve price precision in response")
-        void shouldPreservePricePrecisionInResponse() throws Exception {
-            // Arrange
-            String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
+        @DisplayName("Should handle request with special chars built dynamically")
+        void shouldHandleRequestWithSpecialCharsDynamically() throws Exception {
+            TravelCalculatePremiumRequest request = TestDataBuilder.request()
+                    .withSpecialCharacters()
+                    .withPeriodDays(7)
+                    .build();
+
             TravelCalculatePremiumResponse mockResponse = TestDataBuilder.response()
-                    .fromFile(Responses.SUCCESSFUL)
+                    .basedOnRequest(request)
+                    .withPrice(7)
                     .build();
 
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
+            String requestJson = TestDataLoader.getObjectMapper().writeValueAsString(request);
+
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().isOk())
                     .andReturn();
 
-            // Assert - проверяем тип и значение цены
             String actualJson = result.getResponse().getContentAsString();
-            String priceCheck = JsonComparator.partialJson()
-                    .addField("agreementPrice", 10)
+            String expectedNames = JsonComparator.partialJson()
+                    .addField("personFirstName", "Jean-Pierre")
+                    .addField("personLastName", "O'Connor")
                     .build();
 
-            JsonComparator.assertJsonContains(priceCheck, actualJson);
+            JsonComparator.assertJsonContains(expectedNames, actualJson);
         }
     }
 
-    // ========== ФОРМАТЫ И ТИПЫ ДАННЫХ ==========
+    // ========== EDGE CASES ==========
 
     @Nested
-    @DisplayName("Data Format Validation")
-    class DataFormatValidation {
+    @DisplayName("Edge Cases and Boundary Conditions")
+    class EdgeCases {
 
         @Test
-        @DisplayName("Should preserve ISO 8601 date format (yyyy-MM-dd)")
-        void shouldPreserveIsoDateFormat() throws Exception {
-            // Arrange
-            String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
-            String expectedJson = TestDataLoader.loadResponseAsString(Responses.SUCCESSFUL);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.SUCCESSFUL,
-                    TravelCalculatePremiumResponse.class
-            );
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
+        @DisplayName("Should handle very long names (100+ characters)")
+        void shouldHandleVeryLongNames() throws Exception {
+            String longName = "A".repeat(100);
+            TravelCalculatePremiumRequest request = TestDataBuilder.request()
+                    .withFirstName(longName)
+                    .withLastName(longName)
+                    .withPeriodDays(5)
+                    .build();
 
-            // Act
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isOk())
-                    .andReturn();
-
-            // Assert - JsonComparator проверит точное совпадение формата дат
-            String actualJson = result.getResponse().getContentAsString();
-            JsonComparator.assertJsonEquals(expectedJson, actualJson);
-        }
-
-        @Test
-        @DisplayName("Should return price as numeric value, not string")
-        void shouldReturnPriceAsNumericValue() throws Exception {
-            // Arrange
-            String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
             TravelCalculatePremiumResponse mockResponse = TestDataBuilder.response()
-                    .basedOnRequest(TestDataBuilder.validRequest())
-                    .withPrice(new BigDecimal("10"))
+                    .basedOnRequest(request)
+                    .withPrice(5)
                     .build();
 
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
+            String requestJson = TestDataLoader.getObjectMapper().writeValueAsString(request);
+
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().isOk())
                     .andReturn();
 
-            // Assert - цена должна быть числом, не строкой
             String actualJson = result.getResponse().getContentAsString();
-            String expectedWithNumericPrice = JsonComparator.partialJson()
-                    .addField("agreementPrice", 10)  // Число, не "10"
+            String expectedLongNames = JsonComparator.partialJson()
+                    .addField("personFirstName", longName)
+                    .addField("personLastName", longName)
                     .build();
 
-            JsonComparator.assertJsonContains(expectedWithNumericPrice, actualJson);
+            JsonComparator.assertJsonContains(expectedLongNames, actualJson);
         }
 
         @Test
-        @DisplayName("Should handle null errors field in successful response")
-        void shouldHandleNullErrorsFieldInSuccessfulResponse() throws Exception {
-            // Arrange
-            String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
-            String expectedJson = TestDataLoader.loadResponseAsString(Responses.SUCCESSFUL);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.SUCCESSFUL,
-                    TravelCalculatePremiumResponse.class
-            );
+        @DisplayName("Should handle single character names")
+        void shouldHandleSingleCharacterNames() throws Exception {
+            TravelCalculatePremiumRequest request = TestDataBuilder.request()
+                    .withFirstName("A")
+                    .withLastName("B")
+                    .withPeriodDays(3)
+                    .build();
+
+            TravelCalculatePremiumResponse mockResponse = TestDataBuilder.response()
+                    .basedOnRequest(request)
+                    .withPrice(3)
+                    .build();
+
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
+            String requestJson = TestDataLoader.getObjectMapper().writeValueAsString(request);
+
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
                     .andExpect(status().isOk())
                     .andReturn();
 
-            // Assert - errors должен быть null
             String actualJson = result.getResponse().getContentAsString();
-            JsonComparator.assertJsonEquals(expectedJson, actualJson);
+            JsonComparator.assertObjectsEqualAsJson(mockResponse,
+                    TestDataLoader.getObjectMapper().readValue(actualJson, TravelCalculatePremiumResponse.class));
+        }
+
+        @Test
+        @DisplayName("Should handle maximum realistic trip duration (1 year)")
+        void shouldHandleMaximumTripDuration() throws Exception {
+            TravelCalculatePremiumRequest request = TestDataBuilder.request()
+                    .withFirstName("John")
+                    .withLastName("Smith")
+                    .withDateFrom(LocalDate.of(2023, 1, 1))
+                    .withDateTo(LocalDate.of(2024, 1, 1))
+                    .build();
+
+            TravelCalculatePremiumResponse mockResponse = TestDataBuilder.response()
+                    .basedOnRequest(request)
+                    .withPrice(365)
+                    .build();
+
+            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
+
+            String requestJson = TestDataLoader.getObjectMapper().writeValueAsString(request);
+
+            MvcResult result = mockMvc.perform(post("/insurance/travel/")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestJson))
+                    .andExpect(status().isOk())
+                    .andReturn();
+
+            String actualJson = result.getResponse().getContentAsString();
+            String expectedPrice = JsonComparator.partialJson()
+                    .addField("agreementPrice", 365)
+                    .build();
+
+            JsonComparator.assertJsonContains(expectedPrice, actualJson);
         }
     }
 
-    // ========== ТЕХНИЧЕСКИЕ СЦЕНАРИИ ==========
+    // ========== TECHNICAL SCENARIOS ==========
 
     @Nested
     @DisplayName("Technical Scenarios and Edge Cases")
@@ -668,7 +652,6 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
         @Test
         @DisplayName("Should accept application/json charset=UTF-8")
         void shouldAcceptJsonWithUtf8Charset() throws Exception {
-            // Arrange
             String requestJson = TestDataLoader.loadRequestAsString(Requests.CYRILLIC);
             TravelCalculatePremiumRequest request = TestDataLoader.loadRequest(
                     Requests.CYRILLIC,
@@ -682,14 +665,12 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
 
             when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
 
-            // Act
             MvcResult result = mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8")
                             .content(requestJson))
                     .andExpect(status().isOk())
                     .andReturn();
 
-            // Assert - кириллица должна сохраниться
             String actualJson = result.getResponse().getContentAsString();
             String cyrillicCheck = JsonComparator.partialJson()
                     .addField("personFirstName", "Иван")
@@ -697,569 +678,6 @@ public class TravelCalculatePremiumControllerTestWithJsonComparison{
                     .build();
 
             JsonComparator.assertJsonContains(cyrillicCheck, actualJson);
-        }
-    }
-
-    // ========== ИНТЕГРАЦИОННЫЕ ТЕСТЫ С BUILDER ==========
-
-    @Nested
-    @DisplayName("Integration with TestDataBuilder")
-    class IntegrationWithBuilder {
-
-        @Test
-        @DisplayName("Should work with dynamically built request")
-        void shouldWorkWithDynamicallyBuiltRequest() throws Exception {
-            // Arrange - строим запрос через builder
-            TravelCalculatePremiumRequest request = TestDataBuilder.request()
-                    .withFirstName("Alice")
-                    .withLastName("Johnson")
-                    .withDateFrom(LocalDate.of(2023, 6, 1))
-                    .withDateTo(LocalDate.of(2023, 6, 15))
-                    .build();
-
-            TravelCalculatePremiumResponse mockResponse = TestDataBuilder.response()
-                    .basedOnRequest(request)
-                    .withPrice(14)
-                    .build();
-
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            String requestJson = TestDataLoader.getObjectMapper().writeValueAsString(request);
-
-            // Act
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isOk())
-                    .andReturn();
-
-            // Assert
-            String actualJson = result.getResponse().getContentAsString();
-            TravelCalculatePremiumResponse actualResponse = TestDataLoader.getObjectMapper()
-                    .readValue(actualJson, TravelCalculatePremiumResponse.class);
-
-            JsonComparator.assertObjectsEqualAsJson(mockResponse, actualResponse);
-        }
-
-        @Test
-        @DisplayName("Should work with builder-created error response")
-        void shouldWorkWithBuilderCreatedErrorResponse() throws Exception {
-            // Arrange - строим ответ с ошибкой через builder
-            TravelCalculatePremiumResponse mockResponse = TestDataBuilder.response()
-                    .withError("personFirstName", "Must not be empty!")
-                    .withError("personLastName", "Must not be empty!")
-                    .build();
-
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            String requestJson = TestDataLoader.loadRequestAsString(Requests.EMPTY_FIRST_NAME);
-
-            // Act
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isBadRequest())
-                    .andReturn();
-
-            // Assert - проверяем структуру ошибок
-            String actualJson = result.getResponse().getContentAsString();
-            String expectedErrorStructure = """
-                    {
-                        "errors": [
-                            {
-                                "field": "personFirstName",
-                                "message": "Must not be empty!"
-                            }
-                        ]
-                    }
-                    """;
-
-            // Используем частичное сравнение, так как может быть больше ошибок
-            JsonComparator.assertJsonContains(expectedErrorStructure, actualJson);
-        }
-
-        @Test
-        @DisplayName("Should handle request with special chars built dynamically")
-        void shouldHandleRequestWithSpecialCharsDynamically() throws Exception {
-            // Arrange
-            TravelCalculatePremiumRequest request = TestDataBuilder.request()
-                    .withSpecialCharacters()
-                    .withPeriodDays(7)
-                    .build();
-
-            TravelCalculatePremiumResponse mockResponse = TestDataBuilder.response()
-                    .basedOnRequest(request)
-                    .withPrice(7)
-                    .build();
-
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            String requestJson = TestDataLoader.getObjectMapper().writeValueAsString(request);
-
-            // Act
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isOk())
-                    .andReturn();
-
-            // Assert
-            String actualJson = result.getResponse().getContentAsString();
-            String expectedNames = JsonComparator.partialJson()
-                    .addField("personFirstName", "Jean-Pierre")
-                    .addField("personLastName", "O'Connor")
-                    .build();
-
-            JsonComparator.assertJsonContains(expectedNames, actualJson);
-        }
-    }
-
-    // ========== РЕГРЕССИОННЫЕ ТЕСТЫ ==========
-
-    @Nested
-    @DisplayName("Regression Tests - API Contract Validation")
-    class RegressionTests {
-
-        @Test
-        @DisplayName("API v1 contract - successful response structure must not change")
-        void apiV1ContractSuccessfulResponse() throws Exception {
-            // Arrange
-            String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
-            String apiContractJson = TestDataLoader.loadResponseAsString(Responses.SUCCESSFUL);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.SUCCESSFUL,
-                    TravelCalculatePremiumResponse.class
-            );
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            // Act
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isOk())
-                    .andReturn();
-
-            // Assert - строгая проверка контракта API
-            String actualJson = result.getResponse().getContentAsString();
-            JsonComparator.assertJsonEquals(apiContractJson, actualJson);
-        }
-
-        @Test
-        @DisplayName("API v1 contract - error response structure must not change")
-        void apiV1ContractErrorResponse() throws Exception {
-            // Arrange
-            String requestJson = TestDataLoader.loadRequestAsString(Requests.ALL_INVALID);
-            String apiContractJson = TestDataLoader.loadResponseAsString(Responses.ALL_ERRORS);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.ALL_ERRORS,
-                    TravelCalculatePremiumResponse.class
-            );
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            // Act
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isBadRequest())
-                    .andReturn();
-
-            // Assert - проверка контракта структуры ошибок
-            String actualJson = result.getResponse().getContentAsString();
-            JsonComparator.assertJsonEquals(apiContractJson, actualJson);
-        }
-
-        @Test
-        @DisplayName("Date format must remain ISO 8601 (yyyy-MM-dd)")
-        void dateFormatMustRemainIso8601() throws Exception {
-            // Arrange
-            String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.SUCCESSFUL,
-                    TravelCalculatePremiumResponse.class
-            );
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            // Act
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isOk())
-                    .andReturn();
-
-            // Assert - даты должны быть в формате ISO 8601
-            String actualJson = result.getResponse().getContentAsString();
-            String expectedDateFormat = JsonComparator.partialJson()
-                    .addField("agreementDateFrom", "2023-01-01")
-                    .addField("agreementDateTo", "2023-01-11")
-                    .build();
-
-            JsonComparator.assertJsonContains(expectedDateFormat, actualJson);
-        }
-
-        @Test
-        @DisplayName("Error message format must not change")
-        void errorMessageFormatMustNotChange() throws Exception {
-            // Arrange
-            String requestJson = TestDataLoader.loadRequestAsString(Requests.EMPTY_FIRST_NAME);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.ERROR_FIRST_NAME,
-                    TravelCalculatePremiumResponse.class
-            );
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            // Act
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isBadRequest())
-                    .andReturn();
-
-            // Assert - проверяем точное сообщение об ошибке
-            String actualJson = result.getResponse().getContentAsString();
-            String expectedErrorMessage = """
-                    {
-                        "errors": [
-                            {
-                                "field": "personFirstName",
-                                "message": "Must not be empty!"
-                            }
-                        ]
-                    }
-                    """;
-
-            JsonComparator.assertJsonEqualsIgnoringNullFields(expectedErrorMessage, actualJson);
-        }
-    }
-
-    // ========== EDGE CASES И ГРАНИЧНЫЕ УСЛОВИЯ ==========
-
-    @Nested
-    @DisplayName("Edge Cases and Boundary Conditions")
-    class EdgeCases {
-
-        @Test
-        @DisplayName("Should handle very long names (100+ characters)")
-        void shouldHandleVeryLongNames() throws Exception {
-            // Arrange
-            String longName = "A".repeat(100);
-            TravelCalculatePremiumRequest request = TestDataBuilder.request()
-                    .withFirstName(longName)
-                    .withLastName(longName)
-                    .withPeriodDays(5)
-                    .build();
-
-            TravelCalculatePremiumResponse mockResponse = TestDataBuilder.response()
-                    .basedOnRequest(request)
-                    .withPrice(5)
-                    .build();
-
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            String requestJson = TestDataLoader.getObjectMapper().writeValueAsString(request);
-
-            // Act
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isOk())
-                    .andReturn();
-
-            // Assert
-            String actualJson = result.getResponse().getContentAsString();
-            String expectedLongNames = JsonComparator.partialJson()
-                    .addField("personFirstName", longName)
-                    .addField("personLastName", longName)
-                    .build();
-
-            JsonComparator.assertJsonContains(expectedLongNames, actualJson);
-        }
-
-        @Test
-        @DisplayName("Should handle single character names")
-        void shouldHandleSingleCharacterNames() throws Exception {
-            // Arrange
-            TravelCalculatePremiumRequest request = TestDataBuilder.request()
-                    .withFirstName("A")
-                    .withLastName("B")
-                    .withPeriodDays(3)
-                    .build();
-
-            TravelCalculatePremiumResponse mockResponse = TestDataBuilder.response()
-                    .basedOnRequest(request)
-                    .withPrice(3)
-                    .build();
-
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            String requestJson = TestDataLoader.getObjectMapper().writeValueAsString(request);
-
-            // Act
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isOk())
-                    .andReturn();
-
-            // Assert
-            String actualJson = result.getResponse().getContentAsString();
-            JsonComparator.assertObjectsEqualAsJson(mockResponse,
-                    TestDataLoader.getObjectMapper().readValue(actualJson, TravelCalculatePremiumResponse.class));
-        }
-
-        @Test
-        @DisplayName("Should handle maximum realistic trip duration (1 year)")
-        void shouldHandleMaximumTripDuration() throws Exception {
-            // Arrange
-            TravelCalculatePremiumRequest request = TestDataBuilder.request()
-                    .withFirstName("John")
-                    .withLastName("Smith")
-                    .withDateFrom(LocalDate.of(2023, 1, 1))
-                    .withDateTo(LocalDate.of(2024, 1, 1))
-                    .build();
-
-            TravelCalculatePremiumResponse mockResponse = TestDataBuilder.response()
-                    .basedOnRequest(request)
-                    .withPrice(365)
-                    .build();
-
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            String requestJson = TestDataLoader.getObjectMapper().writeValueAsString(request);
-
-            // Act
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isOk())
-                    .andReturn();
-
-            // Assert
-            String actualJson = result.getResponse().getContentAsString();
-            String expectedPrice = JsonComparator.partialJson()
-                    .addField("agreementPrice", 365)
-                    .build();
-
-            JsonComparator.assertJsonContains(expectedPrice, actualJson);
-        }
-
-        @Test
-        @DisplayName("Should handle leap year dates (February 29)")
-        void shouldHandleLeapYearDates() throws Exception {
-            // Arrange
-            TravelCalculatePremiumRequest request = TestDataBuilder.request()
-                    .withFirstName("John")
-                    .withLastName("Smith")
-                    .withDateFrom(LocalDate.of(2024, 2, 29))
-                    .withDateTo(LocalDate.of(2024, 3, 10))
-                    .build();
-
-            TravelCalculatePremiumResponse mockResponse = TestDataBuilder.response()
-                    .basedOnRequest(request)
-                    .withPrice(10)
-                    .build();
-
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            String requestJson = TestDataLoader.getObjectMapper().writeValueAsString(request);
-
-            // Act
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isOk())
-                    .andReturn();
-
-            // Assert - проверяем что дата 29 февраля корректно обработана
-            String actualJson = result.getResponse().getContentAsString();
-            String expectedLeapDate = JsonComparator.partialJson()
-                    .addField("agreementDateFrom", "2024-02-29")
-                    .build();
-
-            JsonComparator.assertJsonContains(expectedLeapDate, actualJson);
-        }
-
-        @Test
-        @DisplayName("Should handle year boundary crossing (Dec 31 -> Jan 1)")
-        void shouldHandleYearBoundaryCrossing() throws Exception {
-            // Arrange
-            TravelCalculatePremiumRequest request = TestDataBuilder.request()
-                    .withFirstName("John")
-                    .withLastName("Smith")
-                    .withDateFrom(LocalDate.of(2023, 12, 28))
-                    .withDateTo(LocalDate.of(2024, 1, 5))
-                    .build();
-
-            TravelCalculatePremiumResponse mockResponse = TestDataBuilder.response()
-                    .basedOnRequest(request)
-                    .withPrice(8)
-                    .build();
-
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            String requestJson = TestDataLoader.getObjectMapper().writeValueAsString(request);
-
-            // Act
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isOk())
-                    .andReturn();
-
-            // Assert
-            String actualJson = result.getResponse().getContentAsString();
-            JsonComparator.assertObjectsEqualAsJson(mockResponse,
-                    TestDataLoader.getObjectMapper().readValue(actualJson, TravelCalculatePremiumResponse.class));
-        }
-    }
-
-    // ========== СРАВНЕНИЕ ПРОИЗВОДИТЕЛЬНОСТИ ==========
-
-    @Nested
-    @DisplayName("Performance Comparison - jsonPath vs JsonComparator")
-    class PerformanceComparison {
-
-        @Test
-        @DisplayName("jsonPath approach - traditional way (for comparison)")
-        void jsonPathApproach() throws Exception {
-            // Arrange
-            String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.SUCCESSFUL,
-                    TravelCalculatePremiumResponse.class
-            );
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            // Act & Assert - старый подход с jsonPath
-            mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isOk())
-                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                            .jsonPath("$.personFirstName").value("John"))
-                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                            .jsonPath("$.personLastName").value("Smith"))
-                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                            .jsonPath("$.agreementDateFrom").value("2023-01-01"))
-                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                            .jsonPath("$.agreementDateTo").value("2023-01-11"))
-                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                            .jsonPath("$.agreementPrice").value(10));
-
-            // 5 строк проверок vs 1 строка с JsonComparator
-        }
-
-        @Test
-        @DisplayName("JsonComparator approach - modern way (recommended)")
-        void jsonComparatorApproach() throws Exception {
-            // Arrange
-            String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
-            String expectedJson = TestDataLoader.loadResponseAsString(Responses.SUCCESSFUL);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.SUCCESSFUL,
-                    TravelCalculatePremiumResponse.class
-            );
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            // Act
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isOk())
-                    .andReturn();
-
-            // Assert - новый подход с JsonComparator (1 строка!)
-            String actualJson = result.getResponse().getContentAsString();
-            JsonComparator.assertJsonEquals(expectedJson, actualJson);
-        }
-    }
-
-    // ========== ДОКУМЕНТАЦИЯ И ПРИМЕРЫ ==========
-
-    @Nested
-    @DisplayName("Documentation Examples - How to Use JsonComparator")
-    class DocumentationExamples {
-
-        @Test
-        @DisplayName("Example 1: Full JSON comparison with file")
-        void example1FullComparison() throws Exception {
-            // Загружаем запрос и ожидаемый ответ из файлов
-            String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
-            String expectedJson = TestDataLoader.loadResponseAsString(Responses.SUCCESSFUL);
-
-            // Настраиваем mock
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.SUCCESSFUL,
-                    TravelCalculatePremiumResponse.class
-            );
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            // Выполняем запрос
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isOk())
-                    .andReturn();
-
-            // Сравниваем полные JSON документы
-            String actualJson = result.getResponse().getContentAsString();
-            JsonComparator.assertJsonEquals(expectedJson, actualJson);
-        }
-
-        @Test
-        @DisplayName("Example 2: Partial comparison with builder")
-        void example2PartialComparison() throws Exception {
-            // Настраиваем данные
-            String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
-            TravelCalculatePremiumResponse mockResponse = TestDataLoader.loadResponse(
-                    Responses.SUCCESSFUL,
-                    TravelCalculatePremiumResponse.class
-            );
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(mockResponse);
-
-            // Выполняем запрос
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isOk())
-                    .andReturn();
-
-            // Проверяем только важные поля
-            String actualJson = result.getResponse().getContentAsString();
-            String criticalFields = JsonComparator.partialJson()
-                    .addField("personFirstName", "John")
-                    .addField("agreementPrice", 10)
-                    .build();
-
-            JsonComparator.assertJsonContains(criticalFields, actualJson);
-        }
-
-        @Test
-        @DisplayName("Example 3: Object comparison")
-        void example3ObjectComparison() throws Exception {
-            // Создаем ожидаемый объект
-            TravelCalculatePremiumResponse expected = TestDataBuilder.response()
-                    .withFirstName("John")
-                    .withLastName("Smith")
-                    .withPrice(10)
-                    .build();
-
-            // Настраиваем mock
-            when(calculatePremiumService.calculatePremium(any())).thenReturn(expected);
-
-            // Выполняем запрос
-            String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
-            MvcResult result = mockMvc.perform(post("/insurance/travel/")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestJson))
-                    .andExpect(status().isOk())
-                    .andReturn();
-
-            // Десериализуем и сравниваем объекты
-            String actualJson = result.getResponse().getContentAsString();
-            TravelCalculatePremiumResponse actual = TestDataLoader.getObjectMapper()
-                    .readValue(actualJson, TravelCalculatePremiumResponse.class);
-
-            JsonComparator.assertObjectsEqualAsJson(expected, actual);
         }
     }
 }

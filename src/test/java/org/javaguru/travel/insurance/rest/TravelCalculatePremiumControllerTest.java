@@ -13,6 +13,9 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.javaguru.travel.insurance.util.TestDataConstants.Requests;
+import static org.javaguru.travel.insurance.util.TestDataConstants.Responses;
+import static org.javaguru.travel.insurance.util.TestFixtures.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -36,10 +39,9 @@ public class TravelCalculatePremiumControllerTest {
         @Test
         @DisplayName("Should return successful response for valid request")
         void shouldReturnSuccessfulResponse() throws Exception {
-            // Загружаем запрос и ответ из JSON файлов
-            String requestJson = TestDataLoader.loadRequestAsString("valid-request.json");
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
             TravelCalculatePremiumResponse response = TestDataLoader.loadResponse(
-                    "successful-response.json",
+                    Responses.SUCCESSFUL,
                     TravelCalculatePremiumResponse.class
             );
 
@@ -59,9 +61,9 @@ public class TravelCalculatePremiumControllerTest {
         @Test
         @DisplayName("Should accept /calculate endpoint")
         void shouldAcceptCalculateEndpoint() throws Exception {
-            String requestJson = TestDataLoader.loadRequestAsString("valid-request.json");
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
             TravelCalculatePremiumResponse response = TestDataLoader.loadResponse(
-                    "successful-response.json",
+                    Responses.SUCCESSFUL,
                     TravelCalculatePremiumResponse.class
             );
 
@@ -78,9 +80,9 @@ public class TravelCalculatePremiumControllerTest {
         @Test
         @DisplayName("Should calculate zero days for same dates")
         void shouldCalculateZeroDaysForSameDates() throws Exception {
-            String requestJson = TestDataLoader.loadRequestAsString("same-dates-request.json");
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.SAME_DATES);
             TravelCalculatePremiumResponse response = TestDataLoader.loadResponse(
-                    "zero-price-response.json",
+                    Responses.ZERO_PRICE,
                     TravelCalculatePremiumResponse.class
             );
 
@@ -97,9 +99,9 @@ public class TravelCalculatePremiumControllerTest {
         @Test
         @DisplayName("Should calculate long trip premium")
         void shouldCalculateLongTripPremium() throws Exception {
-            String requestJson = TestDataLoader.loadRequestAsString("long-trip-request.json");
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.LONG_TRIP);
             TravelCalculatePremiumResponse response = TestDataLoader.loadResponse(
-                    "long-trip-response.json",
+                    Responses.LONG_TRIP,
                     TravelCalculatePremiumResponse.class
             );
 
@@ -116,20 +118,13 @@ public class TravelCalculatePremiumControllerTest {
         @Test
         @DisplayName("Should accept special characters in names")
         void shouldAcceptSpecialCharactersInNames() throws Exception {
-            String requestJson = TestDataLoader.loadRequestAsString("special-chars-request.json");
-
-            // Создаем ответ динамически на основе запроса
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.SPECIAL_CHARS);
             TravelCalculatePremiumRequest request = TestDataLoader.loadRequest(
-                    "special-chars-request.json",
+                    Requests.SPECIAL_CHARS,
                     TravelCalculatePremiumRequest.class
             );
 
-            TravelCalculatePremiumResponse response = new TravelCalculatePremiumResponse();
-            response.setPersonFirstName(request.getPersonFirstName());
-            response.setPersonLastName(request.getPersonLastName());
-            response.setAgreementDateFrom(request.getAgreementDateFrom());
-            response.setAgreementDateTo(request.getAgreementDateTo());
-            response.setAgreementPrice(new java.math.BigDecimal("10"));
+            TravelCalculatePremiumResponse response = successfulResponse(request, 10);
 
             when(calculatePremiumService.calculatePremium(any(TravelCalculatePremiumRequest.class)))
                     .thenReturn(response);
@@ -145,19 +140,13 @@ public class TravelCalculatePremiumControllerTest {
         @Test
         @DisplayName("Should accept Cyrillic characters in names")
         void shouldAcceptCyrillicCharactersInNames() throws Exception {
-            String requestJson = TestDataLoader.loadRequestAsString("cyrillic-request.json");
-
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.CYRILLIC);
             TravelCalculatePremiumRequest request = TestDataLoader.loadRequest(
-                    "cyrillic-request.json",
+                    Requests.CYRILLIC,
                     TravelCalculatePremiumRequest.class
             );
 
-            TravelCalculatePremiumResponse response = new TravelCalculatePremiumResponse();
-            response.setPersonFirstName(request.getPersonFirstName());
-            response.setPersonLastName(request.getPersonLastName());
-            response.setAgreementDateFrom(request.getAgreementDateFrom());
-            response.setAgreementDateTo(request.getAgreementDateTo());
-            response.setAgreementPrice(new java.math.BigDecimal("10"));
+            TravelCalculatePremiumResponse response = successfulResponse(request, 10);
 
             when(calculatePremiumService.calculatePremium(any(TravelCalculatePremiumRequest.class)))
                     .thenReturn(response);
@@ -173,9 +162,9 @@ public class TravelCalculatePremiumControllerTest {
         @Test
         @DisplayName("Should accept valid request with all fields")
         void shouldAcceptValidRequestWithAllFields() throws Exception {
-            String requestJson = TestDataLoader.loadRequestAsString("valid-request.json");
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
             TravelCalculatePremiumResponse response = TestDataLoader.loadResponse(
-                    "successful-response.json",
+                    Responses.SUCCESSFUL,
                     TravelCalculatePremiumResponse.class
             );
 
@@ -201,11 +190,9 @@ public class TravelCalculatePremiumControllerTest {
         @Test
         @DisplayName("Should return error when firstName is empty")
         void shouldReturnErrorWhenFirstNameIsEmpty() throws Exception {
-            String requestJson = TestDataLoader.loadRequestAsString("empty-first-name-request.json");
-            TravelCalculatePremiumResponse response = TestDataLoader.loadResponse(
-                    "error-first-name-response.json",
-                    TravelCalculatePremiumResponse.class
-            );
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.EMPTY_FIRST_NAME);
+
+            TravelCalculatePremiumResponse response = errorResponseForFirstName();
 
             when(calculatePremiumService.calculatePremium(any(TravelCalculatePremiumRequest.class)))
                     .thenReturn(response);
@@ -222,11 +209,9 @@ public class TravelCalculatePremiumControllerTest {
         @Test
         @DisplayName("Should return error when lastName is empty")
         void shouldReturnErrorWhenLastNameIsEmpty() throws Exception {
-            String requestJson = TestDataLoader.loadRequestAsString("empty-last-name-request.json");
-            TravelCalculatePremiumResponse response = TestDataLoader.loadResponse(
-                    "error-last-name-response.json",
-                    TravelCalculatePremiumResponse.class
-            );
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.EMPTY_LAST_NAME);
+
+            TravelCalculatePremiumResponse response = errorResponseForLastName();
 
             when(calculatePremiumService.calculatePremium(any(TravelCalculatePremiumRequest.class)))
                     .thenReturn(response);
@@ -242,11 +227,9 @@ public class TravelCalculatePremiumControllerTest {
         @Test
         @DisplayName("Should return error when dateFrom is null")
         void shouldReturnErrorWhenDateFromIsNull() throws Exception {
-            String requestJson = TestDataLoader.loadRequestAsString("null-date-from-request.json");
-            TravelCalculatePremiumResponse response = TestDataLoader.loadResponse(
-                    "error-date-from-response.json",
-                    TravelCalculatePremiumResponse.class
-            );
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.NULL_DATE_FROM);
+
+            TravelCalculatePremiumResponse response = errorResponseForDateFrom();
 
             when(calculatePremiumService.calculatePremium(any(TravelCalculatePremiumRequest.class)))
                     .thenReturn(response);
@@ -261,11 +244,9 @@ public class TravelCalculatePremiumControllerTest {
         @Test
         @DisplayName("Should return error when dateTo is null")
         void shouldReturnErrorWhenDateToIsNull() throws Exception {
-            String requestJson = TestDataLoader.loadRequestAsString("null-date-to-request.json");
-            TravelCalculatePremiumResponse response = TestDataLoader.loadResponse(
-                    "error-date-to-response.json",
-                    TravelCalculatePremiumResponse.class
-            );
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.NULL_DATE_TO);
+
+            TravelCalculatePremiumResponse response = errorResponseForDateTo();
 
             when(calculatePremiumService.calculatePremium(any(TravelCalculatePremiumRequest.class)))
                     .thenReturn(response);
@@ -280,11 +261,9 @@ public class TravelCalculatePremiumControllerTest {
         @Test
         @DisplayName("Should handle date validation (dateTo before dateFrom)")
         void shouldHandleDateValidation() throws Exception {
-            String requestJson = TestDataLoader.loadRequestAsString("invalid-date-order-request.json");
-            TravelCalculatePremiumResponse response = TestDataLoader.loadResponse(
-                    "error-date-order-response.json",
-                    TravelCalculatePremiumResponse.class
-            );
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.INVALID_DATE_ORDER);
+
+            TravelCalculatePremiumResponse response = errorResponseForDateOrder();
 
             when(calculatePremiumService.calculatePremium(any(TravelCalculatePremiumRequest.class)))
                     .thenReturn(response);
@@ -300,11 +279,9 @@ public class TravelCalculatePremiumControllerTest {
         @Test
         @DisplayName("Should handle empty request body (all fields invalid)")
         void shouldHandleEmptyRequestBody() throws Exception {
-            String requestJson = TestDataLoader.loadRequestAsString("all-invalid-request.json");
-            TravelCalculatePremiumResponse response = TestDataLoader.loadResponse(
-                    "all-errors-response.json",
-                    TravelCalculatePremiumResponse.class
-            );
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.ALL_INVALID);
+
+            TravelCalculatePremiumResponse response = allErrorsResponse();
 
             when(calculatePremiumService.calculatePremium(any(TravelCalculatePremiumRequest.class)))
                     .thenReturn(response);
@@ -315,6 +292,74 @@ public class TravelCalculatePremiumControllerTest {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.errors").isArray())
                     .andExpect(jsonPath("$.errors.length()").value(4));
+        }
+
+        @Test
+        @DisplayName("Should return error when only firstName is empty")
+        void shouldReturnErrorWhenOnlyFirstNameIsEmpty() throws Exception {
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.EMPTY_FIRST_NAME);
+            TravelCalculatePremiumResponse response = errorResponseForFirstName();
+
+            when(calculatePremiumService.calculatePremium(any(TravelCalculatePremiumRequest.class)))
+                    .thenReturn(response);
+
+            mockMvc.perform(post("/insurance/travel/")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestJson))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors.length()").value(1))
+                    .andExpect(jsonPath("$.errors[0].field").value("personFirstName"));
+        }
+
+        @Test
+        @DisplayName("Should return error when only lastName is empty")
+        void shouldReturnErrorWhenOnlyLastNameIsEmpty() throws Exception {
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.EMPTY_LAST_NAME);
+            TravelCalculatePremiumResponse response = errorResponseForLastName();
+
+            when(calculatePremiumService.calculatePremium(any(TravelCalculatePremiumRequest.class)))
+                    .thenReturn(response);
+
+            mockMvc.perform(post("/insurance/travel/")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestJson))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors.length()").value(1))
+                    .andExpect(jsonPath("$.errors[0].field").value("personLastName"));
+        }
+
+        @Test
+        @DisplayName("Should return error when only dateFrom is null")
+        void shouldReturnErrorWhenOnlyDateFromIsNull() throws Exception {
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.NULL_DATE_FROM);
+            TravelCalculatePremiumResponse response = errorResponseForDateFrom();
+
+            when(calculatePremiumService.calculatePremium(any(TravelCalculatePremiumRequest.class)))
+                    .thenReturn(response);
+
+            mockMvc.perform(post("/insurance/travel/")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestJson))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors.length()").value(1))
+                    .andExpect(jsonPath("$.errors[0].field").value("agreementDateFrom"));
+        }
+
+        @Test
+        @DisplayName("Should return error when only dateTo is null")
+        void shouldReturnErrorWhenOnlyDateToIsNull() throws Exception {
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.NULL_DATE_TO);
+            TravelCalculatePremiumResponse response = errorResponseForDateTo();
+
+            when(calculatePremiumService.calculatePremium(any(TravelCalculatePremiumRequest.class)))
+                    .thenReturn(response);
+
+            mockMvc.perform(post("/insurance/travel/")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestJson))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors.length()").value(1))
+                    .andExpect(jsonPath("$.errors[0].field").value("agreementDateTo"));
         }
     }
 
@@ -333,7 +378,7 @@ public class TravelCalculatePremiumControllerTest {
         @Test
         @DisplayName("Should return error for invalid content type")
         void shouldReturnErrorForInvalidContentType() throws Exception {
-            String requestJson = TestDataLoader.loadRequestAsString("valid-request.json");
+            String requestJson = TestDataLoader.loadRequestAsString(Requests.VALID);
 
             mockMvc.perform(post("/insurance/travel/")
                             .contentType(MediaType.TEXT_PLAIN)
