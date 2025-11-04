@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- ============================================ -->
+    <!-- СВОЙСТВА И ПЕРЕМЕННЫЕ                        -->
+    <!-- ============================================ -->
+
+    <!-- Имя приложения -->
+    <property name="APP_NAME" value="travel-insurance" />
+
+    <!-- Директория для логов -->
+    <property name="LOG_DIR" value="logs" />
+
+    <!-- Паттерн для консольного вывода -->
+    <property name="CONSOLE_LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n" />
+
+    <!-- Паттерн для файлового вывода -->
+    <property name="FILE_LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n" />
+
+    <!-- ============================================ -->
+    <!-- APPENDERS - КОНСОЛЬ                          -->
+    <!-- ============================================ -->
+
+    <!-- Appender для вывода в консоль -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- ============================================ -->
+    <!-- APPENDERS - ФАЙЛЫ                            -->
+    <!-- ============================================ -->
+
+    <!-- Appender для общего лога приложения -->
+    <appender name="FILE_ALL" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${APP_NAME}.log</file>
+        <encoder>
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+
+        <!-- Политика ротации: по времени и размеру -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Формат имени архивных файлов -->
+            <fileNamePattern>${LOG_DIR}/archive/${APP_NAME}-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+
+            <!-- Максимальный размер одного файла -->
+            <maxFileSize>10MB</maxFileSize>
+
+            <!-- Хранить логи за последние 30 дней -->
+            <maxHistory>30</maxHistory>
+
+            <!-- Максимальный размер всех логов -->
+            <totalSizeCap>500MB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- Appender для логов ошибок -->
+    <appender name="FILE_ERROR" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${APP_NAME}-error.log</file>
+        <encoder>
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+
+        <!-- Фильтр: только ERROR и выше -->
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>ERROR</level>
+        </filter>
+
+        <!-- Политика ротации -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/archive/${APP_NAME}-error-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>90</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- ============================================ -->
+    <!-- ЛОГГЕРЫ ПО ПАКЕТАМ                           -->
+    <!-- ============================================ -->
+
+    <!-- Логи нашего приложения -->
+    <logger name="org.javaguru.travel.insurance" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="FILE_ALL" />
+        <appender-ref ref="FILE_ERROR" />
+    </logger>
+
+    <!-- Логи Spring Framework -->
+    <logger name="org.springframework" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="FILE_ALL" />
+    </logger>
+
+    <!-- Логи Spring Boot -->
+    <logger name="org.springframework.boot" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="FILE_ALL" />
+    </logger>
+
+    <!-- Логи Spring Web (HTTP запросы) -->
+    <logger name="org.springframework.web" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="FILE_ALL" />
+    </logger>
+
+    <!-- Логи Hibernate  -->
+    <logger name="org.hibernate" level="WARN" additivity="false">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="FILE_ALL" />
+    </logger>
+
+    <!-- ============================================ -->
+    <!-- ПРОФИЛИ SPRING                               -->
+    <!-- ============================================ -->
+
+    <!-- Профиль DEVELOPMENT -->
+    <springProfile name="dev">
+        <logger name="org.javaguru.travel.insurance" level="DEBUG" />
+        <logger name="org.springframework.web" level="DEBUG" />
+    </springProfile>
+
+    <!-- Профиль PRODUCTION -->
+    <springProfile name="prod">
+        <logger name="org.javaguru.travel.insurance" level="INFO" />
+        <logger name="org.springframework" level="WARN" />
+    </springProfile>
+
+    <!-- Профиль TESTING -->
+    <springProfile name="test">
+        <logger name="org.javaguru.travel.insurance" level="DEBUG" />
+        <logger name="org.springframework" level="WARN" />
+    </springProfile>
+
+    <!-- ============================================ -->
+    <!-- ROOT LOGGER                                  -->
+    <!-- ============================================ -->
+
+    <!-- Корневой логгер: все остальные логи -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="FILE_ALL" />
+        <appender-ref ref="FILE_ERROR" />
+    </root>
+
+</configuration>
