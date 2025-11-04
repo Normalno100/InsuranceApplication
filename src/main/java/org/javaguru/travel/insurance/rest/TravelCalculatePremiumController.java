@@ -25,17 +25,12 @@ public class TravelCalculatePremiumController {
 	public ResponseEntity<TravelCalculatePremiumResponse> calculatePremium(
 			@RequestBody TravelCalculatePremiumRequest request) {
 
-		log.info("Received premium calculation request for: {} {}",
-				request.getPersonFirstName(), request.getPersonLastName());
-
 		TravelCalculatePremiumResponse response = calculatePremiumService.calculatePremium(request);
 
 		if (response.hasErrors()) {
-			log.warn("Validation errors occurred: {}", response.getErrors());
 			return ResponseEntity.badRequest().body(response);
 		}
 
-		log.info("Premium calculated successfully: {}", response.getAgreementPrice());
 		return ResponseEntity.ok(response);
 	}
 
