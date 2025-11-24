@@ -1,9 +1,13 @@
 databaseChangeLog:
   - include:
-      file: db/changelog/001_create_reference_tables.sql
+      file: db/changelog/changes/001-create-reference-tables.xml
   - include:
-      file: db/changelog/002_create_business_tables.sql
+      file: db/changelog/changes/002-create-business-tables.xml
   - include:
-      file: db/changelog/003_create_indexes.sql
+      file: db/changelog/changes/003-create-audit-tables.xml
   - include:
-      file: db/changelog/004_insert_initial_data.sql
+      file: db/changelog/changes/004-create-views.xml
+  - include:
+      file: db/changelog/changes/005-create-functions-and-triggers.xml
+  - include:
+      file: db/changelog/changes/006-insert-initial-data.xml
