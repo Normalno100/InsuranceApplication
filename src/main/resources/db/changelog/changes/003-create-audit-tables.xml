@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Calculation Logs Table -->
+    <changeSet id="003-01-create-calculation-logs" author="travel-insurance">
+        <createTable tableName="calculation_logs">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="request_id" type="UUID">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="request_data" type="JSONB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="response_data" type="JSONB"/>
+            <column name="calculation_details" type="JSONB"/>
+            <column name="has_errors" type="BOOLEAN" defaultValueBoolean="false"/>
+            <column name="errors" type="JSONB"/>
+            <column name="execution_time_ms" type="INT"/>
+            <column name="client_ip" type="VARCHAR(45)"/>
+            <column name="user_agent" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <createIndex tableName="calculation_logs" indexName="idx_calc_log_request_id">
+            <column name="request_id"/>
+        </createIndex>
+
+        <createIndex tableName="calculation_logs" indexName="idx_calc_log_created">
+            <column name="created_at"/>
+        </createIndex>
+
+        <createIndex tableName="calculation_logs" indexName="idx_calc_log_errors">
+            <column name="has_errors"/>
+        </createIndex>
+
+        <sql>
+            CREATE INDEX idx_calc_log_request_data ON calculation_logs USING GIN (request_data);
+        </sql>
+        <rollback>
+            DROP INDEX IF EXISTS idx_calc_log_request_data;
+        </rollback>
+    </changeSet>
+
+    <!-- Coefficient Changes Audit Table -->
+    <changeSet id="003-02-create-coefficient-changes-audit" author="travel-insurance">
+        <createTable tableName="coefficient_changes_audit">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="table_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="record_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="old_value" type="JSONB"/>
+            <column name="new_value" type="JSONB"/>
+            <column name="changed_by" type="VARCHAR(100)"/>
+            <column name="changed_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="reason" type="TEXT"/>
+        </createTable>
+
+        <createIndex tableName="coefficient_changes_audit" indexName="idx_audit_table">
+            <column name="table_name"/>
+            <column name="record_id"/>
+        </createIndex>
+
+        <createIndex tableName="coefficient_changes_audit" indexName="idx_audit_date">
+            <column name="changed_at"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

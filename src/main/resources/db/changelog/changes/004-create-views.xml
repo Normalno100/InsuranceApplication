@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Active Agreements View -->
+    <changeSet id="004-01-create-v-active-agreements" author="travel-insurance">
+        <createView viewName="v_active_agreements" replaceIfExists="true">
+            SELECT
+            a.id,
+            a.agreement_number,
+            p.first_name,
+            p.last_name,
+            p.birth_date,
+            EXTRACT(YEAR FROM AGE(p.birth_date)) AS age,
+            a.date_from,
+            a.date_to,
+            a.days_count,
+            c.name_en AS country_name,
+            c.risk_coefficient AS country_risk,
+            a.medical_risk_limit_level,
+            a.premium_amount,
+            a.currency,
+            a.status,
+            a.created_at
+            FROM agreements a
+            JOIN persons p ON a.person_id = p.id
+            JOIN countries c ON a.country_iso_code = c.iso_code
+            WHERE a.status = 'ACTIVE'
+            AND a.date_to >= CURRENT_DATE
+        </createView>
+    </changeSet>
+
+    <!-- Country Statistics View -->
+    <changeSet id="004-02-create-v-country-statistics" author="travel-insurance">
+        <createView viewName="v_country_statistics" replaceIfExists="true">
+            SELECT
+            c.iso_code,
+            c.name_en,
+            c.risk_group,
+            COUNT(a.id) AS agreements_count,
+            SUM(a.premium_amount) AS total_premium,
+            AVG(a.premium_amount) AS avg_premium,
+            AVG(a.days_count) AS avg_days
+            FROM countries c
+            LEFT JOIN agreements a ON c.iso_code = a.country_iso_code
+            GROUP BY c.iso_code, c.name_en, c.risk_group
+        </createView>
+    </changeSet>
+
+    <!-- Promo Code Statistics View -->
+    <changeSet id="004-03-create-v-promo-code-statistics" author="travel-insurance">
+        <createView viewName="v_promo_code_statistics" replaceIfExists="true">
+            SELECT
+            pc.code,
+            pc.description,
+            pc.discount_type,
+            pc.discount_value,
+            pc.max_usage_count,
+            pc.current_usage_count,
+            COUNT(pcu.id) AS actual_usage_count,
+            SUM(pcu.discount_amount) AS total_discount_given,
+            pc.valid_from,
+            pc.valid_to,
+            pc.is_active
+            FROM promo_codes pc
+            LEFT JOIN promo_code_usage pcu ON pc.id = pcu.promo_code_id
+            GROUP BY pc.id, pc.code, pc.description, pc.discount_type,
+            pc.discount_value, pc.max_usage_count, pc.current_usage_count,
+            pc.valid_from, pc.valid_to, pc.is_active
+        </createView>
+    </changeSet>
+
+</databaseChangeLog>

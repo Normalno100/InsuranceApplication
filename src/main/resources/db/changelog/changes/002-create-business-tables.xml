@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Persons Table -->
+    <changeSet id="002-01-create-persons" author="travel-insurance">
+        <createTable tableName="persons">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="first_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="birth_date" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="email" type="VARCHAR(255)"/>
+            <column name="phone" type="VARCHAR(20)"/>
+            <column name="passport_number" type="VARCHAR(50)"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <createIndex tableName="persons" indexName="idx_person_name">
+            <column name="last_name"/>
+            <column name="first_name"/>
+        </createIndex>
+
+        <createIndex tableName="persons" indexName="idx_person_birth_date">
+            <column name="birth_date"/>
+        </createIndex>
+
+        <createIndex tableName="persons" indexName="idx_person_email">
+            <column name="email"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- Agreements Table -->
+    <changeSet id="002-02-create-agreements" author="travel-insurance">
+        <createTable tableName="agreements">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="agreement_number" type="VARCHAR(50)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="person_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_agreement_person"
+                             references="persons(id)"/>
+            </column>
+            <column name="date_from" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="date_to" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="days_count" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="country_iso_code" type="VARCHAR(2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="medical_risk_limit_level" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="premium_amount" type="DECIMAL(12, 2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="currency" type="VARCHAR(3)" defaultValue="EUR">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(20)" defaultValue="DRAFT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="calculation_details" type="JSONB"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <addCheckConstraint tableName="agreements" constraintName="chk_date_order"
+                            checkCondition="date_to >= date_from"/>
+        <addCheckConstraint tableName="agreements" constraintName="chk_days_positive"
+                            checkCondition="days_count > 0"/>
+        <addCheckConstraint tableName="agreements" constraintName="chk_premium_positive"
+                            checkCondition="premium_amount > 0"/>
+
+        <createIndex tableName="agreements" indexName="idx_agreement_number">
+            <column name="agreement_number"/>
+        </createIndex>
+
+        <createIndex tableName="agreements" indexName="idx_agreement_person">
+            <column name="person_id"/>
+        </createIndex>
+
+        <createIndex tableName="agreements" indexName="idx_agreement_dates">
+            <column name="date_from"/>
+            <column name="date_to"/>
+        </createIndex>
+
+        <createIndex tableName="agreements" indexName="idx_agreement_status">
+            <column name="status"/>
+        </createIndex>
+
+        <createIndex tableName="agreements" indexName="idx_agreement_country">
+            <column name="country_iso_code"/>
+        </createIndex>
+
+        <createIndex tableName="agreements" indexName="idx_agreement_calculation_details"
+                     unique="false">
+            <column name="calculation_details"/>
+        </createIndex>
+        <sql>
+            CREATE INDEX idx_agreement_calculation_details ON agreements USING GIN (calculation_details);
+        </sql>
+        <rollback>
+            DROP INDEX IF EXISTS idx_agreement_calculation_details;
+        </rollback>
+    </changeSet>
+
+    <!-- Agreement Risks Table -->
+    <changeSet id="002-03-create-agreement-risks" author="travel-insurance">
+        <createTable tableName="agreement_risks">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="agreement_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_agreement_risk_agreement"
+                             references="agreements(id)" deleteCascade="true"/>
+            </column>
+            <column name="risk_type_code" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="premium_amount" type="DECIMAL(12, 2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <addUniqueConstraint tableName="agreement_risks"
+                             columnNames="agreement_id, risk_type_code"
+                             constraintName="uk_agreement_risk"/>
+
+        <createIndex tableName="agreement_risks" indexName="idx_agreement_risk">
+            <column name="agreement_id"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- Promo Codes Table -->
+    <changeSet id="002-04-create-promo-codes" author="travel-insurance">
+        <createTable tableName="promo_codes">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="code" type="VARCHAR(50)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="description" type="VARCHAR(255)"/>
+            <column name="discount_type" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="discount_value" type="DECIMAL(10, 2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="min_premium_amount" type="DECIMAL(12, 2)"/>
+            <column name="max_discount_amount" type="DECIMAL(12, 2)"/>
+            <column name="applicable_countries" type="VARCHAR(255)"/>
+            <column name="applicable_risk_levels" type="VARCHAR(255)"/>
+            <column name="valid_from" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="valid_to" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="max_usage_count" type="INT"/>
+            <column name="current_usage_count" type="INT" defaultValueNumeric="0"/>
+            <column name="is_active" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <addCheckConstraint tableName="promo_codes" constraintName="chk_discount_positive"
+                            checkCondition="discount_value > 0"/>
+        <addCheckConstraint tableName="promo_codes" constraintName="chk_dates"
+                            checkCondition="valid_to >= valid_from"/>
+
+        <createIndex tableName="promo_codes" indexName="idx_promo_code">
+            <column name="code"/>
+        </createIndex>
+
+        <createIndex tableName="promo_codes" indexName="idx_promo_validity">
+            <column name="valid_from"/>
+            <column name="valid_to"/>
+        </createIndex>
+
+        <createIndex tableName="promo_codes" indexName="idx_promo_active">
+            <column name="is_active"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- Promo Code Usage Table -->
+    <changeSet id="002-05-create-promo-code-usage" author="travel-insurance">
+        <createTable tableName="promo_code_usage">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="promo_code_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_promo_usage_code"
+                             references="promo_codes(id)"/>
+            </column>
+            <column name="agreement_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_promo_usage_agreement"
+                             references="agreements(id)"/>
+            </column>
+            <column name="discount_amount" type="DECIMAL(12, 2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="used_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <addUniqueConstraint tableName="promo_code_usage"
+                             columnNames="agreement_id"
+                             constraintName="uk_agreement_promo"/>
+
+        <createIndex tableName="promo_code_usage" indexName="idx_promo_usage_code">
+            <column name="promo_code_id"/>
+        </createIndex>
+
+        <createIndex tableName="promo_code_usage" indexName="idx_promo_usage_agreement">
+            <column name="agreement_id"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- Discounts Table -->
+    <changeSet id="002-06-create-discounts" author="travel-insurance">
+        <createTable tableName="discounts">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="code" type="VARCHAR(50)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="discount_type" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="discount_percentage" type="DECIMAL(5, 2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="min_persons_count" type="INT"/>
+            <column name="min_premium_amount" type="DECIMAL(12, 2)"/>
+            <column name="valid_from" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="valid_to" type="DATE"/>
+            <column name="is_active" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <!-- Agreement Discounts Table -->
+    <changeSet id="002-07-create-agreement-discounts" author="travel-insurance">
+        <createTable tableName="agreement_discounts">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="agreement_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_agreement_discount_agreement"
+                             references="agreements(id)" deleteCascade="true"/>
+            </column>
+            <column name="discount_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_agreement_discount_discount"
+                             references="discounts(id)"/>
+            </column>
+            <column name="discount_amount" type="DECIMAL(12, 2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <createIndex tableName="agreement_discounts" indexName="idx_agreement_discount">
+            <column name="agreement_id"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- Payments Table -->
+    <changeSet id="002-08-create-payments" author="travel-insurance">
+        <createTable tableName="payments">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="agreement_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_payment_agreement"
+                             references="agreements(id)"/>
+            </column>
+            <column name="amount" type="DECIMAL(12, 2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="currency" type="VARCHAR(3)" defaultValue="EUR">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(20)" defaultValue="PENDING">
+                <constraints nullable="false"/>
+            </column>
+            <column name="payment_method" type="VARCHAR(50)"/>
+            <column name="payment_provider" type="VARCHAR(50)"/>
+            <column name="external_transaction_id" type="VARCHAR(100)"/>
+            <column name="paid_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <addCheckConstraint tableName="payments" constraintName="chk_amount_positive"
+                            checkCondition="amount > 0"/>
+
+        <createIndex tableName="payments" indexName="idx_payment_agreement">
+            <column name="agreement_id"/>
+        </createIndex>
+
+        <createIndex tableName="payments" indexName="idx_payment_status">
+            <column name="status"/>
+        </createIndex>
+
+        <createIndex tableName="payments" indexName="idx_payment_external_id">
+            <column name="external_transaction_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

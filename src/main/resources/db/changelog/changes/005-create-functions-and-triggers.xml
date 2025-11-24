@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Function: Update updated_at Column -->
+    <changeSet id="005-01-create-update-updated-at-function" author="travel-insurance">
+        <sql>
+            CREATE OR REPLACE FUNCTION update_updated_at_column()
+            RETURNS TRIGGER AS $$
+            BEGIN
+            NEW.updated_at = CURRENT_TIMESTAMP;
+            RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+        <rollback>
+            DROP FUNCTION IF EXISTS update_updated_at_column();
+        </rollback>
+    </changeSet>
+
+    <!-- Triggers for updated_at on various tables -->
+    <changeSet id="005-02-create-triggers-for-updated-at" author="travel-insurance">
+        <sql>
+            CREATE TRIGGER update_persons_updated_at
+            BEFORE UPDATE ON persons
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+
+            CREATE TRIGGER update_agreements_updated_at
+            BEFORE UPDATE ON agreements
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+
+            CREATE TRIGGER update_promo_codes_updated_at
+            BEFORE UPDATE ON promo_codes
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+
+            CREATE TRIGGER update_countries_updated_at
+            BEFORE UPDATE ON countries
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+
+            CREATE TRIGGER update_discounts_updated_at
+            BEFORE UPDATE ON discounts
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+
+            CREATE TRIGGER update_payments_updated_at
+            BEFORE UPDATE ON payments
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+        </sql>
+        <rollback>
+            DROP TRIGGER IF EXISTS update_persons_updated_at ON persons;
+            DROP TRIGGER IF EXISTS update_agreements_updated_at ON agreements;
+            DROP TRIGGER IF EXISTS update_promo_codes_updated_at ON promo_codes;
+            DROP TRIGGER IF EXISTS update_countries_updated_at ON countries;
+            DROP TRIGGER IF EXISTS update_discounts_updated_at ON discounts;
+            DROP TRIGGER IF EXISTS update_payments_updated_at ON payments;
+        </rollback>
+    </changeSet>
+
+    <!-- Function: Validate Promo Code -->
+    <changeSet id="005-03-create-validate-promo-code-function" author="travel-insurance">
+        <sql>
+            CREATE OR REPLACE FUNCTION validate_promo_code(
+            p_code VARCHAR,
+            p_agreement_date DATE,
+            p_premium_amount DECIMAL
+            )
+            RETURNS TABLE(is_valid BOOLEAN, error_message TEXT, discount_amount DECIMAL) AS $$
+            DECLARE
+            v_promo promo_codes%ROWTYPE;
+            v_discount DECIMAL;
+            BEGIN
+            -- Search for promo code
+            SELECT * INTO v_promo
+            FROM promo_codes
+            WHERE code = p_code
+            AND is_active = TRUE
+            AND valid_from &lt;= p_agreement_date
+            AND valid_to >= p_agreement_date;
+
+            IF NOT FOUND THEN
+            RETURN QUERY SELECT FALSE, 'Promo code not found or expired', 0::DECIMAL;
+            RETURN;
+            END IF;
+
+            -- Check usage limit
+            IF v_promo.max_usage_count IS NOT NULL
+            AND v_promo.current_usage_count >= v_promo.max_usage_count THEN
+            RETURN QUERY SELECT FALSE, 'Promo code usage limit reached', 0::DECIMAL;
+            RETURN;
+            END IF;
+
+            -- Check minimum amount
+            IF v_promo.min_premium_amount IS NOT NULL
+            AND p_premium_amount &lt; v_promo.min_premium_amount THEN
+            RETURN QUERY SELECT FALSE, 'Premium amount too low for this promo code', 0::DECIMAL;
+            RETURN;
+            END IF;
+
+            -- Calculate discount
+            IF v_promo.discount_type = 'PERCENTAGE' THEN
+            v_discount := p_premium_amount * v_promo.discount_value / 100;
+            ELSE
+            v_discount := v_promo.discount_value;
+            END IF;
+
+            -- Check maximum discount
+            IF v_promo.max_discount_amount IS NOT NULL
+            AND v_discount > v_promo.max_discount_amount THEN
+            v_discount := v_promo.max_discount_amount;
+            END IF;
+
+            RETURN QUERY SELECT TRUE, NULL::TEXT, v_discount;
+            END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+        <rollback>
+            DROP FUNCTION IF EXISTS validate_promo_code(VARCHAR, DATE, DECIMAL);
+        </rollback>
+    </changeSet>
+
+    <!-- Add comments to tables -->
+    <changeSet id="005-04-add-table-comments" author="travel-insurance">
+        <sql>
+            COMMENT ON TABLE agreements IS 'Insurance agreements';
+            COMMENT ON TABLE persons IS 'Insured persons';
+            COMMENT ON TABLE promo_codes IS 'Promotional codes for discounts';
+            COMMENT ON TABLE countries IS 'Country reference with risk coefficients';
+            COMMENT ON TABLE risk_types IS 'Insurance risk types';
+            COMMENT ON TABLE payments IS 'Agreement payments';
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

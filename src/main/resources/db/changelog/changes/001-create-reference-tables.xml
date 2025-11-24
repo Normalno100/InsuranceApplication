@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Age Coefficients Table -->
+    <changeSet id="001-01-create-age-coefficients" author="travel-insurance">
+        <createTable tableName="age_coefficients">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="age_from" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="age_to" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="coefficient" type="DECIMAL(5, 2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="VARCHAR(100)"/>
+            <column name="valid_from" type="DATE" defaultValueComputed="CURRENT_DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="valid_to" type="DATE"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <addUniqueConstraint tableName="age_coefficients"
+                             columnNames="age_from, age_to, valid_from"
+                             constraintName="uk_age_range"/>
+
+        <createIndex tableName="age_coefficients" indexName="idx_age_range">
+            <column name="age_from"/>
+            <column name="age_to"/>
+        </createIndex>
+
+        <createIndex tableName="age_coefficients" indexName="idx_validity">
+            <column name="valid_from"/>
+            <column name="valid_to"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- Medical Risk Limit Levels Table -->
+    <changeSet id="001-02-create-medical-risk-limit-levels" author="travel-insurance">
+        <createTable tableName="medical_risk_limit_levels">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="code" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="coverage_amount" type="DECIMAL(12, 2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="daily_rate" type="DECIMAL(8, 2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="currency" type="VARCHAR(3)" defaultValue="EUR">
+                <constraints nullable="false"/>
+            </column>
+            <column name="valid_from" type="DATE" defaultValueComputed="CURRENT_DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="valid_to" type="DATE"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <addUniqueConstraint tableName="medical_risk_limit_levels"
+                             columnNames="code, valid_from"
+                             constraintName="uk_level_code"/>
+
+        <createIndex tableName="medical_risk_limit_levels" indexName="idx_coverage_amount">
+            <column name="coverage_amount"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- Countries Table -->
+    <changeSet id="001-03-create-countries" author="travel-insurance">
+        <createTable tableName="countries">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="iso_code" type="VARCHAR(2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name_en" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name_ru" type="VARCHAR(100)"/>
+            <column name="risk_group" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="risk_coefficient" type="DECIMAL(5, 2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="valid_from" type="DATE" defaultValueComputed="CURRENT_DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="valid_to" type="DATE"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <addUniqueConstraint tableName="countries"
+                             columnNames="iso_code, valid_from"
+                             constraintName="uk_country_code"/>
+
+        <createIndex tableName="countries" indexName="idx_country_risk">
+            <column name="risk_group"/>
+        </createIndex>
+
+        <createIndex tableName="countries" indexName="idx_country_iso">
+            <column name="iso_code"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- Risk Types Table -->
+    <changeSet id="001-04-create-risk-types" author="travel-insurance">
+        <createTable tableName="risk_types">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="code" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name_en" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name_ru" type="VARCHAR(100)"/>
+            <column name="coefficient" type="DECIMAL(5, 2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_mandatory" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="valid_from" type="DATE" defaultValueComputed="CURRENT_DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="valid_to" type="DATE"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <addUniqueConstraint tableName="risk_types"
+                             columnNames="code, valid_from"
+                             constraintName="uk_risk_code"/>
+
+        <createIndex tableName="risk_types" indexName="idx_risk_mandatory">
+            <column name="is_mandatory"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- Currencies Table -->
+    <changeSet id="001-05-create-currencies" author="travel-insurance">
+        <createTable tableName="currencies">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="code" type="VARCHAR(3)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="name" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="symbol" type="VARCHAR(5)"/>
+            <column name="exchange_rate_to_eur" type="DECIMAL(10, 6)" defaultValue="1.0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>
