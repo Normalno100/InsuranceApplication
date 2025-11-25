@@ -1,0 +1,629 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Insert Age Coefficients -->
+    <changeSet id="006-01-insert-age-coefficients" author="travel-insurance">
+        <insert tableName="age_coefficients">
+            <column name="age_from" valueNumeric="0"/>
+            <column name="age_to" valueNumeric="5"/>
+            <column name="coefficient" valueNumeric="1.10"/>
+            <column name="description" value="Infants and toddlers"/>
+        </insert>
+        <insert tableName="age_coefficients">
+            <column name="age_from" valueNumeric="6"/>
+            <column name="age_to" valueNumeric="17"/>
+            <column name="coefficient" valueNumeric="0.90"/>
+            <column name="description" value="Children and teenagers"/>
+        </insert>
+        <insert tableName="age_coefficients">
+            <column name="age_from" valueNumeric="18"/>
+            <column name="age_to" valueNumeric="30"/>
+            <column name="coefficient" valueNumeric="1.00"/>
+            <column name="description" value="Young adults"/>
+        </insert>
+        <insert tableName="age_coefficients">
+            <column name="age_from" valueNumeric="31"/>
+            <column name="age_to" valueNumeric="40"/>
+            <column name="coefficient" valueNumeric="1.10"/>
+            <column name="description" value="Adults"/>
+        </insert>
+        <insert tableName="age_coefficients">
+            <column name="age_from" valueNumeric="41"/>
+            <column name="age_to" valueNumeric="50"/>
+            <column name="coefficient" valueNumeric="1.30"/>
+            <column name="description" value="Middle-aged"/>
+        </insert>
+        <insert tableName="age_coefficients">
+            <column name="age_from" valueNumeric="51"/>
+            <column name="age_to" valueNumeric="60"/>
+            <column name="coefficient" valueNumeric="1.60"/>
+            <column name="description" value="Senior"/>
+        </insert>
+        <insert tableName="age_coefficients">
+            <column name="age_from" valueNumeric="61"/>
+            <column name="age_to" valueNumeric="70"/>
+            <column name="coefficient" valueNumeric="2.00"/>
+            <column name="description" value="Elderly"/>
+        </insert>
+        <insert tableName="age_coefficients">
+            <column name="age_from" valueNumeric="71"/>
+            <column name="age_to" valueNumeric="80"/>
+            <column name="coefficient" valueNumeric="2.50"/>
+            <column name="description" value="Very elderly"/>
+        </insert>
+    </changeSet>
+
+    <!-- Insert Medical Risk Limit Levels -->
+    <changeSet id="006-02-insert-medical-risk-limit-levels" author="travel-insurance">
+        <insert tableName="medical_risk_limit_levels">
+            <column name="code" value="5000"/>
+            <column name="coverage_amount" valueNumeric="5000.00"/>
+            <column name="daily_rate" valueNumeric="1.50"/>
+        </insert>
+        <insert tableName="medical_risk_limit_levels">
+            <column name="code" value="10000"/>
+            <column name="coverage_amount" valueNumeric="10000.00"/>
+            <column name="daily_rate" valueNumeric="2.00"/>
+        </insert>
+        <insert tableName="medical_risk_limit_levels">
+            <column name="code" value="20000"/>
+            <column name="coverage_amount" valueNumeric="20000.00"/>
+            <column name="daily_rate" valueNumeric="3.00"/>
+        </insert>
+        <insert tableName="medical_risk_limit_levels">
+            <column name="code" value="50000"/>
+            <column name="coverage_amount" valueNumeric="50000.00"/>
+            <column name="daily_rate" valueNumeric="4.50"/>
+        </insert>
+        <insert tableName="medical_risk_limit_levels">
+            <column name="code" value="100000"/>
+            <column name="coverage_amount" valueNumeric="100000.00"/>
+            <column name="daily_rate" valueNumeric="7.00"/>
+        </insert>
+        <insert tableName="medical_risk_limit_levels">
+            <column name="code" value="200000"/>
+            <column name="coverage_amount" valueNumeric="200000.00"/>
+            <column name="daily_rate" valueNumeric="12.00"/>
+        </insert>
+        <insert tableName="medical_risk_limit_levels">
+            <column name="code" value="500000"/>
+            <column name="coverage_amount" valueNumeric="500000.00"/>
+            <column name="daily_rate" valueNumeric="20.00"/>
+        </insert>
+    </changeSet>
+
+    <!-- Insert Countries - Low Risk -->
+    <changeSet id="006-03-insert-countries-low-risk" author="travel-insurance">
+        <insert tableName="countries">
+            <column name="iso_code" value="ES"/>
+            <column name="name_en" value="Spain"/>
+            <column name="name_ru" value="Испания"/>
+            <column name="risk_group" value="LOW"/>
+            <column name="risk_coefficient" valueNumeric="1.0"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="DE"/>
+            <column name="name_en" value="Germany"/>
+            <column name="name_ru" value="Германия"/>
+            <column name="risk_group" value="LOW"/>
+            <column name="risk_coefficient" valueNumeric="1.0"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="FR"/>
+            <column name="name_en" value="France"/>
+            <column name="name_ru" value="Франция"/>
+            <column name="risk_group" value="LOW"/>
+            <column name="risk_coefficient" valueNumeric="1.0"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="IT"/>
+            <column name="name_en" value="Italy"/>
+            <column name="name_ru" value="Италия"/>
+            <column name="risk_group" value="LOW"/>
+            <column name="risk_coefficient" valueNumeric="1.0"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="AT"/>
+            <column name="name_en" value="Austria"/>
+            <column name="name_ru" value="Австрия"/>
+            <column name="risk_group" value="LOW"/>
+            <column name="risk_coefficient" valueNumeric="1.0"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="NL"/>
+            <column name="name_en" value="Netherlands"/>
+            <column name="name_ru" value="Нидерланды"/>
+            <column name="risk_group" value="LOW"/>
+            <column name="risk_coefficient" valueNumeric="1.0"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="BE"/>
+            <column name="name_en" value="Belgium"/>
+            <column name="name_ru" value="Бельгия"/>
+            <column name="risk_group" value="LOW"/>
+            <column name="risk_coefficient" valueNumeric="1.0"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="CH"/>
+            <column name="name_en" value="Switzerland"/>
+            <column name="name_ru" value="Швейцария"/>
+            <column name="risk_group" value="LOW"/>
+            <column name="risk_coefficient" valueNumeric="1.0"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="SE"/>
+            <column name="name_en" value="Sweden"/>
+            <column name="name_ru" value="Швеция"/>
+            <column name="risk_group" value="LOW"/>
+            <column name="risk_coefficient" valueNumeric="1.0"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="NO"/>
+            <column name="name_en" value="Norway"/>
+            <column name="name_ru" value="Норвегия"/>
+            <column name="risk_group" value="LOW"/>
+            <column name="risk_coefficient" valueNumeric="1.0"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="DK"/>
+            <column name="name_en" value="Denmark"/>
+            <column name="name_ru" value="Дания"/>
+            <column name="risk_group" value="LOW"/>
+            <column name="risk_coefficient" valueNumeric="1.0"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="JP"/>
+            <column name="name_en" value="Japan"/>
+            <column name="name_ru" value="Япония"/>
+            <column name="risk_group" value="LOW"/>
+            <column name="risk_coefficient" valueNumeric="1.0"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="KR"/>
+            <column name="name_en" value="South Korea"/>
+            <column name="name_ru" value="Южная Корея"/>
+            <column name="risk_group" value="LOW"/>
+            <column name="risk_coefficient" valueNumeric="1.0"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="AU"/>
+            <column name="name_en" value="Australia"/>
+            <column name="name_ru" value="Австралия"/>
+            <column name="risk_group" value="LOW"/>
+            <column name="risk_coefficient" valueNumeric="1.0"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="NZ"/>
+            <column name="name_en" value="New Zealand"/>
+            <column name="name_ru" value="Новая Зеландия"/>
+            <column name="risk_group" value="LOW"/>
+            <column name="risk_coefficient" valueNumeric="1.0"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="CA"/>
+            <column name="name_en" value="Canada"/>
+            <column name="name_ru" value="Канада"/>
+            <column name="risk_group" value="LOW"/>
+            <column name="risk_coefficient" valueNumeric="1.0"/>
+        </insert>
+    </changeSet>
+
+    <!-- Insert Countries - Medium Risk -->
+    <changeSet id="006-04-insert-countries-medium-risk" author="travel-insurance">
+        <insert tableName="countries">
+            <column name="iso_code" value="TH"/>
+            <column name="name_en" value="Thailand"/>
+            <column name="name_ru" value="Таиланд"/>
+            <column name="risk_group" value="MEDIUM"/>
+            <column name="risk_coefficient" valueNumeric="1.3"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="VN"/>
+            <column name="name_en" value="Vietnam"/>
+            <column name="name_ru" value="Вьетнам"/>
+            <column name="risk_group" value="MEDIUM"/>
+            <column name="risk_coefficient" valueNumeric="1.3"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="TR"/>
+            <column name="name_en" value="Turkey"/>
+            <column name="name_ru" value="Турция"/>
+            <column name="risk_group" value="MEDIUM"/>
+            <column name="risk_coefficient" valueNumeric="1.3"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="AE"/>
+            <column name="name_en" value="United Arab Emirates"/>
+            <column name="name_ru" value="ОАЭ"/>
+            <column name="risk_group" value="MEDIUM"/>
+            <column name="risk_coefficient" valueNumeric="1.3"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="CN"/>
+            <column name="name_en" value="China"/>
+            <column name="name_ru" value="Китай"/>
+            <column name="risk_group" value="MEDIUM"/>
+            <column name="risk_coefficient" valueNumeric="1.3"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="MX"/>
+            <column name="name_en" value="Mexico"/>
+            <column name="name_ru" value="Мексика"/>
+            <column name="risk_group" value="MEDIUM"/>
+            <column name="risk_coefficient" valueNumeric="1.3"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="BR"/>
+            <column name="name_en" value="Brazil"/>
+            <column name="name_ru" value="Бразилия"/>
+            <column name="risk_group" value="MEDIUM"/>
+            <column name="risk_coefficient" valueNumeric="1.3"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="MY"/>
+            <column name="name_en" value="Malaysia"/>
+            <column name="name_ru" value="Малайзия"/>
+            <column name="risk_group" value="MEDIUM"/>
+            <column name="risk_coefficient" valueNumeric="1.3"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="ID"/>
+            <column name="name_en" value="Indonesia"/>
+            <column name="name_ru" value="Индонезия"/>
+            <column name="risk_group" value="MEDIUM"/>
+            <column name="risk_coefficient" valueNumeric="1.3"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="PH"/>
+            <column name="name_en" value="Philippines"/>
+            <column name="name_ru" value="Филиппины"/>
+            <column name="risk_group" value="MEDIUM"/>
+            <column name="risk_coefficient" valueNumeric="1.3"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="US"/>
+            <column name="name_en" value="United States"/>
+            <column name="name_ru" value="США"/>
+            <column name="risk_group" value="MEDIUM"/>
+            <column name="risk_coefficient" valueNumeric="1.3"/>
+        </insert>
+    </changeSet>
+
+    <!-- Insert Countries - High Risk -->
+    <changeSet id="006-05-insert-countries-high-risk" author="travel-insurance">
+        <insert tableName="countries">
+            <column name="iso_code" value="IN"/>
+            <column name="name_en" value="India"/>
+            <column name="name_ru" value="Индия"/>
+            <column name="risk_group" value="HIGH"/>
+            <column name="risk_coefficient" valueNumeric="1.8"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="EG"/>
+            <column name="name_en" value="Egypt"/>
+            <column name="name_ru" value="Египет"/>
+            <column name="risk_group" value="HIGH"/>
+            <column name="risk_coefficient" valueNumeric="1.8"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="KE"/>
+            <column name="name_en" value="Kenya"/>
+            <column name="name_ru" value="Кения"/>
+            <column name="risk_group" value="HIGH"/>
+            <column name="risk_coefficient" valueNumeric="1.8"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="ZA"/>
+            <column name="name_en" value="South Africa"/>
+            <column name="name_ru" value="ЮАР"/>
+            <column name="risk_group" value="HIGH"/>
+            <column name="risk_coefficient" valueNumeric="1.8"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="MA"/>
+            <column name="name_en" value="Morocco"/>
+            <column name="name_ru" value="Марокко"/>
+            <column name="risk_group" value="HIGH"/>
+            <column name="risk_coefficient" valueNumeric="1.8"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="TN"/>
+            <column name="name_en" value="Tunisia"/>
+            <column name="name_ru" value="Тунис"/>
+            <column name="risk_group" value="HIGH"/>
+            <column name="risk_coefficient" valueNumeric="1.8"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="AR"/>
+            <column name="name_en" value="Argentina"/>
+            <column name="name_ru" value="Аргентина"/>
+            <column name="risk_group" value="HIGH"/>
+            <column name="risk_coefficient" valueNumeric="1.8"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="CO"/>
+            <column name="name_en" value="Colombia"/>
+            <column name="name_ru" value="Колумбия"/>
+            <column name="risk_group" value="HIGH"/>
+            <column name="risk_coefficient" valueNumeric="1.8"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="PE"/>
+            <column name="name_en" value="Peru"/>
+            <column name="name_ru" value="Перу"/>
+            <column name="risk_group" value="HIGH"/>
+            <column name="risk_coefficient" valueNumeric="1.8"/>
+        </insert>
+    </changeSet>
+
+    <!-- Insert Countries - Very High Risk -->
+    <changeSet id="006-06-insert-countries-very-high-risk" author="travel-insurance">
+        <insert tableName="countries">
+            <column name="iso_code" value="AF"/>
+            <column name="name_en" value="Afghanistan"/>
+            <column name="name_ru" value="Афганистан"/>
+            <column name="risk_group" value="VERY_HIGH"/>
+            <column name="risk_coefficient" valueNumeric="2.5"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="IQ"/>
+            <column name="name_en" value="Iraq"/>
+            <column name="name_ru" value="Ирак"/>
+            <column name="risk_group" value="VERY_HIGH"/>
+            <column name="risk_coefficient" valueNumeric="2.5"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="SY"/>
+            <column name="name_en" value="Syria"/>
+            <column name="name_ru" value="Сирия"/>
+            <column name="risk_group" value="VERY_HIGH"/>
+            <column name="risk_coefficient" valueNumeric="2.5"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="YE"/>
+            <column name="name_en" value="Yemen"/>
+            <column name="name_ru" value="Йемен"/>
+            <column name="risk_group" value="VERY_HIGH"/>
+            <column name="risk_coefficient" valueNumeric="2.5"/>
+        </insert>
+        <insert tableName="countries">
+            <column name="iso_code" value="SO"/>
+            <column name="name_en" value="Somalia"/>
+            <column name="name_ru" value="Сомали"/>
+            <column name="risk_group" value="VERY_HIGH"/>
+            <column name="risk_coefficient" valueNumeric="2.5"/>
+        </insert>
+    </changeSet>
+
+    <!-- Insert Risk Types -->
+    <changeSet id="006-07-insert-risk-types" author="travel-insurance">
+        <insert tableName="risk_types">
+            <column name="code" value="TRAVEL_MEDICAL"/>
+            <column name="name_en" value="Medical Coverage"/>
+            <column name="name_ru" value="Медицинское покрытие"/>
+            <column name="coefficient" valueNumeric="0"/>
+            <column name="is_mandatory" valueBoolean="true"/>
+            <column name="description" value="Base medical coverage"/>
+        </insert>
+        <insert tableName="risk_types">
+            <column name="code" value="SPORT_ACTIVITIES"/>
+            <column name="name_en" value="Sport Activities"/>
+            <column name="name_ru" value="Активный спорт"/>
+            <column name="coefficient" valueNumeric="0.3"/>
+            <column name="is_mandatory" valueBoolean="false"/>
+            <column name="description" value="Skiing, snowboarding, diving"/>
+        </insert>
+        <insert tableName="risk_types">
+            <column name="code" value="EXTREME_SPORT"/>
+            <column name="name_en" value="Extreme Sport"/>
+            <column name="name_ru" value="Экстремальный спорт"/>
+            <column name="coefficient" valueNumeric="0.6"/>
+            <column name="is_mandatory" valueBoolean="false"/>
+            <column name="description" value="Mountaineering, parachuting"/>
+        </insert>
+        <insert tableName="risk_types">
+            <column name="code" value="PREGNANCY"/>
+            <column name="name_en" value="Pregnancy Coverage"/>
+            <column name="name_ru" value="Покрытие беременности"/>
+            <column name="coefficient" valueNumeric="0.2"/>
+            <column name="is_mandatory" valueBoolean="false"/>
+            <column name="description" value="Up to 31 weeks"/>
+        </insert>
+        <insert tableName="risk_types">
+            <column name="code" value="CHRONIC_DISEASES"/>
+            <column name="name_en" value="Chronic Diseases"/>
+            <column name="name_ru" value="Хронические заболевания"/>
+            <column name="coefficient" valueNumeric="0.4"/>
+            <column name="is_mandatory" valueBoolean="false"/>
+            <column name="description" value="Diabetes, asthma, etc."/>
+        </insert>
+        <insert tableName="risk_types">
+            <column name="code" value="ACCIDENT_COVERAGE"/>
+            <column name="name_en" value="Accident Coverage"/>
+            <column name="name_ru" value="От несчастных случаев"/>
+            <column name="coefficient" valueNumeric="0.2"/>
+            <column name="is_mandatory" valueBoolean="false"/>
+            <column name="description" value="Extended accident coverage"/>
+        </insert>
+        <insert tableName="risk_types">
+            <column name="code" value="TRIP_CANCELLATION"/>
+            <column name="name_en" value="Trip Cancellation"/>
+            <column name="name_ru" value="Отмена поездки"/>
+            <column name="coefficient" valueNumeric="0.15"/>
+            <column name="is_mandatory" valueBoolean="false"/>
+            <column name="description" value="Trip cancellation insurance"/>
+        </insert>
+        <insert tableName="risk_types">
+            <column name="code" value="LUGGAGE_LOSS"/>
+            <column name="name_en" value="Luggage Loss"/>
+            <column name="name_ru" value="Потеря багажа"/>
+            <column name="coefficient" valueNumeric="0.1"/>
+            <column name="is_mandatory" valueBoolean="false"/>
+            <column name="description" value="Lost luggage coverage"/>
+        </insert>
+        <insert tableName="risk_types">
+            <column name="code" value="FLIGHT_DELAY"/>
+            <column name="name_en" value="Flight Delay"/>
+            <column name="name_ru" value="Задержка рейса"/>
+            <column name="coefficient" valueNumeric="0.05"/>
+            <column name="is_mandatory" valueBoolean="false"/>
+            <column name="description" value="Flight delay compensation"/>
+        </insert>
+        <insert tableName="risk_types">
+            <column name="code" value="CIVIL_LIABILITY"/>
+            <column name="name_en" value="Civil Liability"/>
+            <column name="name_ru" value="Гражданская ответственность"/>
+            <column name="coefficient" valueNumeric="0.1"/>
+            <column name="is_mandatory" valueBoolean="false"/>
+            <column name="description" value="Third party liability"/>
+        </insert>
+    </changeSet>
+
+    <!-- Insert Currencies -->
+    <changeSet id="006-08-insert-currencies" author="travel-insurance">
+        <insert tableName="currencies">
+            <column name="code" value="EUR"/>
+            <column name="name" value="Euro"/>
+            <column name="symbol" value="€"/>
+            <column name="exchange_rate_to_eur" valueNumeric="1.0"/>
+        </insert>
+        <insert tableName="currencies">
+            <column name="code" value="USD"/>
+            <column name="name" value="US Dollar"/>
+            <column name="symbol" value="$"/>
+            <column name="exchange_rate_to_eur" valueNumeric="0.92"/>
+        </insert>
+        <insert tableName="currencies">
+            <column name="code" value="GBP"/>
+            <column name="name" value="British Pound"/>
+            <column name="symbol" value="£"/>
+            <column name="exchange_rate_to_eur" valueNumeric="1.17"/>
+        </insert>
+        <insert tableName="currencies">
+            <column name="code" value="CHF"/>
+            <column name="name" value="Swiss Franc"/>
+            <column name="symbol" value="CHF"/>
+            <column name="exchange_rate_to_eur" valueNumeric="1.03"/>
+        </insert>
+        <insert tableName="currencies">
+            <column name="code" value="JPY"/>
+            <column name="name" value="Japanese Yen"/>
+            <column name="symbol" value="¥"/>
+            <column name="exchange_rate_to_eur" valueNumeric="0.0063"/>
+        </insert>
+        <insert tableName="currencies">
+            <column name="code" value="CNY"/>
+            <column name="name" value="Chinese Yuan"/>
+            <column name="symbol" value="¥"/>
+            <column name="exchange_rate_to_eur" valueNumeric="0.13"/>
+        </insert>
+        <insert tableName="currencies">
+            <column name="code" value="RUB"/>
+            <column name="name" value="Russian Ruble"/>
+            <column name="symbol" value="₽"/>
+            <column name="exchange_rate_to_eur" valueNumeric="0.0095"/>
+        </insert>
+    </changeSet>
+
+    <!-- Insert Promo Codes -->
+    <changeSet id="006-09-insert-promo-codes" author="travel-insurance">
+        <insert tableName="promo_codes">
+            <column name="code" value="SUMMER2025"/>
+            <column name="description" value="Summer discount 10%"/>
+            <column name="discount_type" value="PERCENTAGE"/>
+            <column name="discount_value" valueNumeric="10"/>
+            <column name="min_premium_amount" valueNumeric="50"/>
+            <column name="max_discount_amount" valueNumeric="100"/>
+            <column name="valid_from" valueDate="2025-06-01"/>
+            <column name="valid_to" valueDate="2025-08-31"/>
+            <column name="max_usage_count" valueNumeric="1000"/>
+        </insert>
+        <insert tableName="promo_codes">
+            <column name="code" value="WINTER2025"/>
+            <column name="description" value="Winter discount 15%"/>
+            <column name="discount_type" value="PERCENTAGE"/>
+            <column name="discount_value" valueNumeric="15"/>
+            <column name="min_premium_amount" valueNumeric="100"/>
+            <column name="max_discount_amount" valueNumeric="200"/>
+            <column name="valid_from" valueDate="2025-12-01"/>
+            <column name="valid_to" valueDate="2026-02-28"/>
+            <column name="max_usage_count" valueNumeric="500"/>
+        </insert>
+        <insert tableName="promo_codes">
+            <column name="code" value="WELCOME50"/>
+            <column name="description" value="Welcome bonus 50 EUR"/>
+            <column name="discount_type" value="FIXED_AMOUNT"/>
+            <column name="discount_value" valueNumeric="50"/>
+            <column name="min_premium_amount" valueNumeric="200"/>
+            <column name="valid_from" valueDate="2025-01-01"/>
+            <column name="valid_to" valueDate="2025-12-31"/>
+            <column name="max_usage_count" valueNumeric="100"/>
+        </insert>
+        <insert tableName="promo_codes">
+            <column name="code" value="FAMILY20"/>
+            <column name="description" value="Family discount 20%"/>
+            <column name="discount_type" value="PERCENTAGE"/>
+            <column name="discount_value" valueNumeric="20"/>
+            <column name="min_premium_amount" valueNumeric="150"/>
+            <column name="max_discount_amount" valueNumeric="300"/>
+            <column name="valid_from" valueDate="2025-01-01"/>
+            <column name="valid_to" valueDate="2025-12-31"/>
+        </insert>
+    </changeSet>
+
+    <!-- Insert Discounts -->
+    <changeSet id="006-10-insert-discounts" author="travel-insurance">
+        <insert tableName="discounts">
+            <column name="code" value="GROUP_5"/>
+            <column name="name" value="Group discount 5 persons"/>
+            <column name="discount_type" value="GROUP"/>
+            <column name="discount_percentage" valueNumeric="10"/>
+            <column name="min_persons_count" valueNumeric="5"/>
+            <column name="valid_from" valueDate="2025-01-01"/>
+        </insert>
+        <insert tableName="discounts">
+            <column name="code" value="GROUP_10"/>
+            <column name="name" value="Group discount 10 persons"/>
+            <column name="discount_type" value="GROUP"/>
+            <column name="discount_percentage" valueNumeric="15"/>
+            <column name="min_persons_count" valueNumeric="10"/>
+            <column name="valid_from" valueDate="2025-01-01"/>
+        </insert>
+        <insert tableName="discounts">
+            <column name="code" value="GROUP_20"/>
+            <column name="name" value="Group discount 20 persons"/>
+            <column name="discount_type" value="GROUP"/>
+            <column name="discount_percentage" valueNumeric="20"/>
+            <column name="min_persons_count" valueNumeric="20"/>
+            <column name="valid_from" valueDate="2025-01-01"/>
+        </insert>
+        <insert tableName="discounts">
+            <column name="code" value="CORPORATE"/>
+            <column name="name" value="Corporate discount"/>
+            <column name="discount_type" value="CORPORATE"/>
+            <column name="discount_percentage" valueNumeric="20"/>
+            <column name="min_persons_count" valueNumeric="1"/>
+            <column name="valid_from" valueDate="2025-01-01"/>
+        </insert>
+        <insert tableName="discounts">
+            <column name="code" value="LOYALTY_5"/>
+            <column name="name" value="Loyalty 5%"/>
+            <column name="discount_type" value="LOYALTY"/>
+            <column name="discount_percentage" valueNumeric="5"/>
+            <column name="min_persons_count" valueNumeric="1"/>
+            <column name="valid_from" valueDate="2025-01-01"/>
+        </insert>
+        <insert tableName="discounts">
+            <column name="code" value="LOYALTY_10"/>
+            <column name="name" value="Loyalty 10%"/>
+            <column name="discount_type" value="LOYALTY"/>
+            <column name="discount_percentage" valueNumeric="10"/>
+            <column name="min_persons_count" valueNumeric="1"/>
+            <column name="valid_from" valueDate="2025-01-01"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>
