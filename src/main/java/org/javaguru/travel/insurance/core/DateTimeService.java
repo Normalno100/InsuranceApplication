@@ -8,9 +8,9 @@ import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
 @Component
-class DateTimeService {
+public class DateTimeService {
 
-    long getDaysBetween(LocalDate date1, LocalDate date2) {
+    public long getDaysBetween(LocalDate date1, LocalDate date2) {
         return ChronoUnit.DAYS.between(date1,date2);
     }
 }

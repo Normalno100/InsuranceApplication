@@ -1,6 +1,7 @@
 package org.javaguru.travel.insurance.core.calculators;
 
 import lombok.RequiredArgsConstructor;
+import org.javaguru.travel.insurance.core.DateTimeService;
 import org.javaguru.travel.insurance.core.domain.Country;
 import org.javaguru.travel.insurance.core.domain.MedicalRiskLimitLevel;
 import org.javaguru.travel.insurance.core.domain.RiskType;
@@ -323,15 +324,4 @@ public class MedicalRiskPremiumCalculator {
             String formula,
             BigDecimal result
     ) {}
-
-    /**
-     * Вспомогательный класс для работы с датами
-     * (заглушка, в реальности будет использоваться существующий DateTimeService)
-     */
-    @Component
-    static class DateTimeService {
-        public long getDaysBetween(LocalDate from, LocalDate to) {
-            return java.time.temporal.ChronoUnit.DAYS.between(from, to);
-        }
-    }
 }
