@@ -294,7 +294,8 @@ public class TravelCalculatePremiumServiceV2 {
                 errors.add(new ValidationError("personFirstName", "Must not be empty!"));
             }
 
-            // Валидация фамилии
+            // Валидация
+            // фамилии
             if (request.getPersonLastName() == null || request.getPersonLastName().isEmpty()) {
                 errors.add(new ValidationError("personLastName", "Must not be empty!"));
             }
