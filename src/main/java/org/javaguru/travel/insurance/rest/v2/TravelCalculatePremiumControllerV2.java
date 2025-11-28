@@ -39,6 +39,7 @@ public class TravelCalculatePremiumControllerV2 {
 
         log.info("Received premium calculation request for: {} {}",
                 request.getPersonFirstName(),
+
                 request.getPersonLastName());
 
         TravelCalculatePremiumResponseV2 response = calculatePremiumService.calculatePremium(request);

@@ -1,0 +1,69 @@
+package org.javaguru.travel.insurance.rest.v2;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    // 1. Malformed JSON → 400
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<TravelCalculatePremiumControllerV2.ErrorResponse> handleJsonParseError(HttpMessageNotReadableException ex) {
+        TravelCalculatePremiumControllerV2.ErrorResponse response = new TravelCalculatePremiumControllerV2.ErrorResponse(
+                "Bad request",
+                ex.getLocalizedMessage(),
+                System.currentTimeMillis()
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    // 2. Unsupported Media Type → 415
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<TravelCalculatePremiumControllerV2.ErrorResponse> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException ex) {
+        TravelCalculatePremiumControllerV2.ErrorResponse response = new TravelCalculatePremiumControllerV2.ErrorResponse(
+                "Unsupported Media Type",
+                ex.getLocalizedMessage(),
+                System.currentTimeMillis()
+        );
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(response);
+    }
+
+    // 3. Unsupported HTTP method → 405
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<TravelCalculatePremiumControllerV2.ErrorResponse> handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex) {
+        TravelCalculatePremiumControllerV2.ErrorResponse response = new TravelCalculatePremiumControllerV2.ErrorResponse(
+                "Method Not Allowed",
+                ex.getLocalizedMessage(),
+                System.currentTimeMillis()
+        );
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(response);
+    }
+
+    // 4. Resource not found → 404
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<TravelCalculatePremiumControllerV2.ErrorResponse> handleNotFound(NoResourceFoundException ex) {
+        TravelCalculatePremiumControllerV2.ErrorResponse response = new TravelCalculatePremiumControllerV2.ErrorResponse(
+                "Not Found",
+                ex.getLocalizedMessage(),
+                System.currentTimeMillis()
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    // 5. Catch-all → 500
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<TravelCalculatePremiumControllerV2.ErrorResponse> handleGenericError(Exception ex) {
+        TravelCalculatePremiumControllerV2.ErrorResponse response = new TravelCalculatePremiumControllerV2.ErrorResponse(
+                "Internal server error",
+                ex.getLocalizedMessage(),
+                System.currentTimeMillis()
+        );
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+    }
+}
