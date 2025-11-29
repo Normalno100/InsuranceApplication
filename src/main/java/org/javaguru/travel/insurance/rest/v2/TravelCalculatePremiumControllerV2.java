@@ -121,20 +121,6 @@ public class TravelCalculatePremiumControllerV2 {
         ));
     }
 
-    /**
-     * Обработка ошибок
-     */
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleException(Exception e) {
-        log.error("Unexpected error occurred", e);
-        ErrorResponse errorResponse = new ErrorResponse(
-                "Internal server error",
-                e.getMessage(),
-                System.currentTimeMillis()
-        );
-        return ResponseEntity.internalServerError().body(errorResponse);
-    }
-
     // ========== DTO для вспомогательных эндпоинтов ==========
 
     public record HealthResponse(

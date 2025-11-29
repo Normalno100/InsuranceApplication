@@ -16,7 +16,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<TravelCalculatePremiumControllerV2.ErrorResponse> handleJsonParseError(HttpMessageNotReadableException ex) {
         TravelCalculatePremiumControllerV2.ErrorResponse response = new TravelCalculatePremiumControllerV2.ErrorResponse(
-                "Bad request",
+                "Malformed JSON request",
                 ex.getLocalizedMessage(),
                 System.currentTimeMillis()
         );
