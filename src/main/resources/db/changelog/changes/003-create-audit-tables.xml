@@ -38,14 +38,17 @@
         <createIndex tableName="calculation_logs" indexName="idx_calc_log_errors">
             <column name="has_errors"/>
         </createIndex>
-
-        <sql>
-            CREATE INDEX idx_calc_log_request_data ON calculation_logs USING GIN (request_data);
-        </sql>
-        <rollback>
-            DROP INDEX IF EXISTS idx_calc_log_request_data;
-        </rollback>
     </changeSet>
+
+<changeSet id="003-01a-gin-index-request-data" author="travel-insurance">
+<sql>
+    CREATE INDEX IF NOT EXISTS idx_calc_log_request_data
+    ON calculation_logs USING GIN (request_data);
+</sql>
+<rollback>
+    DROP INDEX IF EXISTS idx_calc_log_request_data;
+</rollback>
+</changeSet>
 
     <!-- Coefficient Changes Audit Table -->
     <changeSet id="003-02-create-coefficient-changes-audit" author="travel-insurance">

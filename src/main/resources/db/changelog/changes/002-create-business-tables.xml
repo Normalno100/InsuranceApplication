@@ -83,13 +83,6 @@
             <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
         </createTable>
 
-        <addCheckConstraint tableName="agreements" constraintName="chk_date_order"
-                            checkCondition="date_to >= date_from"/>
-        <addCheckConstraint tableName="agreements" constraintName="chk_days_positive"
-                            checkCondition="days_count > 0"/>
-        <addCheckConstraint tableName="agreements" constraintName="chk_premium_positive"
-                            checkCondition="premium_amount > 0"/>
-
         <createIndex tableName="agreements" indexName="idx_agreement_number">
             <column name="agreement_number"/>
         </createIndex>
@@ -185,11 +178,6 @@
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
             <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
         </createTable>
-
-        <addCheckConstraint tableName="promo_codes" constraintName="chk_discount_positive"
-                            checkCondition="discount_value > 0"/>
-        <addCheckConstraint tableName="promo_codes" constraintName="chk_dates"
-                            checkCondition="valid_to >= valid_from"/>
 
         <createIndex tableName="promo_codes" indexName="idx_promo_code">
             <column name="code"/>
@@ -322,9 +310,6 @@
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
             <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
         </createTable>
-
-        <addCheckConstraint tableName="payments" constraintName="chk_amount_positive"
-                            checkCondition="amount > 0"/>
 
         <createIndex tableName="payments" indexName="idx_payment_agreement">
             <column name="agreement_id"/>
