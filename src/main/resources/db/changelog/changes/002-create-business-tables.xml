@@ -103,20 +103,9 @@
         <createIndex tableName="agreements" indexName="idx_agreement_country">
             <column name="country_iso_code"/>
         </createIndex>
-
-        <createIndex tableName="agreements" indexName="idx_agreement_calculation_details"
-                     unique="false">
-            <column name="calculation_details"/>
-        </createIndex>
-        <sql>
-            CREATE INDEX idx_agreement_calculation_details ON agreements USING GIN (calculation_details);
-        </sql>
-        <rollback>
-            DROP INDEX IF EXISTS idx_agreement_calculation_details;
-        </rollback>
     </changeSet>
 
-    <!-- GIN Index for calculation_details -->
+    <!-- GIN Index for calculation_details - ОТДЕЛЬНЫЙ CHANGESET -->
     <changeSet id="002-02a-gin-index-calculation-details" author="travel-insurance">
         <sql>
             CREATE INDEX IF NOT EXISTS idx_agreement_calculation_details
