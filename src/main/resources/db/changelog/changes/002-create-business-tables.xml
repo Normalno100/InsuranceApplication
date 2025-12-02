@@ -116,6 +116,17 @@
         </rollback>
     </changeSet>
 
+    <!-- GIN Index for calculation_details -->
+    <changeSet id="002-02a-gin-index-calculation-details" author="travel-insurance">
+        <sql>
+            CREATE INDEX IF NOT EXISTS idx_agreement_calculation_details
+            ON agreements USING GIN (calculation_details);
+        </sql>
+        <rollback>
+            DROP INDEX IF EXISTS idx_agreement_calculation_details;
+        </rollback>
+    </changeSet>
+
     <!-- Agreement Risks Table -->
     <changeSet id="002-03-create-agreement-risks" author="travel-insurance">
         <createTable tableName="agreement_risks">
