@@ -14,8 +14,8 @@ public class GlobalExceptionHandler {
 
     // 1. Malformed JSON → 400
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<TravelCalculatePremiumControllerV2.ErrorResponse> handleJsonParseError(HttpMessageNotReadableException ex) {
-        TravelCalculatePremiumControllerV2.ErrorResponse response = new TravelCalculatePremiumControllerV2.ErrorResponse(
+    public ResponseEntity<ErrorResponse> handleJsonParseError(HttpMessageNotReadableException ex) {
+        ErrorResponse response = new ErrorResponse(
                 "Malformed JSON request",
                 ex.getLocalizedMessage(),
                 System.currentTimeMillis()
@@ -25,8 +25,8 @@ public class GlobalExceptionHandler {
 
     // 2. Unsupported Media Type → 415
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
-    public ResponseEntity<TravelCalculatePremiumControllerV2.ErrorResponse> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException ex) {
-        TravelCalculatePremiumControllerV2.ErrorResponse response = new TravelCalculatePremiumControllerV2.ErrorResponse(
+    public ResponseEntity<ErrorResponse> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException ex) {
+        ErrorResponse response = new ErrorResponse(
                 "Unsupported Media Type",
                 ex.getLocalizedMessage(),
                 System.currentTimeMillis()
@@ -36,8 +36,8 @@ public class GlobalExceptionHandler {
 
     // 3. Unsupported HTTP method → 405
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-    public ResponseEntity<TravelCalculatePremiumControllerV2.ErrorResponse> handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex) {
-        TravelCalculatePremiumControllerV2.ErrorResponse response = new TravelCalculatePremiumControllerV2.ErrorResponse(
+    public ResponseEntity<ErrorResponse> handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex) {
+        ErrorResponse response = new ErrorResponse(
                 "Method Not Allowed",
                 ex.getLocalizedMessage(),
                 System.currentTimeMillis()
@@ -47,8 +47,8 @@ public class GlobalExceptionHandler {
 
     // 4. Resource not found → 404
     @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<TravelCalculatePremiumControllerV2.ErrorResponse> handleNotFound(NoResourceFoundException ex) {
-        TravelCalculatePremiumControllerV2.ErrorResponse response = new TravelCalculatePremiumControllerV2.ErrorResponse(
+    public ResponseEntity<ErrorResponse> handleNotFound(NoResourceFoundException ex) {
+        ErrorResponse response = new ErrorResponse(
                 "Not Found",
                 ex.getLocalizedMessage(),
                 System.currentTimeMillis()
@@ -58,8 +58,8 @@ public class GlobalExceptionHandler {
 
     // 5. Catch-all → 500
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<TravelCalculatePremiumControllerV2.ErrorResponse> handleGenericError(Exception ex) {
-        TravelCalculatePremiumControllerV2.ErrorResponse response = new TravelCalculatePremiumControllerV2.ErrorResponse(
+    public ResponseEntity<ErrorResponse> handleGenericError(Exception ex) {
+        ErrorResponse response = new ErrorResponse(
                 "Internal server error",
                 ex.getLocalizedMessage(),
                 System.currentTimeMillis()

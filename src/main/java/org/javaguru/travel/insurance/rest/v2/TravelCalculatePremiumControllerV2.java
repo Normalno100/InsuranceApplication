@@ -146,10 +146,4 @@ public class TravelCalculatePremiumControllerV2 {
             String message,
             boolean isValid
     ) {}
-
-    public record ErrorResponse(
-            String error,
-            String message,
-            long timestamp
-    ) {}
 }
