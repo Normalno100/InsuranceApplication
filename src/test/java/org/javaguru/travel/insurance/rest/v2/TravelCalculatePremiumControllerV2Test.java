@@ -43,13 +43,19 @@ class TravelCalculatePremiumControllerV2Test {
     @MockBean
     TravelCalculatePremiumServiceV2 service;
 
-    // Helper to build a fully populated response
     private TravelCalculatePremiumResponseV2 buildFullResponse() {
         TravelCalculatePremiumResponseV2.RiskPremium rp =
-                new TravelCalculatePremiumResponseV2.RiskPremium("MED", "Medical", new BigDecimal("12.50"), new BigDecimal("1.2"));
+                new TravelCalculatePremiumResponseV2.RiskPremium(
+                        "MED",
+                        "Medical",
+                        new BigDecimal("12.50"),
+                        new BigDecimal("1.2"));
 
         TravelCalculatePremiumResponseV2.CalculationStep step =
-                new TravelCalculatePremiumResponseV2.CalculationStep("Base * days", "10*5", new BigDecimal("50"));
+                new TravelCalculatePremiumResponseV2.CalculationStep(
+                        "Base * days",
+                        "10*5",
+                        new BigDecimal("50"));
 
         TravelCalculatePremiumResponseV2.CalculationDetails calc =
                 new TravelCalculatePremiumResponseV2.CalculationDetails(
@@ -64,12 +70,19 @@ class TravelCalculatePremiumControllerV2Test {
                 );
 
         TravelCalculatePremiumResponseV2.PromoCodeInfo promo =
-                new TravelCalculatePremiumResponseV2.PromoCodeInfo("PROMO10", "10% off", "PERCENTAGE",
-                        new BigDecimal("10"), new BigDecimal("6.165"));
+                new TravelCalculatePremiumResponseV2.PromoCodeInfo(
+                        "PROMO10",
+                        "10% off",
+                        "PERCENTAGE",
+                        new BigDecimal("10"),
+                        new BigDecimal("6.165"));
 
         TravelCalculatePremiumResponseV2.DiscountInfo discount =
-                new TravelCalculatePremiumResponseV2.DiscountInfo("SEASONAL", "Seasonal discount",
-                        new BigDecimal("5"), new BigDecimal("3.00"));
+                new TravelCalculatePremiumResponseV2.DiscountInfo(
+                        "SEASONAL",
+                        "Seasonal discount",
+                        new BigDecimal("5"),
+                        new BigDecimal("3.00"));
 
         return TravelCalculatePremiumResponseV2.builder()
                 .personFirstName("John")
@@ -102,7 +115,7 @@ class TravelCalculatePremiumControllerV2Test {
     class CalculatePremiumTests {
 
         @Test
-        @DisplayName("1. Should return 200 OK and full JSON when calculation succeeds")
+        @DisplayName("Should return 200 OK and full JSON when calculation succeeds")
         void testCalculatePremiumSuccess() throws Exception {
             TravelCalculatePremiumResponseV2 response = buildFullResponse();
 
@@ -130,7 +143,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("2. Should return 400 Bad Request when service returns errors")
+        @DisplayName("Should return 400 Bad Request when service returns errors")
         void testCalculatePremiumValidationErrors() throws Exception {
             TravelCalculatePremiumResponseV2 response =
                     new TravelCalculatePremiumResponseV2(List.of(new ValidationError("field", "must not be null")));
@@ -146,6 +159,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
+        @DisplayName("Should return 400 Bad Request when service malformed json")
         void testCalculatePremiumMalformedJson() throws Exception {
             String malformedJson = "{ invalid json }";
 
@@ -159,7 +173,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("4. Should return 415 Unsupported Media Type when content type is missing")
+        @DisplayName("Should return 415 Unsupported Media Type when content type is missing")
         void testCalculatePremiumMissingMediaType() throws Exception {
             // no content type header
             mockMvc.perform(post(BASE + "/calculate")
@@ -168,7 +182,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("5. Should return 415 Unsupported Media Type for non-JSON content type")
+        @DisplayName("Should return 415 Unsupported Media Type for non-JSON content type")
         void testCalculatePremiumUnsupportedMediaType() throws Exception {
             mockMvc.perform(post(BASE + "/calculate")
                             .contentType(MediaType.TEXT_PLAIN)
@@ -177,7 +191,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("6. Should return 500 Internal Server Error when service throws RuntimeException")
+        @DisplayName("Should return 500 Internal Server Error when service throws RuntimeException")
         void testCalculatePremiumServiceThrows() throws Exception {
             when(service.calculatePremium(any())).thenThrow(new RuntimeException("Service failure"));
 
@@ -191,7 +205,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("7. Should return 400 when response.hasErrors() is true (explicit path)")
+        @DisplayName("Should return 400 when response.hasErrors() is true (explicit path)")
         void testCalculatePremiumHasErrorsPath() throws Exception {
             TravelCalculatePremiumResponseV2 response =
                     new TravelCalculatePremiumResponseV2(List.of(new ValidationError("x", "y")));
@@ -206,7 +220,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("8. Should honor alias POST / (root) as valid endpoint")
+        @DisplayName("Should honor alias POST / (root) as valid endpoint")
         void testPostRootAlias() throws Exception {
             TravelCalculatePremiumResponseV2 response = new TravelCalculatePremiumResponseV2();
             when(service.calculatePremium(any())).thenReturn(response);
@@ -218,7 +232,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("9. Should respond with Content-Type application/json")
+        @DisplayName("Should respond with Content-Type application/json")
         void testCalculateProducesJsonContentType() throws Exception {
             TravelCalculatePremiumResponseV2 response = new TravelCalculatePremiumResponseV2();
             when(service.calculatePremium(any())).thenReturn(response);
@@ -230,7 +244,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("10. Should return 405 Method Not Allowed for GET on /calculate")
+        @DisplayName("Should return 405 Method Not Allowed for GET on /calculate")
         void testCalculateWrongMethod() throws Exception {
             mockMvc.perform(get(BASE + "/calculate"))
                     .andExpect(status().isMethodNotAllowed());
@@ -244,7 +258,7 @@ class TravelCalculatePremiumControllerV2Test {
     class HealthCheckTests {
 
         @Test
-        @DisplayName("11. Health endpoint returns status, version and timestamp")
+        @DisplayName("Health endpoint returns status, version and timestamp")
         void testHealthCheck() throws Exception {
             mockMvc.perform(get(BASE + "/health"))
                     .andExpect(status().isOk())
@@ -255,7 +269,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("12. Health endpoint rejects POST with 405")
+        @DisplayName("Health endpoint rejects POST with 405")
         void testHealthWrongMethod() throws Exception {
             mockMvc.perform(post(BASE + "/health"))
                     .andExpect(status().isMethodNotAllowed());
@@ -269,7 +283,7 @@ class TravelCalculatePremiumControllerV2Test {
     class CountriesTests {
 
         @Test
-        @DisplayName("13. Countries endpoint returns an array of countries")
+        @DisplayName("Countries endpoint returns an array of countries")
         void testGetCountriesArray() throws Exception {
             mockMvc.perform(get(BASE + "/countries"))
                     .andExpect(status().isOk())
@@ -277,7 +291,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("14. Countries array is not empty")
+        @DisplayName("Countries array is not empty")
         void testCountriesNotEmpty() throws Exception {
             mockMvc.perform(get(BASE + "/countries"))
                     .andExpect(status().isOk())
@@ -292,7 +306,7 @@ class TravelCalculatePremiumControllerV2Test {
     class CoverageLevelsTests {
 
         @Test
-        @DisplayName("15. Coverage levels endpoint returns array 'levels'")
+        @DisplayName("Coverage levels endpoint returns array 'levels'")
         void testGetCoverageLevels() throws Exception {
             mockMvc.perform(get(BASE + "/coverage-levels"))
                     .andExpect(status().isOk())
@@ -300,7 +314,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("16. Coverage levels array is not empty")
+        @DisplayName("Coverage levels array is not empty")
         void testCoverageLevelsNotEmpty() throws Exception {
             mockMvc.perform(get(BASE + "/coverage-levels"))
                     .andExpect(status().isOk())
@@ -315,7 +329,7 @@ class TravelCalculatePremiumControllerV2Test {
     class RiskTypesTests {
 
         @Test
-        @DisplayName("17. Risk types endpoint returns array 'riskTypes'")
+        @DisplayName("Risk types endpoint returns array 'riskTypes'")
         void testGetRiskTypes() throws Exception {
             mockMvc.perform(get(BASE + "/risk-types"))
                     .andExpect(status().isOk())
@@ -323,7 +337,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("18. Risk types array is not empty")
+        @DisplayName("Risk types array is not empty")
         void testRiskTypesNotEmpty() throws Exception {
             mockMvc.perform(get(BASE + "/risk-types"))
                     .andExpect(status().isOk())
@@ -338,7 +352,7 @@ class TravelCalculatePremiumControllerV2Test {
     class PromoCodeTests {
 
         @Test
-        @DisplayName("19. Promo code endpoint returns provided code and valid=true")
+        @DisplayName("Promo code endpoint returns provided code and valid=true")
         void testValidatePromoCode() throws Exception {
             mockMvc.perform(get(BASE + "/promo-codes/ABC123"))
                     .andExpect(status().isOk())
@@ -347,7 +361,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("20. Promo code message contains 'Valid'")
+        @DisplayName("Promo code message contains 'Valid'")
         void testPromoCodeMessage() throws Exception {
             mockMvc.perform(get(BASE + "/promo-codes/HELLO"))
                     .andExpect(status().isOk())
@@ -355,7 +369,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("21. Promo code returns boolean type for isValid")
+        @DisplayName("Promo code returns boolean type for isValid")
         void testPromoCodeBoolean() throws Exception {
             mockMvc.perform(get(BASE + "/promo-codes/XYZ"))
                     .andExpect(status().isOk())
@@ -363,7 +377,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("22. Promo code path variable is preserved")
+        @DisplayName("Promo code path variable is preserved")
         void testPromoCodePathVariable() throws Exception {
             mockMvc.perform(get(BASE + "/promo-codes/SPECIAL"))
                     .andExpect(status().isOk())
@@ -378,7 +392,7 @@ class TravelCalculatePremiumControllerV2Test {
     class ExceptionAndEdgeTests {
 
         @Test
-        @DisplayName("23. Exception handler returns structured JSON when controller throws")
+        @DisplayName("Exception handler returns structured JSON when controller throws")
         void testExceptionHandlerViaMvc() throws Exception {
             when(service.calculatePremium(any())).thenThrow(new RuntimeException("Exploded"));
 
@@ -392,23 +406,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("24. Direct call to controller.handleException returns 500 and message")
-        void testDirectExceptionHandlerCall() {
-            TravelCalculatePremiumControllerV2 controller =
-                    new TravelCalculatePremiumControllerV2(null);
-
-//            TravelCalculatePremiumControllerV2.ErrorResponse err =
-//                    controller.handleException(new RuntimeException("Boom")).getBody();
-
-//            // basic assertions
-//            assert err != null;
-//            assert err.error().equals("Internal server error");
-//            assert err.message().equals("Boom");
-//            assert err.timestamp() > 0;
-        }
-
-        @Test
-        @DisplayName("25. GET unknown method on endpoints returns 405 or 404 appropriately")
+        @DisplayName("GET unknown method on endpoints returns 405 or 404 appropriately")
         void testUnknownMethods() throws Exception {
             // POST to /countries should be 405
             mockMvc.perform(post(BASE + "/countries"))
@@ -420,7 +418,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("26. Response fields with dates are formatted as yyyy-MM-dd")
+        @DisplayName("Response fields with dates are formatted as yyyy-MM-dd")
         void testDateFormattingInResponse() throws Exception {
             TravelCalculatePremiumResponseV2 response = buildFullResponse();
             when(service.calculatePremium(any())).thenReturn(response);
@@ -435,7 +433,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("27. Numeric nested fields are present and correct (BigDecimal values)")
+        @DisplayName("Numeric nested fields are present and correct (BigDecimal values)")
         void testNumericNestedFields() throws Exception {
             TravelCalculatePremiumResponseV2 response = buildFullResponse();
             when(service.calculatePremium(any())).thenReturn(response);
@@ -450,7 +448,7 @@ class TravelCalculatePremiumControllerV2Test {
         }
 
         @Test
-        @DisplayName("28. hasDiscounts() and hasPromoCode() helper behavior (indirect check via JSON)")
+        @DisplayName("hasDiscounts() and hasPromoCode() helper behavior (indirect check via JSON)")
         void testHasDiscountsAndPromoCode() throws Exception {
             TravelCalculatePremiumResponseV2 response = buildFullResponse();
             when(service.calculatePremium(any())).thenReturn(response);
