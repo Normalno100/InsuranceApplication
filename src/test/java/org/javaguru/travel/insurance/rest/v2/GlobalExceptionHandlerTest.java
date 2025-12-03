@@ -431,7 +431,7 @@ class GlobalExceptionHandlerTest {
     @Test
     void shouldHandleSpecialCharactersInErrorMessage() throws Exception {
         // Given: JSON со специальными символами
-        String jsonWithSpecialChars = "{\"name\": \"Test<>&\"}invalid";
+        String jsonWithSpecialChars = "{\"name\": \"Test<>&\"invalid}";
 
         // When & Then
         mockMvc.perform(post("/insurance/travel/v2/calculate")
