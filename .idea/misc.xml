@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="ConnektScriptState">
+    <option name="scriptFileState">
+      <list>
+        <ConnektScriptState>
+          <option name="fileUrl" value="file://$PROJECT_DIR$/test-request.connekt.kts" />
+        </ConnektScriptState>
+      </list>
+    </option>
+  </component>
   <component name="ExternalStorageConfigurationManager" enabled="true" />
   <component name="NullableNotNullManager">
     <option name="myDefaultNullable" value="org.jetbrains.annotations.Nullable" />

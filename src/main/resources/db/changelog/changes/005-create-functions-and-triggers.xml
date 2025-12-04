@@ -7,15 +7,15 @@
 
     <!-- Function: Update updated_at Column -->
     <changeSet id="005-01-create-update-updated-at-function" author="travel-insurance">
-        <sql splitStatements="false">
+        <sql splitStatements="false"><![CDATA[
             CREATE OR REPLACE FUNCTION update_updated_at_column()
             RETURNS TRIGGER AS $BODY$
             BEGIN
-            NEW.updated_at = CURRENT_TIMESTAMP;
-            RETURN NEW;
+                NEW.updated_at = CURRENT_TIMESTAMP;
+                RETURN NEW;
             END;
             $BODY$ LANGUAGE plpgsql;
-        </sql>
+        ]]></sql>
         <rollback>
             DROP FUNCTION IF EXISTS update_updated_at_column();
         </rollback>
@@ -23,42 +23,42 @@
 
     <!-- Triggers for updated_at on various tables -->
     <changeSet id="005-02-create-triggers-for-updated-at" author="travel-insurance">
-        <sql splitStatements="false">
+        <sql splitStatements="false"><![CDATA[
             CREATE TRIGGER update_persons_updated_at
             BEFORE UPDATE ON persons
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
-        </sql>
-        <sql splitStatements="false">
+        ]]></sql>
+        <sql splitStatements="false"><![CDATA[
             CREATE TRIGGER update_agreements_updated_at
             BEFORE UPDATE ON agreements
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
-        </sql>
-        <sql splitStatements="false">
+        ]]></sql>
+        <sql splitStatements="false"><![CDATA[
             CREATE TRIGGER update_promo_codes_updated_at
             BEFORE UPDATE ON promo_codes
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
-        </sql>
-        <sql splitStatements="false">
+        ]]></sql>
+        <sql splitStatements="false"><![CDATA[
             CREATE TRIGGER update_countries_updated_at
             BEFORE UPDATE ON countries
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
-        </sql>
-        <sql splitStatements="false">
+        ]]></sql>
+        <sql splitStatements="false"><![CDATA[
             CREATE TRIGGER update_discounts_updated_at
             BEFORE UPDATE ON discounts
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
-        </sql>
-        <sql splitStatements="false">
+        ]]></sql>
+        <sql splitStatements="false"><![CDATA[
             CREATE TRIGGER update_payments_updated_at
             BEFORE UPDATE ON payments
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
-        </sql>
+        ]]></sql>
         <rollback>
             DROP TRIGGER IF EXISTS update_persons_updated_at ON persons;
             DROP TRIGGER IF EXISTS update_agreements_updated_at ON agreements;
@@ -71,56 +71,56 @@
 
     <!-- Function: Validate Promo Code -->
     <changeSet id="005-03-create-validate-promo-code-function" author="travel-insurance">
-        <sql splitStatements="false">
+        <sql splitStatements="false"><![CDATA[
             CREATE OR REPLACE FUNCTION validate_promo_code(
-            p_code VARCHAR,
-            p_agreement_date DATE,
-            p_premium_amount DECIMAL
+                p_code VARCHAR,
+                p_agreement_date DATE,
+                p_premium_amount DECIMAL
             )
             RETURNS TABLE(is_valid BOOLEAN, error_message TEXT, discount_amount DECIMAL) AS $BODY$
             DECLARE
-            v_promo promo_codes%ROWTYPE;
-            v_discount DECIMAL;
+                v_promo promo_codes%ROWTYPE;
+                v_discount DECIMAL;
             BEGIN
-            SELECT * INTO v_promo
-            FROM promo_codes
-            WHERE code = p_code
-            AND is_active = TRUE
-            AND valid_from <= p_agreement_date
-            AND valid_to >= p_agreement_date;
+                SELECT * INTO v_promo
+                FROM promo_codes
+                WHERE code = p_code
+                  AND is_active = TRUE
+                  AND valid_from <= p_agreement_date
+                  AND valid_to >= p_agreement_date;
 
-            IF NOT FOUND THEN
-            RETURN QUERY SELECT FALSE, 'Promo code not found or expired', 0::DECIMAL;
-            RETURN;
-            END IF;
+                IF NOT FOUND THEN
+                    RETURN QUERY SELECT FALSE, 'Promo code not found or expired', 0::DECIMAL;
+                    RETURN;
+                END IF;
 
-            IF v_promo.max_usage_count IS NOT NULL
-            AND v_promo.current_usage_count >= v_promo.max_usage_count THEN
-            RETURN QUERY SELECT FALSE, 'Promo code usage limit reached', 0::DECIMAL;
-            RETURN;
-            END IF;
+                IF v_promo.max_usage_count IS NOT NULL
+                   AND v_promo.current_usage_count >= v_promo.max_usage_count THEN
+                    RETURN QUERY SELECT FALSE, 'Promo code usage limit reached', 0::DECIMAL;
+                    RETURN;
+                END IF;
 
-            IF v_promo.min_premium_amount IS NOT NULL
-            AND p_premium_amount < v_promo.min_premium_amount THEN
-                                   RETURN QUERY SELECT FALSE, 'Premium amount too low for this promo code', 0::DECIMAL;
-            RETURN;
-            END IF;
+                IF v_promo.min_premium_amount IS NOT NULL
+                   AND p_premium_amount < v_promo.min_premium_amount THEN
+                    RETURN QUERY SELECT FALSE, 'Premium amount too low for this promo code', 0::DECIMAL;
+                    RETURN;
+                END IF;
 
-            IF v_promo.discount_type = 'PERCENTAGE' THEN
-            v_discount := p_premium_amount * v_promo.discount_value / 100;
-            ELSE
-            v_discount := v_promo.discount_value;
-            END IF;
+                IF v_promo.discount_type = 'PERCENTAGE' THEN
+                    v_discount := p_premium_amount * v_promo.discount_value / 100;
+                ELSE
+                    v_discount := v_promo.discount_value;
+                END IF;
 
-            IF v_promo.max_discount_amount IS NOT NULL
-            AND v_discount > v_promo.max_discount_amount THEN
-            v_discount := v_promo.max_discount_amount;
-            END IF;
+                IF v_promo.max_discount_amount IS NOT NULL
+                   AND v_discount > v_promo.max_discount_amount THEN
+                    v_discount := v_promo.max_discount_amount;
+                END IF;
 
-            RETURN QUERY SELECT TRUE, NULL::TEXT, v_discount;
+                RETURN QUERY SELECT TRUE, NULL::TEXT, v_discount;
             END;
             $BODY$ LANGUAGE plpgsql;
-        </sql>
+        ]]></sql>
         <rollback>
             DROP FUNCTION IF EXISTS validate_promo_code(VARCHAR, DATE, DECIMAL);
         </rollback>
@@ -128,24 +128,24 @@
 
     <!-- Add comments to tables -->
     <changeSet id="005-04-add-table-comments" author="travel-insurance">
-        <sql>
+        <sql><![CDATA[
             COMMENT ON TABLE agreements IS 'Insurance agreements';
-        </sql>
-        <sql>
+        ]]></sql>
+        <sql><![CDATA[
             COMMENT ON TABLE persons IS 'Insured persons';
-        </sql>
-        <sql>
+        ]]></sql>
+        <sql><![CDATA[
             COMMENT ON TABLE promo_codes IS 'Promotional codes for discounts';
-        </sql>
-        <sql>
+        ]]></sql>
+        <sql><![CDATA[
             COMMENT ON TABLE countries IS 'Country reference with risk coefficients';
-        </sql>
-        <sql>
+        ]]></sql>
+        <sql><![CDATA[
             COMMENT ON TABLE risk_types IS 'Insurance risk types';
-        </sql>
-        <sql>
+        ]]></sql>
+        <sql><![CDATA[
             COMMENT ON TABLE payments IS 'Agreement payments';
-        </sql>
+        ]]></sql>
     </changeSet>
 
 </databaseChangeLog>
