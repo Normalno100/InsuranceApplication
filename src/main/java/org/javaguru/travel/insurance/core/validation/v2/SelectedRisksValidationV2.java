@@ -1,6 +1,7 @@
 package org.javaguru.travel.insurance.core.validation.v2;
 
 import lombok.RequiredArgsConstructor;
+import org.javaguru.travel.insurance.core.domain.entities.RiskTypeEntity;
 import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
 import org.javaguru.travel.insurance.core.validation.ValidationRuleV2;
 import org.javaguru.travel.insurance.dto.ValidationError;
@@ -11,11 +12,11 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Валидация выбранных рисков для запросов V2
+ * Валидация выбранных рисков для запросов V2.
  * Проверяет:
- * 1. Что все выбранные риски существуют в базе данных
- * 2. Что все риски активны на дату начала поездки
- * 3. Что не выбраны обязательные риски (они добавляются автоматически)
+ * 1. Код риска не null и не пустой
+ * 2. Риск существует в базе и активен на дату начала договора
+ * 3. Риск не является обязательным
  */
 @Component
 @RequiredArgsConstructor
@@ -25,46 +26,56 @@ public class SelectedRisksValidationV2 implements ValidationRuleV2 {
 
     @Override
     public Optional<ValidationError> validate(TravelCalculatePremiumRequestV2 request) {
-        List<String> selectedRisks = request.getSelectedRisks();
 
-        // Если риски не выбраны - это нормально
-        if (selectedRisks == null || selectedRisks.isEmpty()) {
+        List<String> risks = request.getSelectedRisks();
+        var agreementDate = request.getAgreementDateFrom();
+
+        // Если рисков нет — ошибок нет
+        if (risks == null || risks.isEmpty()) {
             return Optional.empty();
         }
 
-        // Проверяем каждый выбранный риск
-        for (String riskCode : selectedRisks) {
-            if (riskCode == null || riskCode.trim().isEmpty()) {
+        for (String riskCode : risks) {
+
+            // === 1. Проверка на null ===
+            if (riskCode == null) {
                 return Optional.of(new ValidationError(
                         "selectedRisks",
                         "Risk code cannot be empty!"
                 ));
             }
 
-            String trimmedCode = riskCode.trim();
+            // === 2. Проверка на пустую строку ===
+            String trimmed = riskCode.trim();
+            if (trimmed.isEmpty()) {
+                return Optional.of(new ValidationError(
+                        "selectedRisks",
+                        "Risk code cannot be empty!"
+                ));
+            }
 
-            // Проверяем существование и активность риска
-            var riskOpt = riskTypeRepository.findActiveByCode(
-                    trimmedCode,
-                    request.getAgreementDateFrom()
-            );
+            // === 3. Проверка на существование и активность ===
+            Optional<RiskTypeEntity> riskOpt =
+                    riskTypeRepository.findActiveByCode(trimmed, agreementDate);
 
             if (riskOpt.isEmpty()) {
                 return Optional.of(new ValidationError(
                         "selectedRisks",
-                        "Risk type '" + trimmedCode + "' not found or not active!"
+                        "Risk type '" + trimmed + "' not found or not active!"
                 ));
             }
 
-            // Проверяем, что это не обязательный риск
-            if (Boolean.TRUE.equals(riskOpt.get().getIsMandatory())) {
+            // === 4. Проверка на обязательный риск ===
+            RiskTypeEntity risk = riskOpt.get();
+            if (Boolean.TRUE.equals(risk.getIsMandatory())) {
                 return Optional.of(new ValidationError(
                         "selectedRisks",
-                        "Risk type '" + trimmedCode + "' is mandatory and should not be in selected risks!"
+                        "Risk '" + trimmed + "' is mandatory and cannot be selected manually!"
                 ));
             }
         }
 
+        // Всё хорошо — ошибок нет
         return Optional.empty();
     }
 }
