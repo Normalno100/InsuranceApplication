@@ -58,6 +58,10 @@ dependencies {
 
 	// AssertJ — удобные assertion
 	testImplementation 'org.assertj:assertj-core:3.25.3'
+
+	// H2 Database для тестов
+	testImplementation 'com.h2database:h2:2.2.224'
+
 }
 
 tasks.named('test') {
