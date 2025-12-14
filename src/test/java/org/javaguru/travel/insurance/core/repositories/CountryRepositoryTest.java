@@ -17,9 +17,6 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Интеграционные тесты для CountryRepository
  * Используют H2 in-memory базу данных
- *
- * Примечание: cleanup.sql не нужен, так как ddl-auto=create-drop
- * создает чистую БД для каждого теста
  */
 @DataJpaTest
 @TestPropertySource(locations = "classpath:application-test.properties")
