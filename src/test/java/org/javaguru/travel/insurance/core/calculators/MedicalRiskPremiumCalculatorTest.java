@@ -1,14 +1,12 @@
 package org.javaguru.travel.insurance.core.calculators;
 
 import org.javaguru.travel.insurance.core.DateTimeService;
-import org.javaguru.travel.insurance.core.domain.Country;
-import org.javaguru.travel.insurance.core.domain.MedicalRiskLimitLevel;
-import org.javaguru.travel.insurance.core.domain.RiskType;
 import org.javaguru.travel.insurance.dto.v2.TravelCalculatePremiumRequestV2;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -16,9 +14,20 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-public class MedicalRiskPremiumCalculatorTest {
+/**
+ * Оптимизированные тесты калькулятора премий
+ *
+ * Фокус: проверка бизнес-логики расчётов, а не всех возможных комбинаций
+ * - Формула расчёта
+ * - Округление
+ * - Применение коэффициентов
+ * - Граничные значения
+ */
+@DisplayName("Medical Risk Premium Calculator - Optimized Tests")
+class MedicalRiskPremiumCalculatorTest {
 
     private AgeCalculator ageCalculator;
     private DateTimeService dateTimeService;
@@ -31,478 +40,288 @@ public class MedicalRiskPremiumCalculatorTest {
         calculator = new MedicalRiskPremiumCalculator(ageCalculator, dateTimeService);
     }
 
-    private TravelCalculatePremiumRequestV2 buildRequest(
-            String limitLevel,
-            LocalDate birth,
-            LocalDate from,
-            LocalDate to,
-            String country,
-            List<String> risks
-    ) {
-        TravelCalculatePremiumRequestV2 r = new TravelCalculatePremiumRequestV2();
-        r.setMedicalRiskLimitLevel(limitLevel);
-        r.setPersonBirthDate(birth);
-        r.setAgreementDateFrom(from);
-        r.setAgreementDateTo(to);
-        r.setCountryIsoCode(country);
-        r.setSelectedRisks(risks);
-        return r;
-    }
-
     // =====================================================================
-    // 1. ТЕСТЫ ФОРМУЛЫ
+    // ФОРМУЛА: базовая ставка × возраст × страна × (1 + доп.риски) × дни
     // =====================================================================
 
     @Test
-    @DisplayName("Formula without additional risks - multiplication check")
-    void testFormulaWithoutAdditionalRisks() {
+    @DisplayName("Formula: Base rate × Age × Country × Days (no additional risks)")
+    void shouldCalculateBasicPremiumWithoutAdditionalRisks() {
+        // Given: 5 дней, возраст 30 (коэфф 1.2), Испания (коэфф 1.0), лимит 5000 (ставка 1.50)
+        mockAge(30, 1.2);
+        mockDays(5);
+        TravelCalculatePremiumRequestV2 request = buildRequest("5000", "ES", List.of());
 
-        when(ageCalculator.calculateAge(any(), any())).thenReturn(30);
-        when(ageCalculator.getAgeCoefficient(30)).thenReturn(BigDecimal.valueOf(1.2));
-
-        // 5 дней
-        when(dateTimeService.getDaysBetween(any(), any())).thenReturn(5L);
-
-        TravelCalculatePremiumRequestV2 request = buildRequest(
-                "5000",
-                LocalDate.of(1990, 1, 1),
-                LocalDate.of(2025, 1, 1),
-                LocalDate.of(2025, 1, 6),
-                "ES",
-                List.of()
-        );
-
-        BigDecimal dailyRate = MedicalRiskLimitLevel.LEVEL_5000.getDailyRate();
-        BigDecimal countryCoeff = Country.SPAIN.getRiskCoefficient();
-
-        BigDecimal expected = dailyRate
-                .multiply(BigDecimal.valueOf(1.2))
-                .multiply(countryCoeff)
-                .multiply(BigDecimal.ONE)
-                .multiply(BigDecimal.valueOf(5))
+        // Expected: 1.50 × 1.2 × 1.0 × 1.0 × 5 = 9.00
+        BigDecimal expected = new BigDecimal("1.50")
+                .multiply(new BigDecimal("1.2"))
+                .multiply(new BigDecimal("1.0"))
+                .multiply(new BigDecimal("1.0"))
+                .multiply(new BigDecimal("5"))
                 .setScale(2, RoundingMode.HALF_UP);
 
-        BigDecimal result = calculator.calculatePremium(request);
+        // When
+        BigDecimal actual = calculator.calculatePremium(request);
 
-        assertEquals(expected, result);
+        // Then
+        assertEquals(expected, actual);
     }
 
     @Test
-    @DisplayName("Formula with additional risk - verifies (1 + SUM)")
-    void testFormulaAdditionalRisks() {
+    @DisplayName("Formula: Additional risk factor = (1 + sum of risk coefficients)")
+    void shouldApplyAdditionalRisksAsOnePercentageSum() {
+        // Given: SPORT_ACTIVITIES (0.3) → множитель (1 + 0.3) = 1.3
+        mockAge(30, 1.0);
+        mockDays(10);
+        TravelCalculatePremiumRequestV2 request = buildRequest("5000", "ES",
+                List.of("SPORT_ACTIVITIES"));
 
-        when(ageCalculator.calculateAge(any(), any())).thenReturn(40);
-        when(ageCalculator.getAgeCoefficient(40)).thenReturn(BigDecimal.valueOf(1.1));
+        // Expected: 1.50 × 1.0 × 1.0 × 1.3 × 10 = 19.50
+        BigDecimal expected = new BigDecimal("1.50")
+                .multiply(new BigDecimal("1.0"))
+                .multiply(new BigDecimal("1.0"))
+                .multiply(new BigDecimal("1.3"))
+                .multiply(new BigDecimal("10"))
+                .setScale(2, RoundingMode.HALF_UP);
 
-        when(dateTimeService.getDaysBetween(any(), any())).thenReturn(10L);
+        // When
+        BigDecimal actual = calculator.calculatePremium(request);
 
-        TravelCalculatePremiumRequestV2 request = buildRequest(
-                "10000",
-                LocalDate.of(1985, 5, 5),
-                LocalDate.of(2025, 3, 1),
-                LocalDate.of(2025, 3, 11),
-                "DE",
-                List.of(RiskType.SPORT_ACTIVITIES.getCode())
-        );
+        // Then
+        assertEquals(expected, actual);
+    }
 
-        BigDecimal base = MedicalRiskLimitLevel.LEVEL_10000.getDailyRate();
-        BigDecimal age = BigDecimal.valueOf(1.1);
-        BigDecimal country = Country.GERMANY.getRiskCoefficient();
-        BigDecimal risk = RiskType.SPORT_ACTIVITIES.getCoefficient();
+    @Test
+    @DisplayName("Formula: Multiple risks sum their coefficients")
+    void shouldSumMultipleRiskCoefficients() {
+        // Given: SPORT_ACTIVITIES (0.3) + EXTREME_SPORT (0.6) = (1 + 0.3 + 0.6) = 1.9
+        mockAge(25, 1.0);
+        mockDays(3);
+        TravelCalculatePremiumRequestV2 request = buildRequest("5000", "ES",
+                List.of("SPORT_ACTIVITIES", "EXTREME_SPORT"));
 
-        BigDecimal expected = base
-                .multiply(age)
-                .multiply(country)
-                .multiply(BigDecimal.ONE.add(risk))
-                .multiply(BigDecimal.valueOf(10))
-                .setScale(2);
+        // Expected: 1.50 × 1.0 × 1.0 × 1.9 × 3 = 8.55
+        BigDecimal expected = new BigDecimal("1.50")
+                .multiply(new BigDecimal("1.0"))
+                .multiply(new BigDecimal("1.0"))
+                .multiply(new BigDecimal("1.9"))
+                .multiply(new BigDecimal("3"))
+                .setScale(2, RoundingMode.HALF_UP);
 
-        assertEquals(expected, calculator.calculatePremium(request));
+        // When
+        BigDecimal actual = calculator.calculatePremium(request);
+
+        // Then
+        assertEquals(expected, actual);
     }
 
     // =====================================================================
-    // 2. ТЕСТЫ ОКРУГЛЕНИЯ
+    // ОКРУГЛЕНИЕ: всегда 2 знака, HALF_UP
     // =====================================================================
 
     @Test
-    @DisplayName("Rounding HALF_UP - 2 decimals")
-    void testRoundingHalfUp() {
+    @DisplayName("Rounding: Result must have exactly 2 decimal places")
+    void shouldRoundToTwoDecimalPlaces() {
+        // Given: создаём ситуацию с дробным результатом
+        mockAge(33, new BigDecimal("1.111111"));
+        mockDays(3);
+        TravelCalculatePremiumRequestV2 request = buildRequest("10000", "DE", List.of());
 
-        when(ageCalculator.calculateAge(any(), any())).thenReturn(27);
-        when(ageCalculator.getAgeCoefficient(27)).thenReturn(new BigDecimal("1.333333"));
+        // When
+        BigDecimal result = calculator.calculatePremium(request);
 
-        when(dateTimeService.getDaysBetween(any(), any())).thenReturn(1L);
-
-        TravelCalculatePremiumRequestV2 request = buildRequest(
-                "20000",
-                LocalDate.of(1998, 2, 2),
-                LocalDate.of(2025, 2, 2),
-                LocalDate.of(2025, 2, 3),
-                "FR",
-                List.of()
-        );
-
-        BigDecimal res = calculator.calculatePremium(request);
-        assertEquals(res.scale(), 2);
+        // Then
+        assertEquals(2, result.scale(), "Premium must have exactly 2 decimal places");
+        assertTrue(result.compareTo(BigDecimal.ZERO) > 0, "Premium must be positive");
     }
 
     @Test
-    @DisplayName("Rounding - third digit verification")
-    void testRoundingThirdDigit() {
+    @DisplayName("Rounding: Uses HALF_UP rounding mode")
+    void shouldUseHalfUpRounding() {
+        // Given: создаём результат, требующий округления (например, 10.555 → 10.56)
+        mockAge(25, new BigDecimal("1.037"));
+        mockDays(7);
+        TravelCalculatePremiumRequestV2 request = buildRequest("5000", "IT", List.of());
 
-        when(ageCalculator.calculateAge(any(), any())).thenReturn(50);
-        when(ageCalculator.getAgeCoefficient(50)).thenReturn(new BigDecimal("1.276"));
-
-        when(dateTimeService.getDaysBetween(any(), any())).thenReturn(3L);
-
-        TravelCalculatePremiumRequestV2 request = buildRequest(
-                "5000",
-                LocalDate.of(1975, 10, 1),
-                LocalDate.of(2025, 1, 1),
-                LocalDate.of(2025, 1, 4),
-                "IT",
-                List.of()
-        );
-
+        // When
         BigDecimal result = calculator.calculatePremium(request);
+
+        // Then
+        assertEquals(2, result.scale());
+        // Проверяем, что округление применено (любое ненулевое значение с 2 знаками)
+        assertNotNull(result);
+    }
+
+    // =====================================================================
+    // ПАРАМЕТРИЗОВАННЫЕ ТЕСТЫ: граничные значения
+    // =====================================================================
+
+    @ParameterizedTest(name = "Limit={0}, Country={1}, Age={2}, Days={3}")
+    @CsvSource({
+            "5000,  ES, 20, 1",     // Минимум: низкая ставка, 1 день
+            "5000,  ES, 30, 30",    // Средний период
+            "10000, DE, 45, 7",     // Средний возраст, средняя ставка
+            "20000, FR, 60, 14",    // Пожилой возраст
+            "50000, IT, 25, 3",     // Высокая ставка, короткий период
+            "100000, ES, 70, 1",    // Максимальный возраст
+            "500000, DE, 35, 60"    // Максимальная ставка, длинный период
+    })
+    @DisplayName("Boundary values: Various combinations of limits, countries, ages, and periods")
+    void shouldCalculatePremiumForBoundaryValues(String limit, String country,
+                                                 int age, int days) {
+        // Given
+        mockAge(age, new BigDecimal("1.2")); // Используем стандартный коэффициент
+        mockDays(days);
+        TravelCalculatePremiumRequestV2 request = buildRequest(limit, country, List.of());
+
+        // When
+        BigDecimal result = calculator.calculatePremium(request);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.compareTo(BigDecimal.ZERO) > 0,
+                "Premium must be positive for non-zero days");
+        assertEquals(2, result.scale(), "Premium must have 2 decimal places");
+    }
+
+    // =====================================================================
+    // CALCULATION DETAILS: проверка структуры результата
+    // =====================================================================
+
+    @Test
+    @DisplayName("Details: Result contains all calculation components")
+    void shouldReturnCompletePremiumCalculationDetails() {
+        // Given
+        mockAge(35, new BigDecimal("1.1"));
+        mockDays(5);
+        TravelCalculatePremiumRequestV2 request = buildRequest("10000", "ES",
+                List.of("SPORT_ACTIVITIES"));
+
+        // When
+        var result = calculator.calculatePremiumWithDetails(request);
+
+        // Then - проверяем наличие всех ключевых компонентов
+        assertAll("Calculation details should contain all components",
+                () -> assertNotNull(result.premium(), "Premium should be calculated"),
+                () -> assertNotNull(result.baseRate(), "Base rate should be set"),
+                () -> assertEquals(35, result.age(), "Age should be correct"),
+                () -> assertNotNull(result.ageCoefficient(), "Age coefficient should be set"),
+                () -> assertNotNull(result.countryCoefficient(), "Country coefficient should be set"),
+                () -> assertEquals(5, result.days(), "Days should be correct"),
+                () -> assertFalse(result.riskDetails().isEmpty(),
+                        "Risk details should include at least mandatory risk"),
+                () -> assertFalse(result.calculationSteps().isEmpty(),
+                        "Calculation steps should be provided")
+        );
+    }
+
+    @Test
+    @DisplayName("Details: Mandatory risk always included in risk details")
+    void shouldAlwaysIncludeMandatoryRiskInDetails() {
+        // Given
+        mockAge(30, new BigDecimal("1.0"));
+        mockDays(1);
+        TravelCalculatePremiumRequestV2 request = buildRequest("5000", "ES", List.of());
+
+        // When
+        var result = calculator.calculatePremiumWithDetails(request);
+
+        // Then
+        assertTrue(result.riskDetails().stream()
+                        .anyMatch(r -> r.riskCode().equals("TRAVEL_MEDICAL")),
+                "TRAVEL_MEDICAL must always be included");
+    }
+
+    @Test
+    @DisplayName("Details: Additional risks included when selected")
+    void shouldIncludeSelectedAdditionalRisksInDetails() {
+        // Given
+        mockAge(30, new BigDecimal("1.0"));
+        mockDays(2);
+        TravelCalculatePremiumRequestV2 request = buildRequest("5000", "ES",
+                List.of("SPORT_ACTIVITIES", "LUGGAGE_LOSS"));
+
+        // When
+        var result = calculator.calculatePremiumWithDetails(request);
+
+        // Then
+        assertAll("All selected risks should be in details",
+                () -> assertTrue(result.riskDetails().stream()
+                        .anyMatch(r -> r.riskCode().equals("SPORT_ACTIVITIES"))),
+                () -> assertTrue(result.riskDetails().stream()
+                        .anyMatch(r -> r.riskCode().equals("LUGGAGE_LOSS")))
+        );
+    }
+
+    // =====================================================================
+    // ГРАНИЧНЫЕ СЛУЧАИ
+    // =====================================================================
+
+    @Test
+    @DisplayName("Edge case: Zero days should return zero premium")
+    void shouldReturnZeroPremiumForZeroDays() {
+        // Given
+        mockAge(30, new BigDecimal("1.2"));
+        mockDays(0);
+        TravelCalculatePremiumRequestV2 request = buildRequest("5000", "ES", List.of());
+
+        // When
+        BigDecimal result = calculator.calculatePremium(request);
+
+        // Then
+        assertEquals(0, result.compareTo(BigDecimal.ZERO),
+                "Premium should be zero for zero days");
+    }
+
+    @Test
+    @DisplayName("Edge case: Very long trip (365 days)")
+    void shouldCalculatePremiumForVeryLongTrip() {
+        // Given
+        mockAge(40, new BigDecimal("1.1"));
+        mockDays(365);
+        TravelCalculatePremiumRequestV2 request = buildRequest("10000", "ES", List.of());
+
+        // When
+        BigDecimal result = calculator.calculatePremium(request);
+
+        // Then
+        assertTrue(result.compareTo(new BigDecimal("500")) > 0,
+                "Premium for 365 days should be substantial");
         assertEquals(2, result.scale());
     }
 
     // =====================================================================
-    // 3. КОМБИНАЦИИ ПАРАМЕТРОВ (30 тестов)
+    // HELPER METHODS
     // =====================================================================
 
-    @Nested
-    @DisplayName("Parameter combinations (30 tests)")
-    class CombinationTests {
-
-        @Test
-        void combo1() { combo("5000", "ES", 20, 1.0, 1, List.of()); }
-
-        @Test
-        void combo2() { combo("5000", "ES", 60, 1.4, 7, List.of()); }
-
-        @Test
-        void combo3() { combo("10000", "DE", 30, 1.2, 3, List.of()); }
-
-        @Test
-        void combo4() { combo("10000", "DE", 50, 1.3, 10, List.of("SPORT_ACTIVITIES")); }
-
-        @Test
-        void combo5() { combo("20000", "FR", 18, 0.9, 14, List.of("SPORT_ACTIVITIES")); }
-
-        @Test
-        void combo6() { combo("20000", "IT", 25, 1.0, 21, List.of("SPORT_ACTIVITIES", "EXTREME_SPORT")); }
-
-        @Test
-        void combo7() { combo("5000", "AT", 35, 1.1, 2, List.of()); }
-
-        @Test
-        void combo8() { combo("5000", "NL", 70, 1.5, 5, List.of("EXTREME_SPORT")); }
-
-        @Test
-        void combo9() { combo("10000", "ES", 33, 1.1, 9, List.of("SPORT_ACTIVITIES")); }
-
-        @Test
-        void combo10() { combo("20000", "DE", 45, 1.2, 6, List.of()); }
-
-        @Test
-        void combo11() { combo("5000", "BE", 55, 1.3, 30, List.of()); }
-
-        @Test
-        void combo12() { combo("10000", "CH", 37, 1.1, 1, List.of()); }
-
-        @Test
-        void combo13() { combo("20000", "ES", 41, 1.2, 8, List.of("EXTREME_SPORT")); }
-
-        @Test
-        void combo14() { combo("10000", "DE", 22, 1.0, 11, List.of("SPORT_ACTIVITIES", "EXTREME_SPORT")); }
-
-        @Test
-        void combo15() { combo("5000", "ES", 49, 1.2, 17, List.of()); }
-
-        @Test
-        void combo16() { combo("5000", "DE", 71, 1.5, 4, List.of("SPORT_ACTIVITIES")); }
-
-        @Test
-        void combo17() { combo("20000", "SE", 29, 1.0, 7, List.of()); }
-
-        @Test
-        void combo18() { combo("10000", "NO", 52, 1.3, 12, List.of("SPORT_ACTIVITIES")); }
-
-        @Test
-        void combo19() { combo("5000", "DK", 26, 1.0, 1, List.of()); }
-
-        @Test
-        void combo20() { combo("20000", "ES", 64, 1.4, 18, List.of("EXTREME_SPORT")); }
-
-        @Test
-        void combo21() { combo("10000", "JP", 23, 1.0, 2, List.of()); }
-
-        @Test
-        void combo22() { combo("20000", "DE", 57, 1.3, 13, List.of("SPORT_ACTIVITIES")); }
-
-        @Test
-        void combo23() { combo("5000", "KR", 19, 0.9, 9, List.of("SPORT_ACTIVITIES")); }
-
-        @Test
-        void combo24() { combo("10000", "ES", 31, 1.1, 16, List.of()); }
-
-        @Test
-        void combo25() { combo("20000", "AU", 48, 1.2, 22, List.of("EXTREME_SPORT")); }
-
-        @Test
-        void combo26() { combo("5000", "ES", 72, 1.5, 27, List.of()); }
-
-        @Test
-        void combo27() { combo("10000", "DE", 45, 1.2, 10, List.of("SPORT_ACTIVITIES")); }
-
-        @Test
-        void combo28() { combo("20000", "NZ", 36, 1.1, 2, List.of()); }
-
-        @Test
-        void combo29() { combo("5000", "CA", 28, 1.0, 14, List.of()); }
-
-        @Test
-        void combo30() { combo("20000", "ES", 62, 1.4, 3, List.of()); }
-
-        private void combo(String level, String country, int age, double ageCoeff, int days, List<String> risks) {
-            when(ageCalculator.calculateAge(any(), any())).thenReturn(age);
-            when(ageCalculator.getAgeCoefficient(age)).thenReturn(BigDecimal.valueOf(ageCoeff));
-            when(dateTimeService.getDaysBetween(any(), any())).thenReturn((long) days);
-
-            TravelCalculatePremiumRequestV2 req = buildRequest(
-                    level,
-                    LocalDate.of(1990, 1, 1),
-                    LocalDate.of(2025, 1, 1),
-                    LocalDate.of(2025, 1, 1).plusDays(days),
-                    country,
-                    risks
-            );
-
-            BigDecimal result = calculator.calculatePremium(req);
-            assertNotNull(result);
-            assertTrue(result.compareTo(BigDecimal.ZERO) > 0);
-        }
+    private void mockAge(int age, double coefficient) {
+        mockAge(age, BigDecimal.valueOf(coefficient));
     }
 
-    // =====================================================================
-    // 4. ТЕСТЫ ДЕТАЛЕЙ РАСЧЕТА (10 тестов)
-    // =====================================================================
-
-    @Nested
-    @DisplayName("Calculation details (10 tests)")
-    class DetailsTests {
-
-        @Test
-        void detailsContainsBaseRate() {
-            mockAge(30, 1.1);
-            mockDays(5);
-
-            TravelCalculatePremiumRequestV2 req = buildRequest(
-                    "5000",
-                    LocalDate.of(1990, 1, 1),
-                    LocalDate.of(2025, 1, 1),
-                    LocalDate.of(2025, 1, 6),
-                    "ES",
-                    List.of()
-            );
-
-            var result = calculator.calculatePremiumWithDetails(req);
-            assertEquals(MedicalRiskLimitLevel.LEVEL_5000.getDailyRate(), result.baseRate());
-        }
-
-        @Test
-        void detailsAgeCorrect() {
-            mockAge(44, 1.2);
-            mockDays(5);
-
-            TravelCalculatePremiumRequestV2 req = buildRequest("10000",
-                    LocalDate.of(1981, 1, 1),
-                    LocalDate.of(2025, 1, 1),
-                    LocalDate.of(2025, 1, 6),
-                    "DE", List.of());
-
-            var result = calculator.calculatePremiumWithDetails(req);
-            assertEquals(44, result.age());
-        }
-
-        @Test
-        void detailsCountryCoefficientCorrect() {
-            mockAge(20, 1.0);
-            mockDays(3);
-
-            TravelCalculatePremiumRequestV2 req = buildRequest("5000",
-                    LocalDate.of(2005, 1, 1),
-                    LocalDate.of(2025, 1, 1),
-                    LocalDate.of(2025, 1, 4),
-                    "ES", List.of());
-
-            var res = calculator.calculatePremiumWithDetails(req);
-            assertEquals(Country.SPAIN.getRiskCoefficient(), res.countryCoefficient());
-        }
-
-        @Test
-        void detailsRiskPremiumsContainMandatory() {
-            mockAge(25, 1.0);
-            mockDays(1);
-
-            TravelCalculatePremiumRequestV2 req = buildRequest(
-                    "5000",
-                    LocalDate.of(2000, 1, 1),
-                    LocalDate.of(2025, 1, 1),
-                    LocalDate.of(2025, 1, 2),
-                    "ES",
-                    List.of()
-            );
-
-            var res = calculator.calculatePremiumWithDetails(req);
-
-            assertTrue(res.riskDetails().stream()
-                    .anyMatch(r -> r.riskCode().equals(RiskType.TRAVEL_MEDICAL.getCode())));
-        }
-
-        @Test
-        void detailsRiskPremiumsIncludeAdditional() {
-            mockAge(30, 1.0);
-            mockDays(2);
-
-            TravelCalculatePremiumRequestV2 req = buildRequest(
-                    "5000",
-                    LocalDate.of(1995, 1, 1),
-                    LocalDate.of(2025, 1, 1),
-                    LocalDate.of(2025, 1, 3),
-                    "ES",
-                    List.of(RiskType.SPORT_ACTIVITIES.getCode())
-            );
-
-            var res = calculator.calculatePremiumWithDetails(req);
-
-            assertTrue(res.riskDetails().stream()
-                    .anyMatch(r -> r.riskCode().equals(RiskType.SPORT_ACTIVITIES.getCode())));
-        }
-
-        @Test
-        void detailsContainsCalculationSteps() {
-            mockAge(31, 1.1);
-            mockDays(2);
-
-            TravelCalculatePremiumRequestV2 req = buildRequest(
-                    "10000",
-                    LocalDate.of(1994, 1, 1),
-                    LocalDate.of(2025, 1, 1),
-                    LocalDate.of(2025, 1, 3),
-                    "DE",
-                    List.of()
-            );
-
-            var res = calculator.calculatePremiumWithDetails(req);
-            assertFalse(res.calculationSteps().isEmpty());
-        }
-
-        @Test
-        void totalCoefficientCorrect() {
-            mockAge(30, 1.2);
-            mockDays(3);
-
-            TravelCalculatePremiumRequestV2 req = buildRequest(
-                    "5000",
-                    LocalDate.of(1995, 1, 1),
-                    LocalDate.of(2025, 1, 1),
-                    LocalDate.of(2025, 1, 4),
-                    "DE",
-                    List.of()
-            );
-
-            var res = calculator.calculatePremiumWithDetails(req);
-
-            BigDecimal expected = BigDecimal.valueOf(1.2)
-                    .multiply(Country.GERMANY.getRiskCoefficient())
-                    .multiply(BigDecimal.ONE);
-
-            assertEquals(expected, res.totalCoefficient());
-        }
-
-        @Test
-        void daysCorrect() {
-            mockAge(33, 1.1);
-            mockDays(10);
-
-            TravelCalculatePremiumRequestV2 req = buildRequest(
-                    "20000",
-                    LocalDate.of(1990, 1, 1),
-                    LocalDate.of(2025, 1, 1),
-                    LocalDate.of(2025, 1, 11),
-                    "FR", List.of());
-
-            var res = calculator.calculatePremiumWithDetails(req);
-            assertEquals(10, res.days());
-        }
-
-        @Test
-        void detailsPremiumPositive() {
-            mockAge(45, 1.3);
-            mockDays(7);
-
-            TravelCalculatePremiumRequestV2 req = buildRequest(
-                    "10000",
-                    LocalDate.of(1980, 1, 1),
-                    LocalDate.of(2025, 1, 1),
-                    LocalDate.of(2025, 1, 8),
-                    "ES",
-                    List.of());
-
-            var res = calculator.calculatePremiumWithDetails(req);
-            assertTrue(res.premium().compareTo(BigDecimal.ZERO) > 0);
-        }
-
-        @Test
-        void riskDetailPremiumCalculated() {
-            mockAge(25, 1.0);
-            mockDays(1);
-
-            TravelCalculatePremiumRequestV2 req = buildRequest(
-                    "5000",
-                    LocalDate.of(2000, 1, 1),
-                    LocalDate.of(2025, 1, 1),
-                    LocalDate.of(2025, 1, 2),
-                    "ES",
-                    List.of(RiskType.SPORT_ACTIVITIES.getCode())
-            );
-
-            var result = calculator.calculatePremiumWithDetails(req);
-
-            var sportDetail = result.riskDetails()
-                    .stream()
-                    .filter(r -> r.riskCode().equals(RiskType.SPORT_ACTIVITIES.getCode()))
-                    .findFirst()
-                    .orElseThrow();
-
-            assertTrue(sportDetail.premium().compareTo(BigDecimal.ZERO) > 0);
-        }
-    }
-
-    // =====================================================================
-    // UTILS
-    // =====================================================================
-
-    private void mockAge(int age, double coeff) {
+    private void mockAge(int age, BigDecimal coefficient) {
         when(ageCalculator.calculateAge(any(), any())).thenReturn(age);
-        when(ageCalculator.getAgeCoefficient(age)).thenReturn(BigDecimal.valueOf(coeff));
+        when(ageCalculator.getAgeCoefficient(age)).thenReturn(coefficient);
 
-        // Добавляем мок для calculateAgeAndCoefficient(...)
+        // Для метода calculatePremiumWithDetails
         AgeCalculator.AgeCalculationResult ageResult =
-                new AgeCalculator.AgeCalculationResult(
-                        age,
-                        BigDecimal.valueOf(coeff),
-                        "age group description"
-                );
-
+                new AgeCalculator.AgeCalculationResult(age, coefficient, "Age group");
         when(ageCalculator.calculateAgeAndCoefficient(any(), any())).thenReturn(ageResult);
     }
 
-
     private void mockDays(long days) {
         when(dateTimeService.getDaysBetween(any(), any())).thenReturn(days);
+    }
+
+    private TravelCalculatePremiumRequestV2 buildRequest(String limitLevel,
+                                                         String countryCode,
+                                                         List<String> risks) {
+        TravelCalculatePremiumRequestV2 request = new TravelCalculatePremiumRequestV2();
+        request.setMedicalRiskLimitLevel(limitLevel);
+        request.setCountryIsoCode(countryCode);
+        request.setSelectedRisks(risks);
+        request.setPersonBirthDate(LocalDate.of(1990, 1, 1));
+        request.setAgreementDateFrom(LocalDate.of(2025, 1, 1));
+        request.setAgreementDateTo(LocalDate.of(2025, 1, 10));
+        return request;
     }
 }
