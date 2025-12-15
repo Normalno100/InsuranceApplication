@@ -1,73 +1,144 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.2.5'
+	id 'org.springframework.boot' version '3.2.0'
 	id 'io.spring.dependency-management' version '1.1.4'
+	id 'jacoco'
 }
 
-group = 'org.javaguru.travel'
+group = 'org.javaguru'
 version = '1.0.0'
 
 java {
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(17)
+	}
 }
 
 repositories {
 	mavenCentral()
 }
 
+/**
+ * Версии библиотек (аналог <properties>)
+ */
+ext {
+	testcontainersVersion = '1.19.3'
+	restAssuredVersion   = '5.4.0'
+	assertjVersion       = '3.24.2'
+}
+
 dependencies {
-	// --- Основное приложение ---
-	implementation 'org.springframework.boot:spring-boot-starter-web:3.2.5'
+
+	/* =====================================================
+     * MAIN DEPENDENCIES
+     * ===================================================== */
+
+	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	implementation 'org.postgresql:postgresql:42.6.0'
-	implementation 'org.liquibase:liquibase-core:4.24.0'
 
-	// Jackson для LocalDate
-	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.16.1'
+	runtimeOnly 'org.postgresql:postgresql'
+	implementation 'org.liquibase:liquibase-core'
 
-	// --- Lombok ---
-	compileOnly 'org.projectlombok:lombok:1.18.32'
-	annotationProcessor 'org.projectlombok:lombok:1.18.32'
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+
+	implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+
+	/* =====================================================
+     * TEST DEPENDENCIES
+     * ===================================================== */
+
+	testImplementation('org.springframework.boot:spring-boot-starter-test') {
+		exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
+	}
+
+	// --- H2 ---
+	testRuntimeOnly 'com.h2database:h2'
+
+	// --- Testcontainers ---
+	testImplementation "org.testcontainers:testcontainers:${testcontainersVersion}"
+	testImplementation "org.testcontainers:junit-jupiter:${testcontainersVersion}"
+	testImplementation "org.testcontainers:postgresql:${testcontainersVersion}"
+
+	// --- REST Assured ---
+	testImplementation "io.rest-assured:rest-assured:${restAssuredVersion}"
+	testImplementation "io.rest-assured:spring-mock-mvc:${restAssuredVersion}"
+	testImplementation "io.rest-assured:json-path:${restAssuredVersion}"
+
+	// --- Assertions ---
+	testImplementation "org.assertj:assertj-core:${assertjVersion}"
+	testImplementation 'org.hamcrest:hamcrest'
+
+	// --- Async testing ---
+	testImplementation 'org.awaitility:awaitility:4.2.0'
+
+	// --- JSON helpers ---
+	testImplementation 'com.jayway.jsonpath:json-path'
+
+	// Lombok для test
 	testCompileOnly 'org.projectlombok:lombok:1.18.32'
 	testAnnotationProcessor 'org.projectlombok:lombok:1.18.32'
 
-	// --- Unit тесты ---
-	testImplementation('org.springframework.boot:spring-boot-starter-test:3.2.5') {
-		exclude group: 'junit', module: 'junit' // отключаем JUnit 4
-	}
-
-	// JUnit 5
-	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.2'
-	testImplementation 'org.junit.jupiter:junit-jupiter-params:5.10.2'
-	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
-
-	// Mockito
-	testImplementation 'org.mockito:mockito-core:5.12.0'
-	testImplementation 'org.mockito:mockito-junit-jupiter:5.12.0'
-
-	// === Интеграционные тесты ===
-
-	// Testcontainers — PostgreSQL
-	testImplementation 'org.testcontainers:testcontainers:1.19.7'
-	testImplementation 'org.testcontainers:postgresql:1.19.7'
-	testImplementation 'org.testcontainers:junit-jupiter:1.19.7'
-
-	// REST Assured — тестирование REST API
-	testImplementation 'io.rest-assured:rest-assured:5.4.0'
-
-	// AssertJ — удобные assertion
-	testImplementation 'org.assertj:assertj-core:3.25.3'
-
-	// H2 Database для тестов
-	testImplementation 'com.h2database:h2:2.2.224'
-
 }
 
-tasks.named('test') {
+
+/* =====================================================
+ * UNIT TESTS
+ * ===================================================== */
+test {
 	useJUnitPlatform()
-	testLogging {
-		events 'passed', 'failed', 'skipped'
-		exceptionFormat 'full'
+
+	// исключаем интеграционные тесты
+	exclude '**/*IT.class'
+	exclude '**/integration/**'
+
+	finalizedBy jacocoTestReport
+}
+
+/* =====================================================
+ * INTEGRATION TESTS (аналог Maven Failsafe)
+ * ===================================================== */
+tasks.register('integrationTest', Test) {
+	description = 'Runs integration tests'
+	group = 'verification'
+
+	useJUnitPlatform()
+
+	include '**/*IT.class'
+	include '**/integration/**'
+
+	shouldRunAfter test
+
+	systemProperty 'testcontainers.reuse.enable', 'true'
+}
+
+check.dependsOn integrationTest
+
+/* =====================================================
+ * JACOCO
+ * ===================================================== */
+jacoco {
+	toolVersion = '0.8.11'
+}
+
+jacocoTestReport {
+	dependsOn test
+	reports {
+		xml.required = true
+		html.required = true
+	}
+}
+
+tasks.register('jacocoIntegrationReport', JacocoReport) {
+	dependsOn integrationTest
+
+	executionData integrationTest
+
+	sourceSets sourceSets.main
+
+	reports {
+		xml.required = true
+		html.required = true
 	}
 }
