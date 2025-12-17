@@ -22,20 +22,25 @@ class CountryTest {
     class EnumValues {
 
         @Test
-        @DisplayName("Should have countries from all risk groups")
-        void shouldHaveCountriesFromAllRiskGroups() {
+        @DisplayName("Should have countries from all risk levels")
+        void shouldHaveCountriesFromAllRiskLevels() {
             Country[] countries = Country.values();
 
             assertTrue(countries.length > 0, "Should have at least some countries");
 
-            Set<String> riskGroups = Arrays.stream(countries)
-                    .map(c -> c.getRiskGroup().name())
+            // Проверяем наличие всех уровней риска по коэффициентам
+            Set<BigDecimal> coefficients = Arrays.stream(countries)
+                    .map(Country::getRiskCoefficient)
                     .collect(Collectors.toSet());
 
-            assertTrue(riskGroups.contains("LOW"), "Should have LOW risk countries");
-            assertTrue(riskGroups.contains("MEDIUM"), "Should have MEDIUM risk countries");
-            assertTrue(riskGroups.contains("HIGH"), "Should have HIGH risk countries");
-            assertTrue(riskGroups.contains("VERY_HIGH"), "Should have VERY_HIGH risk countries");
+            assertTrue(coefficients.contains(new BigDecimal("1.0")),
+                    "Should have LOW risk countries (1.0)");
+            assertTrue(coefficients.contains(new BigDecimal("1.3")),
+                    "Should have MEDIUM risk countries (1.3)");
+            assertTrue(coefficients.contains(new BigDecimal("1.8")),
+                    "Should have HIGH risk countries (1.8)");
+            assertTrue(coefficients.contains(new BigDecimal("2.5")),
+                    "Should have VERY_HIGH risk countries (2.5)");
         }
 
         @Test
@@ -46,7 +51,6 @@ class CountryTest {
                         () -> assertNotNull(country.getIsoCode(), "ISO code should not be null"),
                         () -> assertNotNull(country.getNameEn(), "English name should not be null"),
                         () -> assertNotNull(country.getNameRu(), "Russian name should not be null"),
-                        () -> assertNotNull(country.getRiskGroup(), "Risk group should not be null"),
                         () -> assertNotNull(country.getRiskCoefficient(), "Risk coefficient should not be null")
                 );
             }
@@ -171,82 +175,58 @@ class CountryTest {
     }
 
     @Nested
-    @DisplayName("Find By Name - Success Cases")
-    class FindByNameSuccess {
-
-        @ParameterizedTest(name = "Name '{0}' should return {1}")
-        @CsvSource({
-                "Spain,          SPAIN",
-                "Germany,        GERMANY",
-                "France,         FRANCE",
-                "Thailand,       THAILAND",
-                "United States,  USA"
-        })
-        @DisplayName("Should find country by English name")
-        void shouldFindCountryByEnglishName(String name, String expectedCountry) {
-            Country country = Country.fromNameEn(name);
-
-            assertNotNull(country);
-            assertEquals(expectedCountry, country.name());
-            assertEquals(name, country.getNameEn());
-        }
-
-        @Test
-        @DisplayName("Should handle case-insensitive name search")
-        void shouldHandleCaseInsensitiveNameSearch() {
-            assertAll(
-                    () -> assertEquals(Country.SPAIN, Country.fromNameEn("Spain")),
-                    () -> assertEquals(Country.SPAIN, Country.fromNameEn("spain")),
-                    () -> assertEquals(Country.SPAIN, Country.fromNameEn("SPAIN"))
-            );
-        }
-    }
-
-    @Nested
-    @DisplayName("Risk Groups and Coefficients")
-    class RiskGroupsAndCoefficients {
+    @DisplayName("Risk Coefficients")
+    class RiskCoefficients {
 
         @Test
         @DisplayName("LOW risk countries should have coefficient 1.0")
         void lowRiskCountriesShouldHaveCoefficient1() {
-            for (Country country : Country.values()) {
-                if (country.getRiskGroup().name().equals("LOW")) {
-                    assertEquals(new BigDecimal("1.0"), country.getRiskCoefficient(),
-                            String.format("%s should have coefficient 1.0", country.name()));
-                }
+            Country[] lowRiskCountries = {
+                    Country.SPAIN, Country.GERMANY, Country.FRANCE, Country.ITALY
+            };
+
+            for (Country country : lowRiskCountries) {
+                assertEquals(new BigDecimal("1.0"), country.getRiskCoefficient(),
+                        String.format("%s should have coefficient 1.0", country.name()));
             }
         }
 
         @Test
         @DisplayName("MEDIUM risk countries should have coefficient 1.3")
         void mediumRiskCountriesShouldHaveCoefficient1_3() {
-            for (Country country : Country.values()) {
-                if (country.getRiskGroup().name().equals("MEDIUM")) {
-                    assertEquals(new BigDecimal("1.3"), country.getRiskCoefficient(),
-                            String.format("%s should have coefficient 1.3", country.name()));
-                }
+            Country[] mediumRiskCountries = {
+                    Country.THAILAND, Country.TURKEY, Country.USA, Country.CHINA
+            };
+
+            for (Country country : mediumRiskCountries) {
+                assertEquals(new BigDecimal("1.3"), country.getRiskCoefficient(),
+                        String.format("%s should have coefficient 1.3", country.name()));
             }
         }
 
         @Test
         @DisplayName("HIGH risk countries should have coefficient 1.8")
         void highRiskCountriesShouldHaveCoefficient1_8() {
-            for (Country country : Country.values()) {
-                if (country.getRiskGroup().name().equals("HIGH")) {
-                    assertEquals(new BigDecimal("1.8"), country.getRiskCoefficient(),
-                            String.format("%s should have coefficient 1.8", country.name()));
-                }
+            Country[] highRiskCountries = {
+                    Country.INDIA, Country.EGYPT, Country.KENYA, Country.SOUTH_AFRICA
+            };
+
+            for (Country country : highRiskCountries) {
+                assertEquals(new BigDecimal("1.8"), country.getRiskCoefficient(),
+                        String.format("%s should have coefficient 1.8", country.name()));
             }
         }
 
         @Test
         @DisplayName("VERY_HIGH risk countries should have coefficient 2.5")
         void veryHighRiskCountriesShouldHaveCoefficient2_5() {
-            for (Country country : Country.values()) {
-                if (country.getRiskGroup().name().equals("VERY_HIGH")) {
-                    assertEquals(new BigDecimal("2.5"), country.getRiskCoefficient(),
-                            String.format("%s should have coefficient 2.5", country.name()));
-                }
+            Country[] veryHighRiskCountries = {
+                    Country.AFGHANISTAN, Country.IRAQ, Country.SYRIA, Country.YEMEN
+            };
+
+            for (Country country : veryHighRiskCountries) {
+                assertEquals(new BigDecimal("2.5"), country.getRiskCoefficient(),
+                        String.format("%s should have coefficient 2.5", country.name()));
             }
         }
 
@@ -350,29 +330,29 @@ class CountryTest {
     class BusinessLogicValidation {
 
         @Test
-        @DisplayName("European countries should be LOW or MEDIUM risk")
-        void europeanCountriesShouldBeLowOrMediumRisk() {
-            String[] europeanCountries = {"SPAIN", "GERMANY", "FRANCE", "ITALY", "AUSTRIA"};
+        @DisplayName("European countries should have LOW coefficient")
+        void europeanCountriesShouldHaveLowCoefficient() {
+            Country[] europeanCountries = {
+                    Country.SPAIN, Country.GERMANY, Country.FRANCE,
+                    Country.ITALY, Country.AUSTRIA
+            };
 
-            for (String countryName : europeanCountries) {
-                Country country = Country.valueOf(countryName);
-                assertTrue(
-                        country.getRiskGroup().name().equals("LOW") ||
-                                country.getRiskGroup().name().equals("MEDIUM"),
-                        String.format("%s should be LOW or MEDIUM risk", countryName)
-                );
+            for (Country country : europeanCountries) {
+                assertEquals(new BigDecimal("1.0"), country.getRiskCoefficient(),
+                        String.format("%s should have LOW risk coefficient", country.name()));
             }
         }
 
         @Test
-        @DisplayName("War zone countries should be VERY_HIGH risk")
-        void warZoneCountriesShouldBeVeryHighRisk() {
-            String[] warZones = {"AFGHANISTAN", "IRAQ", "SYRIA", "YEMEN"};
+        @DisplayName("War zone countries should have VERY_HIGH coefficient")
+        void warZoneCountriesShouldHaveVeryHighCoefficient() {
+            Country[] warZones = {
+                    Country.AFGHANISTAN, Country.IRAQ, Country.SYRIA, Country.YEMEN
+            };
 
-            for (String countryName : warZones) {
-                Country country = Country.valueOf(countryName);
-                assertEquals("VERY_HIGH", country.getRiskGroup().name(),
-                        String.format("%s should be VERY_HIGH risk", countryName));
+            for (Country country : warZones) {
+                assertEquals(new BigDecimal("2.5"), country.getRiskCoefficient(),
+                        String.format("%s should have VERY_HIGH risk coefficient", country.name()));
             }
         }
 
@@ -394,10 +374,10 @@ class CountryTest {
         @Test
         @DisplayName("Higher risk should result in higher coefficient")
         void higherRiskShouldResultInHigherCoefficient() {
-            Country lowRisk = Country.SPAIN;      // LOW
-            Country mediumRisk = Country.THAILAND; // MEDIUM
-            Country highRisk = Country.INDIA;      // HIGH
-            Country veryHighRisk = Country.AFGHANISTAN; // VERY_HIGH
+            Country lowRisk = Country.SPAIN;           // 1.0
+            Country mediumRisk = Country.THAILAND;     // 1.3
+            Country highRisk = Country.INDIA;          // 1.8
+            Country veryHighRisk = Country.AFGHANISTAN; // 2.5
 
             assertTrue(
                     lowRisk.getRiskCoefficient().compareTo(mediumRisk.getRiskCoefficient()) < 0 &&

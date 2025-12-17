@@ -171,61 +171,24 @@ class RiskTypeTest {
     }
 
     @Nested
-    @DisplayName("Mandatory vs Optional Risks")
-    class MandatoryVsOptional {
-
-        @Test
-        @DisplayName("Should get mandatory risks")
-        void shouldGetMandatoryRisks() {
-            RiskType[] mandatory = RiskType.getMandatoryRisks();
-
-            assertEquals(1, mandatory.length);
-            assertEquals(RiskType.TRAVEL_MEDICAL, mandatory[0]);
-        }
-
-        @Test
-        @DisplayName("Should get optional risks")
-        void shouldGetOptionalRisks() {
-            RiskType[] optional = RiskType.getOptionalRisks();
-
-            assertTrue(optional.length >= 9,
-                    "Should have at least 9 optional risks");
-
-            for (RiskType type : optional) {
-                assertFalse(type.isMandatory(),
-                        type.name() + " should be optional");
-            }
-        }
-
-        @Test
-        @DisplayName("Mandatory + Optional should equal total")
-        void mandatoryPlusOptionalShouldEqualTotal() {
-            int totalCount = RiskType.values().length;
-            int mandatoryCount = RiskType.getMandatoryRisks().length;
-            int optionalCount = RiskType.getOptionalRisks().length;
-
-            assertEquals(totalCount, mandatoryCount + optionalCount,
-                    "Mandatory + Optional should equal total count");
-        }
-    }
-
-    @Nested
     @DisplayName("Coefficient Validation")
     class CoefficientValidation {
 
         @Test
         @DisplayName("Mandatory risk should have zero coefficient")
         void mandatoryRiskShouldHaveZeroCoefficient() {
-            assertEquals(BigDecimal.ZERO, RiskType.TRAVEL_MEDICAL.getCoefficient(),
+            assertEquals(new BigDecimal("0"), RiskType.TRAVEL_MEDICAL.getCoefficient(),
                     "TRAVEL_MEDICAL should have coefficient 0");
         }
 
         @Test
         @DisplayName("Optional risks should have positive coefficients")
         void optionalRisksShouldHavePositiveCoefficients() {
-            for (RiskType type : RiskType.getOptionalRisks()) {
-                assertTrue(type.getCoefficient().compareTo(BigDecimal.ZERO) > 0,
-                        type.name() + " should have positive coefficient");
+            for (RiskType type : RiskType.values()) {
+                if (!type.isMandatory()) {
+                    assertTrue(type.getCoefficient().compareTo(BigDecimal.ZERO) > 0,
+                            type.name() + " should have positive coefficient");
+                }
             }
         }
 
@@ -262,11 +225,13 @@ class RiskTypeTest {
         void flightDelayShouldHaveLowestNonZeroCoefficient() {
             RiskType flightDelay = RiskType.FLIGHT_DELAY;
 
-            for (RiskType type : RiskType.getOptionalRisks()) {
-                assertTrue(
-                        flightDelay.getCoefficient().compareTo(type.getCoefficient()) <= 0,
-                        "FLIGHT_DELAY should have lowest coefficient among optional risks"
-                );
+            for (RiskType type : RiskType.values()) {
+                if (!type.isMandatory()) {
+                    assertTrue(
+                            flightDelay.getCoefficient().compareTo(type.getCoefficient()) <= 0,
+                            "FLIGHT_DELAY should have lowest coefficient among optional risks"
+                    );
+                }
             }
         }
     }
@@ -390,8 +355,10 @@ class RiskTypeTest {
         void extremeScenarioAllOptionalRisksCombined() {
             BigDecimal total = BigDecimal.ZERO;
 
-            for (RiskType type : RiskType.getOptionalRisks()) {
-                total = total.add(type.getCoefficient());
+            for (RiskType type : RiskType.values()) {
+                if (!type.isMandatory()) {
+                    total = total.add(type.getCoefficient());
+                }
             }
 
             assertTrue(total.compareTo(new BigDecimal("2.0")) > 0,
@@ -409,7 +376,7 @@ class RiskTypeTest {
             // Только обязательное медицинское покрытие
             BigDecimal additionalCoefficient = RiskType.TRAVEL_MEDICAL.getCoefficient();
 
-            assertEquals(BigDecimal.ZERO, additionalCoefficient,
+            assertEquals(new BigDecimal("0"), additionalCoefficient,
                     "Standard vacation has no additional risks");
         }
 
@@ -504,31 +471,24 @@ class RiskTypeTest {
         }
 
         @Test
-        @DisplayName("Should handle all risks without duplicates")
-        void shouldHandleAllRisksWithoutDuplicates() {
-            RiskType[] all = RiskType.values();
-            RiskType[] mandatory = RiskType.getMandatoryRisks();
-            RiskType[] optional = RiskType.getOptionalRisks();
+        @DisplayName("All mandatory risks should be identifiable")
+        void allMandatoryRisksShouldBeIdentifiable() {
+            long mandatoryCount = Arrays.stream(RiskType.values())
+                    .filter(RiskType::isMandatory)
+                    .count();
 
-            // Проверка что нет пересечений
-            for (RiskType m : mandatory) {
-                for (RiskType o : optional) {
-                    assertNotEquals(m, o, "Mandatory and optional should not overlap");
-                }
-            }
+            assertEquals(1, mandatoryCount, "Should have exactly 1 mandatory risk");
+            assertTrue(RiskType.TRAVEL_MEDICAL.isMandatory(),
+                    "TRAVEL_MEDICAL should be mandatory");
         }
 
         @Test
-        @DisplayName("All non-mandatory risks should be in optional array")
-        void allNonMandatoryRisksShouldBeInOptionalArray() {
-            RiskType[] optional = RiskType.getOptionalRisks();
-
+        @DisplayName("All non-mandatory risks should be optional")
+        void allNonMandatoryRisksShouldBeOptional() {
             for (RiskType type : RiskType.values()) {
-                if (!type.isMandatory()) {
-                    assertTrue(
-                            Arrays.asList(optional).contains(type),
-                            type.name() + " should be in optional risks"
-                    );
+                if (type != RiskType.TRAVEL_MEDICAL) {
+                    assertFalse(type.isMandatory(),
+                            type.name() + " should not be mandatory");
                 }
             }
         }

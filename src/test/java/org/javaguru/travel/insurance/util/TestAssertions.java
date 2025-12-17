@@ -1,8 +1,7 @@
 package org.javaguru.travel.insurance.util;
 
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumResponse;
 import org.javaguru.travel.insurance.dto.ValidationError;
+import org.javaguru.travel.insurance.dto.v2.TravelCalculatePremiumResponseV2;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -11,45 +10,17 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Кастомные assertion'ы для уменьшения дублирования в тестах
- *
- * Использование:
- * <pre>
- * import static org.javaguru.travel.insurance.util.TestAssertions.*;
- *
- * // В тестах
- * assertSuccessfulResponse(response);
- * assertHasError(response, "personFirstName", "Must not be empty!");
- * assertFieldsCopied(request, response);
- * </pre>
+ * Утилиты для assertions в тестах
+ * Содержит специализированные методы проверки для доменных объектов
  */
-public final class TestAssertions {
+public class TestAssertions {
 
-    private TestAssertions() {
-        throw new AssertionError("Utility class should not be instantiated");
-    }
-
-    // ========================================
-    // ASSERTION'Ы ДЛЯ RESPONSE
-    // ========================================
+    // ========== RESPONSE V2 ASSERTIONS ==========
 
     /**
-     * Проверяет что ответ успешный (без ошибок)
-     *
-     * @param response ответ для проверки
+     * Проверяет, что ответ содержит ошибки
      */
-    public static void assertSuccessfulResponse(TravelCalculatePremiumResponse response) {
-        assertNotNull(response, "Response should not be null");
-        assertFalse(response.hasErrors(), "Response should not have errors");
-        assertNull(response.getErrors(), "Errors list should be null for successful response");
-    }
-
-    /**
-     * Проверяет что ответ содержит ошибки
-     *
-     * @param response ответ для проверки
-     */
-    public static void assertHasErrors(TravelCalculatePremiumResponse response) {
+    public static void assertHasErrors(TravelCalculatePremiumResponseV2 response) {
         assertNotNull(response, "Response should not be null");
         assertTrue(response.hasErrors(), "Response should have errors");
         assertNotNull(response.getErrors(), "Errors list should not be null");
@@ -57,509 +28,382 @@ public final class TestAssertions {
     }
 
     /**
-     * Проверяет что ответ содержит указанное количество ошибок
-     *
-     * @param response ответ для проверки
-     * @param expectedCount ожидаемое количество ошибок
+     * Проверяет, что ответ не содержит ошибок
      */
-    public static void assertErrorCount(TravelCalculatePremiumResponse response, int expectedCount) {
+    public static void assertNoErrors(TravelCalculatePremiumResponseV2 response) {
+        assertNotNull(response, "Response should not be null");
+        assertFalse(response.hasErrors(), "Response should not have errors");
+    }
+
+    /**
+     * Проверяет, что ответ содержит конкретную ошибку
+     */
+    public static void assertHasError(TravelCalculatePremiumResponseV2 response,
+                                      String field,
+                                      String message) {
+        assertHasErrors(response);
+
+        boolean found = response.getErrors().stream()
+                .anyMatch(e -> field.equals(e.getField()) && message.equals(e.getMessage()));
+
+        assertTrue(found,
+                String.format("Expected error not found: field='%s', message='%s'", field, message));
+    }
+
+    /**
+     * Проверяет, что ответ содержит ошибку для указанного поля
+     */
+    public static void assertHasErrorForField(TravelCalculatePremiumResponseV2 response,
+                                              String field) {
+        assertHasErrors(response);
+
+        boolean found = response.getErrors().stream()
+                .anyMatch(e -> field.equals(e.getField()));
+
+        assertTrue(found, String.format("Expected error for field '%s' not found", field));
+    }
+
+    /**
+     * Проверяет, что ответ содержит ошибку с сообщением, содержащим текст
+     */
+    public static void assertHasErrorContaining(TravelCalculatePremiumResponseV2 response,
+                                                String field,
+                                                String messageFragment) {
+        assertHasErrors(response);
+
+        boolean found = response.getErrors().stream()
+                .anyMatch(e -> field.equals(e.getField()) &&
+                        e.getMessage().contains(messageFragment));
+
+        assertTrue(found,
+                String.format("Expected error not found: field='%s', message containing='%s'",
+                        field, messageFragment));
+    }
+
+    /**
+     * Проверяет количество ошибок
+     */
+    public static void assertErrorCount(TravelCalculatePremiumResponseV2 response,
+                                        int expectedCount) {
         assertHasErrors(response);
         assertEquals(expectedCount, response.getErrors().size(),
-                () -> String.format("Expected %d errors but got %d. Errors: %s",
-                        expectedCount, response.getErrors().size(), formatErrors(response.getErrors())));
+                "Unexpected number of errors");
     }
 
     /**
-     * Проверяет что ответ содержит ошибку для указанного поля
-     *
-     * @param response ответ для проверки
-     * @param field имя поля
+     * Проверяет, что ответ успешный (без ошибок)
      */
-    public static void assertHasErrorForField(TravelCalculatePremiumResponse response, String field) {
-        assertHasErrors(response);
-        boolean hasError = response.getErrors().stream()
-                .anyMatch(error -> error.getField().equals(field));
-        assertTrue(hasError,
-                () -> String.format("Expected error for field '%s' but errors are: %s",
-                        field, formatErrors(response.getErrors())));
+    public static void assertSuccessfulResponse(TravelCalculatePremiumResponseV2 response) {
+        assertNoErrors(response);
+        assertNotNull(response.getAgreementPrice(), "Agreement price should not be null");
+        assertNotNull(response.getCurrency(), "Currency should not be null");
     }
 
     /**
-     * Проверяет что ответ содержит ошибку с указанным полем и сообщением
-     *
-     * @param response ответ для проверки
-     * @param expectedField ожидаемое имя поля
-     * @param expectedMessage ожидаемое сообщение об ошибке
+     * Проверяет базовые поля ответа
      */
-    public static void assertHasError(TravelCalculatePremiumResponse response,
-                                      String expectedField,
-                                      String expectedMessage) {
-        assertHasErrors(response);
-        boolean hasError = response.getErrors().stream()
-                .anyMatch(error -> error.getField().equals(expectedField)
-                        && error.getMessage().equals(expectedMessage));
-        assertTrue(hasError,
-                () -> String.format("Expected error with field='%s' and message='%s' but errors are: %s",
-                        expectedField, expectedMessage, formatErrors(response.getErrors())));
+    public static void assertBasicResponseFields(TravelCalculatePremiumResponseV2 response,
+                                                 String firstName,
+                                                 String lastName,
+                                                 LocalDate dateFrom,
+                                                 LocalDate dateTo,
+                                                 String countryIsoCode) {
+        assertNoErrors(response);
+        assertEquals(firstName, response.getPersonFirstName());
+        assertEquals(lastName, response.getPersonLastName());
+        assertEquals(dateFrom, response.getAgreementDateFrom());
+        assertEquals(dateTo, response.getAgreementDateTo());
+        assertEquals(countryIsoCode, response.getCountryIsoCode());
     }
 
     /**
-     * Проверяет что цена равна ожидаемой (long)
-     *
-     * @param response ответ для проверки
-     * @param expectedPrice ожидаемая цена
+     * Проверяет премию
      */
-    public static void assertPrice(TravelCalculatePremiumResponse response, long expectedPrice) {
-        assertNotNull(response.getAgreementPrice(), "Price should not be null");
-        assertEquals(new BigDecimal(expectedPrice), response.getAgreementPrice(),
-                () -> String.format("Expected price %d but got %s",
-                        expectedPrice, response.getAgreementPrice()));
+    public static void assertPremium(TravelCalculatePremiumResponseV2 response,
+                                     BigDecimal expectedPremium) {
+        assertNoErrors(response);
+        assertNotNull(response.getAgreementPrice());
+        assertEquals(0, expectedPremium.compareTo(response.getAgreementPrice()),
+                String.format("Expected premium %s but got %s",
+                        expectedPremium, response.getAgreementPrice()));
     }
 
     /**
-     * Проверяет что цена равна ожидаемой (BigDecimal)
-     *
-     * @param response ответ для проверки
-     * @param expectedPrice ожидаемая цена
+     * Проверяет премию с точностью
      */
-    public static void assertPrice(TravelCalculatePremiumResponse response, BigDecimal expectedPrice) {
-        assertNotNull(response.getAgreementPrice(), "Price should not be null");
-        assertEquals(0, expectedPrice.compareTo(response.getAgreementPrice()),
-                () -> String.format("Expected price %s but got %s",
-                        expectedPrice, response.getAgreementPrice()));
+    public static void assertPremiumWithTolerance(TravelCalculatePremiumResponseV2 response,
+                                                  BigDecimal expectedPremium,
+                                                  BigDecimal tolerance) {
+        assertNoErrors(response);
+        assertNotNull(response.getAgreementPrice());
+
+        BigDecimal diff = response.getAgreementPrice().subtract(expectedPremium).abs();
+        assertTrue(diff.compareTo(tolerance) <= 0,
+                String.format("Premium %s is not within tolerance %s of expected %s",
+                        response.getAgreementPrice(), tolerance, expectedPremium));
     }
 
     /**
-     * Проверяет что цена null (для ответов с ошибками)
-     *
-     * @param response ответ для проверки
+     * Проверяет, что премия больше минимальной
      */
-    public static void assertPriceIsNull(TravelCalculatePremiumResponse response) {
-        assertNull(response.getAgreementPrice(),
-                "Price should be null for error response");
+    public static void assertPremiumGreaterThan(TravelCalculatePremiumResponseV2 response,
+                                                BigDecimal minPremium) {
+        assertNoErrors(response);
+        assertNotNull(response.getAgreementPrice());
+        assertTrue(response.getAgreementPrice().compareTo(minPremium) > 0,
+                String.format("Premium %s should be greater than %s",
+                        response.getAgreementPrice(), minPremium));
     }
 
     /**
-     * Проверяет что все поля скопированы из запроса в ответ
-     *
-     * @param request запрос
-     * @param response ответ
+     * Проверяет наличие скидок
      */
-    public static void assertFieldsCopied(TravelCalculatePremiumRequest request,
-                                          TravelCalculatePremiumResponse response) {
-        assertAll("All fields should be copied from request to response",
-                () -> assertEquals(request.getPersonFirstName(), response.getPersonFirstName(),
-                        "First name should be copied"),
-                () -> assertEquals(request.getPersonLastName(), response.getPersonLastName(),
-                        "Last name should be copied"),
-                () -> assertEquals(request.getAgreementDateFrom(), response.getAgreementDateFrom(),
-                        "Date from should be copied"),
-                () -> assertEquals(request.getAgreementDateTo(), response.getAgreementDateTo(),
-                        "Date to should be copied")
-        );
+    public static void assertHasDiscounts(TravelCalculatePremiumResponseV2 response) {
+        assertNoErrors(response);
+        assertTrue(response.hasDiscounts(), "Response should have discounts");
+        assertNotNull(response.getDiscountAmount());
+        assertTrue(response.getDiscountAmount().compareTo(BigDecimal.ZERO) > 0,
+                "Discount amount should be positive");
     }
 
     /**
-     * Проверяет что поля ответа null (для error response)
-     *
-     * @param response ответ для проверки
+     * Проверяет отсутствие скидок
      */
-    public static void assertFieldsAreNull(TravelCalculatePremiumResponse response) {
-        assertAll("All fields should be null in error response",
-                () -> assertNull(response.getPersonFirstName(), "First name should be null"),
-                () -> assertNull(response.getPersonLastName(), "Last name should be null"),
-                () -> assertNull(response.getAgreementDateFrom(), "Date from should be null"),
-                () -> assertNull(response.getAgreementDateTo(), "Date to should be null"),
-                () -> assertNull(response.getAgreementPrice(), "Price should be null")
-        );
+    public static void assertNoDiscounts(TravelCalculatePremiumResponseV2 response) {
+        assertNoErrors(response);
+        assertFalse(response.hasDiscounts(), "Response should not have discounts");
     }
 
     /**
-     * Проверяет что поле firstName скопировано
-     *
-     * @param request запрос
-     * @param response ответ
+     * Проверяет сумму скидки
      */
-    public static void assertFirstNameCopied(TravelCalculatePremiumRequest request,
-                                             TravelCalculatePremiumResponse response) {
-        assertEquals(request.getPersonFirstName(), response.getPersonFirstName(),
-                "First name should be copied from request to response");
+    public static void assertDiscountAmount(TravelCalculatePremiumResponseV2 response,
+                                            BigDecimal expectedDiscount) {
+        assertHasDiscounts(response);
+        assertEquals(0, expectedDiscount.compareTo(response.getDiscountAmount()),
+                String.format("Expected discount %s but got %s",
+                        expectedDiscount, response.getDiscountAmount()));
     }
 
     /**
-     * Проверяет что поле lastName скопировано
-     *
-     * @param request запрос
-     * @param response ответ
+     * Проверяет наличие промо-кода
      */
-    public static void assertLastNameCopied(TravelCalculatePremiumRequest request,
-                                            TravelCalculatePremiumResponse response) {
-        assertEquals(request.getPersonLastName(), response.getPersonLastName(),
-                "Last name should be copied from request to response");
+    public static void assertHasPromoCode(TravelCalculatePremiumResponseV2 response,
+                                          String expectedCode) {
+        assertNoErrors(response);
+        assertTrue(response.hasPromoCode(), "Response should have promo code");
+        assertNotNull(response.getPromoCodeInfo());
+        assertEquals(expectedCode, response.getPromoCodeInfo().getCode());
     }
 
     /**
-     * Проверяет что поле dateFrom скопировано
-     *
-     * @param request запрос
-     * @param response ответ
+     * Проверяет отсутствие промо-кода
      */
-    public static void assertDateFromCopied(TravelCalculatePremiumRequest request,
-                                            TravelCalculatePremiumResponse response) {
-        assertEquals(request.getAgreementDateFrom(), response.getAgreementDateFrom(),
-                "Date from should be copied from request to response");
+    public static void assertNoPromoCode(TravelCalculatePremiumResponseV2 response) {
+        assertNoErrors(response);
+        assertFalse(response.hasPromoCode(), "Response should not have promo code");
     }
 
     /**
-     * Проверяет что поле dateTo скопировано
-     *
-     * @param request запрос
-     * @param response ответ
+     * Проверяет валюту
      */
-    public static void assertDateToCopied(TravelCalculatePremiumRequest request,
-                                          TravelCalculatePremiumResponse response) {
-        assertEquals(request.getAgreementDateTo(), response.getAgreementDateTo(),
-                "Date to should be copied from request to response");
+    public static void assertCurrency(TravelCalculatePremiumResponseV2 response,
+                                      String expectedCurrency) {
+        assertNoErrors(response);
+        assertEquals(expectedCurrency, response.getCurrency());
     }
 
-    // ========================================
-    // ASSERTION'Ы ДЛЯ СПИСКА ОШИБОК
-    // ========================================
-
     /**
-     * Проверяет что список ошибок пустой
-     *
-     * @param errors список ошибок
+     * Проверяет количество дней
      */
-    public static void assertNoErrors(List<ValidationError> errors) {
-        assertNotNull(errors, "Errors list should not be null");
-        assertTrue(errors.isEmpty(),
-                () -> "Expected no errors but got: " + formatErrors(errors));
+    public static void assertDays(TravelCalculatePremiumResponseV2 response,
+                                  int expectedDays) {
+        assertNoErrors(response);
+        assertEquals(expectedDays, response.getAgreementDays());
     }
 
     /**
-     * Проверяет что список содержит указанное количество ошибок
-     *
-     * @param errors список ошибок
-     * @param expectedCount ожидаемое количество
+     * Проверяет возраст
      */
-    public static void assertErrorCount(List<ValidationError> errors, int expectedCount) {
-        assertNotNull(errors, "Errors list should not be null");
-        assertEquals(expectedCount, errors.size(),
-                () -> String.format("Expected %d errors but got %d. Errors: %s",
-                        expectedCount, errors.size(), formatErrors(errors)));
+    public static void assertAge(TravelCalculatePremiumResponseV2 response,
+                                 int expectedAge) {
+        assertNoErrors(response);
+        assertEquals(expectedAge, response.getPersonAge());
     }
 
     /**
-     * Проверяет что список содержит ошибку для указанного поля
-     *
-     * @param errors список ошибок
-     * @param field имя поля
+     * Проверяет наличие деталей расчета
      */
-    public static void assertContainsErrorForField(List<ValidationError> errors, String field) {
-        assertNotNull(errors, "Errors list should not be null");
-        boolean hasError = errors.stream()
-                .anyMatch(error -> error.getField().equals(field));
-        assertTrue(hasError,
-                () -> String.format("Expected error for field '%s' but errors are: %s",
-                        field, formatErrors(errors)));
+    public static void assertHasCalculationDetails(TravelCalculatePremiumResponseV2 response) {
+        assertNoErrors(response);
+        assertNotNull(response.getCalculation(), "Calculation details should not be null");
+        assertNotNull(response.getCalculation().getBaseRate());
+        assertNotNull(response.getCalculation().getAgeCoefficient());
+        assertNotNull(response.getCalculation().getCountryCoefficient());
     }
 
     /**
-     * Проверяет что список содержит ошибку с указанным полем и сообщением
-     *
-     * @param errors список ошибок
-     * @param expectedField ожидаемое имя поля
-     * @param expectedMessage ожидаемое сообщение
+     * Проверяет наличие деталей по рискам
+     */
+    public static void assertHasRiskDetails(TravelCalculatePremiumResponseV2 response) {
+        assertNoErrors(response);
+        assertNotNull(response.getRiskPremiums(), "Risk premiums should not be null");
+        assertFalse(response.getRiskPremiums().isEmpty(), "Risk premiums should not be empty");
+    }
+
+    /**
+     * Проверяет количество выбранных рисков
+     */
+    public static void assertRiskCount(TravelCalculatePremiumResponseV2 response,
+                                       int expectedCount) {
+        assertNoErrors(response);
+        assertEquals(expectedCount, response.getSelectedRisksCount());
+    }
+
+    // ========== VALIDATION ERROR ASSERTIONS ==========
+
+    /**
+     * Проверяет ValidationError
+     */
+    public static void assertValidationError(ValidationError error,
+                                             String expectedField,
+                                             String expectedMessage) {
+        assertNotNull(error, "Validation error should not be null");
+        assertEquals(expectedField, error.getField(), "Field name mismatch");
+        assertEquals(expectedMessage, error.getMessage(), "Error message mismatch");
+    }
+
+    /**
+     * Проверяет, что ValidationError содержит поле
+     */
+    public static void assertValidationErrorField(ValidationError error,
+                                                  String expectedField) {
+        assertNotNull(error, "Validation error should not be null");
+        assertEquals(expectedField, error.getField(), "Field name mismatch");
+    }
+
+    /**
+     * Проверяет, что ValidationError содержит сообщение с текстом
+     */
+    public static void assertValidationErrorMessageContains(ValidationError error,
+                                                            String messageFragment) {
+        assertNotNull(error, "Validation error should not be null");
+        assertNotNull(error.getMessage(), "Error message should not be null");
+        assertTrue(error.getMessage().contains(messageFragment),
+                String.format("Error message '%s' should contain '%s'",
+                        error.getMessage(), messageFragment));
+    }
+
+    /**
+     * Проверяет список ValidationError на наличие конкретной ошибки
      */
     public static void assertContainsError(List<ValidationError> errors,
-                                           String expectedField,
-                                           String expectedMessage) {
-        assertNotNull(errors, "Errors list should not be null");
-        boolean hasError = errors.stream()
-                .anyMatch(error -> error.getField().equals(expectedField)
-                        && error.getMessage().equals(expectedMessage));
-        assertTrue(hasError,
-                () -> String.format("Expected error with field='%s' and message='%s' but errors are: %s",
-                        expectedField, expectedMessage, formatErrors(errors)));
-    }
-
-    /**
-     * Проверяет что список НЕ содержит ошибку для указанного поля
-     *
-     * @param errors список ошибок
-     * @param field имя поля
-     */
-    public static void assertDoesNotContainErrorForField(List<ValidationError> errors, String field) {
-        assertNotNull(errors, "Errors list should not be null");
-        boolean hasError = errors.stream()
-                .anyMatch(error -> error.getField().equals(field));
-        assertFalse(hasError,
-                () -> String.format("Did not expect error for field '%s' but found one", field));
-    }
-
-    /**
-     * Проверяет что в списке есть хотя бы одна ошибка
-     *
-     * @param errors список ошибок
-     */
-    public static void assertHasErrors(List<ValidationError> errors) {
+                                           String field,
+                                           String message) {
         assertNotNull(errors, "Errors list should not be null");
         assertFalse(errors.isEmpty(), "Errors list should not be empty");
-    }
 
-    // ========================================
-    // КОМБИНИРОВАННЫЕ ASSERTION'Ы
-    // ========================================
+        boolean found = errors.stream()
+                .anyMatch(e -> field.equals(e.getField()) && message.equals(e.getMessage()));
 
-    /**
-     * Полная проверка успешного ответа:
-     * - нет ошибок
-     * - поля скопированы
-     * - цена правильная
-     *
-     * @param request запрос
-     * @param response ответ
-     * @param expectedPrice ожидаемая цена
-     */
-    public static void assertCompleteSuccessfulResponse(TravelCalculatePremiumRequest request,
-                                                        TravelCalculatePremiumResponse response,
-                                                        long expectedPrice) {
-        assertAll("Complete successful response validation",
-                () -> assertSuccessfulResponse(response),
-                () -> assertFieldsCopied(request, response),
-                () -> assertPrice(response, expectedPrice)
-        );
+        assertTrue(found,
+                String.format("Expected error not found: field='%s', message='%s'", field, message));
     }
 
     /**
-     * Полная проверка ответа с ошибкой:
-     * - есть ошибки
-     * - поля null
-     * - цена null
-     *
-     * @param response ответ
-     * @param expectedErrorCount ожидаемое количество ошибок
+     * Проверяет список ValidationError на наличие ошибки для поля
      */
-    public static void assertCompleteErrorResponse(TravelCalculatePremiumResponse response,
-                                                   int expectedErrorCount) {
-        assertAll("Complete error response validation",
-                () -> assertErrorCount(response, expectedErrorCount),
-                () -> assertFieldsAreNull(response),
-                () -> assertPriceIsNull(response)
-        );
+    public static void assertContainsErrorForField(List<ValidationError> errors,
+                                                   String field) {
+        assertNotNull(errors, "Errors list should not be null");
+        assertFalse(errors.isEmpty(), "Errors list should not be empty");
+
+        boolean found = errors.stream()
+                .anyMatch(e -> field.equals(e.getField()));
+
+        assertTrue(found,
+                String.format("Expected error for field '%s' not found", field));
+    }
+
+    // ========== BIGDECIMAL ASSERTIONS ==========
+
+    /**
+     * Проверяет равенство BigDecimal
+     */
+    public static void assertBigDecimalEquals(BigDecimal expected, BigDecimal actual) {
+        assertNotNull(expected, "Expected value should not be null");
+        assertNotNull(actual, "Actual value should not be null");
+        assertEquals(0, expected.compareTo(actual),
+                String.format("Expected %s but got %s", expected, actual));
     }
 
     /**
-     * Проверка ответа с одной ошибкой валидации
-     *
-     * @param response ответ
-     * @param expectedField ожидаемое поле ошибки
-     * @param expectedMessage ожидаемое сообщение
+     * Проверяет, что BigDecimal положительный
      */
-    public static void assertSingleValidationError(TravelCalculatePremiumResponse response,
-                                                   String expectedField,
-                                                   String expectedMessage) {
-        assertAll("Single validation error",
-                () -> assertErrorCount(response, 1),
-                () -> assertHasError(response, expectedField, expectedMessage),
-                () -> assertFieldsAreNull(response),
-                () -> assertPriceIsNull(response)
-        );
+    public static void assertBigDecimalPositive(BigDecimal value) {
+        assertNotNull(value, "Value should not be null");
+        assertTrue(value.compareTo(BigDecimal.ZERO) > 0,
+                String.format("Value %s should be positive", value));
     }
 
     /**
-     * Проверка успешного ответа только с проверкой полей (без цены)
-     *
-     * @param request запрос
-     * @param response ответ
+     * Проверяет, что BigDecimal неотрицательный
      */
-    public static void assertSuccessfulResponseWithoutPrice(TravelCalculatePremiumRequest request,
-                                                            TravelCalculatePremiumResponse response) {
-        assertAll("Successful response without price check",
-                () -> assertSuccessfulResponse(response),
-                () -> assertFieldsCopied(request, response)
-        );
-    }
-
-    // ========================================
-    // ASSERTION'Ы ДЛЯ ДОПОЛНИТЕЛЬНЫХ ПРОВЕРОК
-    // ========================================
-
-    /**
-     * Проверяет что первая ошибка содержит указанное поле и сообщение
-     *
-     * @param response ответ
-     * @param expectedField ожидаемое поле
-     * @param expectedMessage ожидаемое сообщение
-     */
-    public static void assertFirstError(TravelCalculatePremiumResponse response,
-                                        String expectedField,
-                                        String expectedMessage) {
-        assertHasErrors(response);
-        ValidationError error = response.getErrors().get(0);
-        assertAll("First error validation",
-                () -> assertEquals(expectedField, error.getField(),
-                        "First error field mismatch"),
-                () -> assertEquals(expectedMessage, error.getMessage(),
-                        "First error message mismatch")
-        );
+    public static void assertBigDecimalNonNegative(BigDecimal value) {
+        assertNotNull(value, "Value should not be null");
+        assertTrue(value.compareTo(BigDecimal.ZERO) >= 0,
+                String.format("Value %s should be non-negative", value));
     }
 
     /**
-     * Проверяет что ответ не null
-     *
-     * @param response ответ
+     * Проверяет, что первое значение больше второго
      */
-    public static void assertResponseNotNull(TravelCalculatePremiumResponse response) {
-        assertNotNull(response, "Response should not be null");
+    public static void assertBigDecimalGreaterThan(BigDecimal value, BigDecimal threshold) {
+        assertNotNull(value, "Value should not be null");
+        assertNotNull(threshold, "Threshold should not be null");
+        assertTrue(value.compareTo(threshold) > 0,
+                String.format("Value %s should be greater than %s", value, threshold));
     }
 
     /**
-     * Проверяет тип цены (должна быть BigDecimal)
-     *
-     * @param response ответ
+     * Проверяет, что первое значение меньше второго
      */
-    public static void assertPriceType(TravelCalculatePremiumResponse response) {
-        assertNotNull(response.getAgreementPrice(), "Price should not be null");
-        assertTrue(response.getAgreementPrice() instanceof BigDecimal,
-                "Price should be instance of BigDecimal");
+    public static void assertBigDecimalLessThan(BigDecimal value, BigDecimal threshold) {
+        assertNotNull(value, "Value should not be null");
+        assertNotNull(threshold, "Threshold should not be null");
+        assertTrue(value.compareTo(threshold) < 0,
+                String.format("Value %s should be less than %s", value, threshold));
+    }
+
+    // ========== DATE ASSERTIONS ==========
+
+    /**
+     * Проверяет, что первая дата раньше второй
+     */
+    public static void assertDateBefore(LocalDate date, LocalDate compareDate) {
+        assertNotNull(date, "Date should not be null");
+        assertNotNull(compareDate, "Compare date should not be null");
+        assertTrue(date.isBefore(compareDate),
+                String.format("Date %s should be before %s", date, compareDate));
     }
 
     /**
-     * Проверяет тип даты (должна быть LocalDate)
-     *
-     * @param response ответ
+     * Проверяет, что первая дата позже второй
      */
-    public static void assertDateTypes(TravelCalculatePremiumResponse response) {
-        assertAll("Date types validation",
-                () -> assertTrue(response.getAgreementDateFrom() instanceof LocalDate,
-                        "Date from should be instance of LocalDate"),
-                () -> assertTrue(response.getAgreementDateTo() instanceof LocalDate,
-                        "Date to should be instance of LocalDate")
-        );
+    public static void assertDateAfter(LocalDate date, LocalDate compareDate) {
+        assertNotNull(date, "Date should not be null");
+        assertNotNull(compareDate, "Compare date should not be null");
+        assertTrue(date.isAfter(compareDate),
+                String.format("Date %s should be after %s", date, compareDate));
     }
 
     /**
-     * Проверяет что scale цены равен 0
-     *
-     * @param response ответ
+     * Проверяет, что даты равны
      */
-    public static void assertPriceScale(TravelCalculatePremiumResponse response) {
-        assertNotNull(response.getAgreementPrice(), "Price should not be null");
-        assertEquals(0, response.getAgreementPrice().scale(),
-                "Price scale should be 0");
-    }
-
-    /**
-     * Проверяет что цена положительная или 0
-     *
-     * @param response ответ
-     */
-    public static void assertPriceNotNegative(TravelCalculatePremiumResponse response) {
-        assertNotNull(response.getAgreementPrice(), "Price should not be null");
-        assertTrue(response.getAgreementPrice().compareTo(BigDecimal.ZERO) >= 0,
-                "Price should not be negative");
-    }
-
-    /**
-     * Проверяет что dateTo >= dateFrom
-     *
-     * @param response ответ
-     */
-    public static void assertDateToAfterOrEqualDateFrom(TravelCalculatePremiumResponse response) {
-        assertNotNull(response.getAgreementDateFrom(), "Date from should not be null");
-        assertNotNull(response.getAgreementDateTo(), "Date to should not be null");
-        assertFalse(response.getAgreementDateTo().isBefore(response.getAgreementDateFrom()),
-                "Date to should be after or equal to date from");
-    }
-
-    // ========================================
-    // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
-    // ========================================
-
-    /**
-     * Получает первую ошибку из ответа
-     *
-     * @param response ответ
-     * @return первая ошибка
-     */
-    public static ValidationError getFirstError(TravelCalculatePremiumResponse response) {
-        assertHasErrors(response);
-        return response.getErrors().get(0);
-    }
-
-    /**
-     * Получает ошибку по индексу
-     *
-     * @param response ответ
-     * @param index индекс ошибки
-     * @return ошибка
-     */
-    public static ValidationError getError(TravelCalculatePremiumResponse response, int index) {
-        assertHasErrors(response);
-        assertTrue(index >= 0 && index < response.getErrors().size(),
-                () -> String.format("Index %d is out of bounds for errors list of size %d",
-                        index, response.getErrors().size()));
-        return response.getErrors().get(index);
-    }
-
-    /**
-     * Форматирует список ошибок для вывода в сообщениях об ошибках
-     *
-     * @param errors список ошибок
-     * @return отформатированная строка
-     */
-    private static String formatErrors(List<ValidationError> errors) {
-        if (errors == null || errors.isEmpty()) {
-            return "[]";
-        }
-
-        StringBuilder sb = new StringBuilder("[\n");
-        for (int i = 0; i < errors.size(); i++) {
-            ValidationError error = errors.get(i);
-            sb.append(String.format("  [%d] field='%s', message='%s'",
-                    i, error.getField(), error.getMessage()));
-            if (i < errors.size() - 1) {
-                sb.append(",");
-            }
-            sb.append("\n");
-        }
-        sb.append("]");
-        return sb.toString();
-    }
-
-    /**
-     * Выводит информацию об ошибках для отладки
-     * (полезно при разработке тестов)
-     *
-     * @param response ответ
-     */
-    public static void printErrors(TravelCalculatePremiumResponse response) {
-        if (response.hasErrors()) {
-            System.out.println("Errors in response:");
-            System.out.println(formatErrors(response.getErrors()));
-        } else {
-            System.out.println("No errors in response");
-        }
-    }
-
-    /**
-     * Выводит полную информацию об ответе для отладки
-     *
-     * @param response ответ
-     */
-    public static void printResponse(TravelCalculatePremiumResponse response) {
-        System.out.println("=== Response Details ===");
-        System.out.println("First Name: " + response.getPersonFirstName());
-        System.out.println("Last Name: " + response.getPersonLastName());
-        System.out.println("Date From: " + response.getAgreementDateFrom());
-        System.out.println("Date To: " + response.getAgreementDateTo());
-        System.out.println("Price: " + response.getAgreementPrice());
-        System.out.println("Has Errors: " + response.hasErrors());
-        if (response.hasErrors()) {
-            System.out.println("Errors: " + formatErrors(response.getErrors()));
-        }
-        System.out.println("========================");
+    public static void assertDateEquals(LocalDate expected, LocalDate actual) {
+        assertNotNull(expected, "Expected date should not be null");
+        assertNotNull(actual, "Actual date should not be null");
+        assertEquals(expected, actual,
+                String.format("Expected date %s but got %s", expected, actual));
     }
 }

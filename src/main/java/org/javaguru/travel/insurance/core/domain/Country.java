@@ -2,7 +2,6 @@ package org.javaguru.travel.insurance.core.domain;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-
 import java.math.BigDecimal;
 
 /**
@@ -11,68 +10,60 @@ import java.math.BigDecimal;
 @Getter
 @RequiredArgsConstructor
 public enum Country {
+    // Низкий риск (1.0)
+    SPAIN("ES", "Spain", "Испания", new BigDecimal("1.0")),
+    GERMANY("DE", "Germany", "Германия", new BigDecimal("1.0")),
+    FRANCE("FR", "France", "Франция", new BigDecimal("1.0")),
+    ITALY("IT", "Italy", "Италия", new BigDecimal("1.0")),
+    AUSTRIA("AT", "Austria", "Австрия", new BigDecimal("1.0")),
+    NETHERLANDS("NL", "Netherlands", "Нидерланды", new BigDecimal("1.0")),
+    BELGIUM("BE", "Belgium", "Бельгия", new BigDecimal("1.0")),
+    SWITZERLAND("CH", "Switzerland", "Швейцария", new BigDecimal("1.0")),
+    SWEDEN("SE", "Sweden", "Швеция", new BigDecimal("1.0")),
+    NORWAY("NO", "Norway", "Норвегия", new BigDecimal("1.0")),
+    DENMARK("DK", "Denmark", "Дания", new BigDecimal("1.0")),
+    JAPAN("JP", "Japan", "Япония", new BigDecimal("1.0")),
+    SOUTH_KOREA("KR", "South Korea", "Южная Корея", new BigDecimal("1.0")),
+    AUSTRALIA("AU", "Australia", "Австралия", new BigDecimal("1.0")),
+    NEW_ZEALAND("NZ", "New Zealand", "Новая Зеландия", new BigDecimal("1.0")),
+    CANADA("CA", "Canada", "Канада", new BigDecimal("1.0")),
 
-    // ========== ГРУППА 1: НИЗКИЙ РИСК (1.0) ==========
-    SPAIN("ES", "Spain", "Испания", CountryRiskGroup.LOW),
-    GERMANY("DE", "Germany", "Германия", CountryRiskGroup.LOW),
-    FRANCE("FR", "France", "Франция", CountryRiskGroup.LOW),
-    ITALY("IT", "Italy", "Италия", CountryRiskGroup.LOW),
-    AUSTRIA("AT", "Austria", "Австрия", CountryRiskGroup.LOW),
-    NETHERLANDS("NL", "Netherlands", "Нидерланды", CountryRiskGroup.LOW),
-    BELGIUM("BE", "Belgium", "Бельгия", CountryRiskGroup.LOW),
-    SWITZERLAND("CH", "Switzerland", "Швейцария", CountryRiskGroup.LOW),
-    SWEDEN("SE", "Sweden", "Швеция", CountryRiskGroup.LOW),
-    NORWAY("NO", "Norway", "Норвегия", CountryRiskGroup.LOW),
-    DENMARK("DK", "Denmark", "Дания", CountryRiskGroup.LOW),
-    JAPAN("JP", "Japan", "Япония", CountryRiskGroup.LOW),
-    SOUTH_KOREA("KR", "South Korea", "Южная Корея", CountryRiskGroup.LOW),
-    AUSTRALIA("AU", "Australia", "Австралия", CountryRiskGroup.LOW),
-    NEW_ZEALAND("NZ", "New Zealand", "Новая Зеландия", CountryRiskGroup.LOW),
-    CANADA("CA", "Canada", "Канада", CountryRiskGroup.LOW),
+    // Средний риск (1.3)
+    THAILAND("TH", "Thailand", "Таиланд", new BigDecimal("1.3")),
+    VIETNAM("VN", "Vietnam", "Вьетнам", new BigDecimal("1.3")),
+    TURKEY("TR", "Turkey", "Турция", new BigDecimal("1.3")),
+    UAE("AE", "United Arab Emirates", "ОАЭ", new BigDecimal("1.3")),
+    CHINA("CN", "China", "Китай", new BigDecimal("1.3")),
+    MEXICO("MX", "Mexico", "Мексика", new BigDecimal("1.3")),
+    BRAZIL("BR", "Brazil", "Бразилия", new BigDecimal("1.3")),
+    MALAYSIA("MY", "Malaysia", "Малайзия", new BigDecimal("1.3")),
+    INDONESIA("ID", "Indonesia", "Индонезия", new BigDecimal("1.3")),
+    PHILIPPINES("PH", "Philippines", "Филиппины", new BigDecimal("1.3")),
+    USA("US", "United States", "США", new BigDecimal("1.3")),
 
-    // ========== ГРУППА 2: СРЕДНИЙ РИСК (1.3) ==========
-    THAILAND("TH", "Thailand", "Таиланд", CountryRiskGroup.MEDIUM),
-    VIETNAM("VN", "Vietnam", "Вьетнам", CountryRiskGroup.MEDIUM),
-    TURKEY("TR", "Turkey", "Турция", CountryRiskGroup.MEDIUM),
-    UAE("AE", "United Arab Emirates", "ОАЭ", CountryRiskGroup.MEDIUM),
-    CHINA("CN", "China", "Китай", CountryRiskGroup.MEDIUM),
-    MEXICO("MX", "Mexico", "Мексика", CountryRiskGroup.MEDIUM),
-    BRAZIL("BR", "Brazil", "Бразилия", CountryRiskGroup.MEDIUM),
-    MALAYSIA("MY", "Malaysia", "Малайзия", CountryRiskGroup.MEDIUM),
-    INDONESIA("ID", "Indonesia", "Индонезия", CountryRiskGroup.MEDIUM),
-    PHILIPPINES("PH", "Philippines", "Филиппины", CountryRiskGroup.MEDIUM),
-    USA("US", "United States", "США", CountryRiskGroup.MEDIUM),
+    // Высокий риск (1.8)
+    INDIA("IN", "India", "Индия", new BigDecimal("1.8")),
+    EGYPT("EG", "Egypt", "Египет", new BigDecimal("1.8")),
+    KENYA("KE", "Kenya", "Кения", new BigDecimal("1.8")),
+    SOUTH_AFRICA("ZA", "South Africa", "ЮАР", new BigDecimal("1.8")),
+    MOROCCO("MA", "Morocco", "Марокко", new BigDecimal("1.8")),
+    TUNISIA("TN", "Tunisia", "Тунис", new BigDecimal("1.8")),
+    ARGENTINA("AR", "Argentina", "Аргентина", new BigDecimal("1.8")),
+    COLOMBIA("CO", "Colombia", "Колумбия", new BigDecimal("1.8")),
+    PERU("PE", "Peru", "Перу", new BigDecimal("1.8")),
 
-    // ========== ГРУППА 3: ВЫСОКИЙ РИСК (1.8) ==========
-    INDIA("IN", "India", "Индия", CountryRiskGroup.HIGH),
-    EGYPT("EG", "Egypt", "Египет", CountryRiskGroup.HIGH),
-    KENYA("KE", "Kenya", "Кения", CountryRiskGroup.HIGH),
-    SOUTH_AFRICA("ZA", "South Africa", "ЮАР", CountryRiskGroup.HIGH),
-    MOROCCO("MA", "Morocco", "Марокко", CountryRiskGroup.HIGH),
-    TUNISIA("TN", "Tunisia", "Тунис", CountryRiskGroup.HIGH),
-    ARGENTINA("AR", "Argentina", "Аргентина", CountryRiskGroup.HIGH),
-    COLOMBIA("CO", "Colombia", "Колумбия", CountryRiskGroup.HIGH),
-    PERU("PE", "Peru", "Перу", CountryRiskGroup.HIGH),
-
-    // ========== ГРУППА 4: ОЧЕНЬ ВЫСОКИЙ РИСК (2.5) ==========
-    AFGHANISTAN("AF", "Afghanistan", "Афганистан", CountryRiskGroup.VERY_HIGH),
-    IRAQ("IQ", "Iraq", "Ирак", CountryRiskGroup.VERY_HIGH),
-    SYRIA("SY", "Syria", "Сирия", CountryRiskGroup.VERY_HIGH),
-    YEMEN("YE", "Yemen", "Йемен", CountryRiskGroup.VERY_HIGH),
-    SOMALIA("SO", "Somalia", "Сомали", CountryRiskGroup.VERY_HIGH);
+    // Очень высокий риск (2.5)
+    AFGHANISTAN("AF", "Afghanistan", "Афганистан", new BigDecimal("2.5")),
+    IRAQ("IQ", "Iraq", "Ирак", new BigDecimal("2.5")),
+    SYRIA("SY", "Syria", "Сирия", new BigDecimal("2.5")),
+    YEMEN("YE", "Yemen", "Йемен", new BigDecimal("2.5")),
+    SOMALIA("SO", "Somalia", "Сомали", new BigDecimal("2.5"));
 
     private final String isoCode;
     private final String nameEn;
     private final String nameRu;
-    private final CountryRiskGroup riskGroup;
+    private final BigDecimal riskCoefficient;
 
-    public BigDecimal getRiskCoefficient() {
-        return riskGroup.getCoefficient();
-    }
-
-    /**
-     * Поиск страны по ISO коду
-     */
     public static Country fromIsoCode(String isoCode) {
         for (Country country : values()) {
             if (country.isoCode.equalsIgnoreCase(isoCode)) {
@@ -81,30 +72,4 @@ public enum Country {
         }
         throw new IllegalArgumentException("Unknown country ISO code: " + isoCode);
     }
-
-    /**
-     * Поиск страны по английскому названию
-     */
-    public static Country fromNameEn(String name) {
-        for (Country country : values()) {
-            if (country.nameEn.equalsIgnoreCase(name)) {
-                return country;
-            }
-        }
-        throw new IllegalArgumentException("Unknown country name: " + name);
-    }
-}
-
-/**
- * Группы риска стран
- */
-@Getter
-@RequiredArgsConstructor
-enum CountryRiskGroup {
-    LOW(new BigDecimal("1.0")),
-    MEDIUM(new BigDecimal("1.3")),
-    HIGH(new BigDecimal("1.8")),
-    VERY_HIGH(new BigDecimal("2.5"));
-
-    private final BigDecimal coefficient;
 }
