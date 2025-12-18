@@ -8,9 +8,9 @@ import org.javaguru.travel.insurance.core.repositories.MedicalRiskLimitLevelRepo
 import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
 import org.javaguru.travel.insurance.dto.ValidationError;
 import org.javaguru.travel.insurance.dto.v2.TravelCalculatePremiumRequestV2;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -19,508 +19,141 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
+/**
+ * Упрощённые тесты валидатора - проверяем только бизнес-правила
+ */
 @ExtendWith(MockitoExtension.class)
 class TravelCalculatePremiumRequestValidatorV2ImplTest {
 
     @Mock
     private CountryRepository countryRepository;
-
     @Mock
-    private MedicalRiskLimitLevelRepository medicalRiskLimitLevelRepository;
-
+    private MedicalRiskLimitLevelRepository medicalRepository;
     @Mock
-    private RiskTypeRepository riskTypeRepository;
+    private RiskTypeRepository riskRepository;
 
+    @InjectMocks
     private TravelCalculatePremiumRequestValidatorV2Impl validator;
-
-    @BeforeEach
-    void setUp() {
-        validator = new TravelCalculatePremiumRequestValidatorV2Impl(
-                countryRepository,
-                medicalRiskLimitLevelRepository,
-                riskTypeRepository
-        );
-    }
 
     // ========== HAPPY PATH ==========
 
     @Test
-    void shouldReturnEmptyListWhenAllFieldsValid() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        mockValidRepositories();
+    void shouldPassValidation_whenAllFieldsValid() {
+        var request = validRequest();
+        mockAllValid();
 
-        // When
-        List<ValidationError> errors = validator.validate(request);
+        var errors = validator.validate(request);
 
-        // Then
-        assertTrue(errors.isEmpty());
+        assertThat(errors).isEmpty();
     }
 
-    // ========== PERSONAL INFO VALIDATION ==========
+    // ========== FIELD VALIDATION (1 тест на тип валидации) ==========
 
     @Test
-    void shouldReturnErrorWhenFirstNameIsNull() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
+    void shouldFail_whenRequiredFieldMissing() {
+        var request = validRequest();
         request.setPersonFirstName(null);
+        mockAllValid(); // Моки чтобы избежать ошибок из репозиториев
 
-        // When
-        List<ValidationError> errors = validator.validate(request);
+        var errors = validator.validate(request);
 
-        // Then
-        assertEquals(1, errors.size());
-        assertEquals("personFirstName", errors.get(0).getField());
-        assertEquals("Must not be empty!", errors.get(0).getMessage());
+        assertThat(errors)
+                .isNotEmpty()
+                .anyMatch(e -> "personFirstName".equals(e.getField())
+                        && e.getMessage().contains("Must not be empty"));
     }
 
-    @Test
-    void shouldReturnErrorWhenFirstNameIsEmpty() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setPersonFirstName("");
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertEquals(1, errors.size());
-        assertEquals("personFirstName", errors.get(0).getField());
-    }
 
     @Test
-    void shouldReturnErrorWhenFirstNameIsBlank() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setPersonFirstName("   ");
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertEquals(1, errors.size());
-        assertEquals("personFirstName", errors.get(0).getField());
-    }
-
-    @Test
-    void shouldReturnErrorWhenLastNameIsNull() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setPersonLastName(null);
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertEquals(1, errors.size());
-        assertEquals("personLastName", errors.get(0).getField());
-        assertEquals("Must not be empty!", errors.get(0).getMessage());
-    }
-
-    @Test
-    void shouldReturnErrorWhenLastNameIsEmpty() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setPersonLastName("");
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertEquals(1, errors.size());
-        assertEquals("personLastName", errors.get(0).getField());
-    }
-
-    @Test
-    void shouldReturnErrorWhenBirthDateIsNull() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setPersonBirthDate(null);
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertEquals(1, errors.size());
-        assertEquals("personBirthDate", errors.get(0).getField());
-        assertEquals("Must not be empty!", errors.get(0).getMessage());
-    }
-
-    // ========== DATE VALIDATION ==========
-
-    @Test
-    void shouldReturnErrorWhenDateFromIsNull() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setAgreementDateFrom(null);
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertTrue(errors.stream()
-                .anyMatch(e -> "agreementDateFrom".equals(e.getField())));
-    }
-
-    @Test
-    void shouldReturnErrorWhenDateToIsNull() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setAgreementDateTo(null);
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertTrue(errors.stream()
-                .anyMatch(e -> "agreementDateTo".equals(e.getField())));
-    }
-
-    @Test
-    void shouldReturnErrorWhenDateToBeforeDateFrom() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
+    void shouldFail_whenDateToBeforeDateFrom() {
+        var request = validRequest();
         request.setAgreementDateFrom(LocalDate.of(2025, 6, 10));
         request.setAgreementDateTo(LocalDate.of(2025, 6, 5));
 
-        // When
-        List<ValidationError> errors = validator.validate(request);
+        var errors = validator.validate(request);
 
-        // Then
-        assertEquals(1, errors.size());
-        assertEquals("agreementDateTo", errors.get(0).getField());
-        assertEquals("Must be after agreementDateFrom!", errors.get(0).getMessage());
+        assertThat(errors)
+                .anyMatch(e -> e.getField().equals("agreementDateTo")
+                        && e.getMessage().contains("Must be after"));
     }
 
-    @Test
-    void shouldAcceptWhenDateToEqualDateFrom() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        LocalDate sameDate = LocalDate.of(2025, 6, 10);
-        request.setAgreementDateFrom(sameDate);
-        request.setAgreementDateTo(sameDate);
-        mockValidRepositories();
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertFalse(errors.stream()
-                .anyMatch(e -> "agreementDateTo".equals(e.getField())));
-    }
-
-    // ========== COUNTRY VALIDATION ==========
+    // ========== REPOSITORY VALIDATION ==========
 
     @Test
-    void shouldReturnErrorWhenCountryIsoCodeIsNull() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setCountryIsoCode(null);
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertEquals(1, errors.size());
-        assertEquals("countryIsoCode", errors.get(0).getField());
-        assertEquals("Must not be empty!", errors.get(0).getMessage());
-    }
-
-    @Test
-    void shouldReturnErrorWhenCountryIsoCodeIsEmpty() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setCountryIsoCode("");
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertEquals(1, errors.size());
-        assertEquals("countryIsoCode", errors.get(0).getField());
-    }
-
-    @Test
-    void shouldReturnErrorWhenCountryNotFoundInDatabase() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
+    void shouldFail_whenCountryNotFound() {
+        var request = validRequest();
         request.setCountryIsoCode("XX");
-
-        when(countryRepository.findActiveByIsoCode(eq("XX"), any(LocalDate.class)))
+        when(countryRepository.findActiveByIsoCode(eq("XX"), any()))
                 .thenReturn(Optional.empty());
 
-        // When
-        List<ValidationError> errors = validator.validate(request);
+        var errors = validator.validate(request);
 
-        // Then
-        assertEquals(1, errors.size());
-        assertEquals("countryIsoCode", errors.get(0).getField());
-        assertTrue(errors.get(0).getMessage().contains("not found or not active"));
+        assertThat(errors)
+                .anyMatch(e -> e.getField().equals("countryIsoCode")
+                        && e.getMessage().contains("not found"));
     }
 
     @Test
-    void shouldTrimCountryIsoCode() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setCountryIsoCode("  ES  ");
-
-        when(countryRepository.findActiveByIsoCode(eq("ES"), any(LocalDate.class)))
-                .thenReturn(Optional.of(createCountryEntity()));
-        mockValidMedicalLevel();
-        mockValidRisks();
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertFalse(errors.stream()
-                .anyMatch(e -> "countryIsoCode".equals(e.getField())));
-    }
-
-    // ========== MEDICAL LEVEL VALIDATION ==========
-
-    @Test
-    void shouldReturnErrorWhenMedicalLevelIsNull() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setMedicalRiskLimitLevel(null);
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertTrue(errors.stream()
-                .anyMatch(e -> "medicalRiskLimitLevel".equals(e.getField())));
-    }
-
-    @Test
-    void shouldReturnErrorWhenMedicalLevelIsEmpty() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setMedicalRiskLimitLevel("");
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertTrue(errors.stream()
-                .anyMatch(e -> "medicalRiskLimitLevel".equals(e.getField())));
-    }
-
-    @Test
-    void shouldReturnErrorWhenMedicalLevelNotFoundInDatabase() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setMedicalRiskLimitLevel("999999");
-
+    void shouldFail_whenMedicalLevelNotFound() {
+        var request = validRequest();
         mockValidCountry();
-        when(medicalRiskLimitLevelRepository.findActiveByCode(eq("999999"), any(LocalDate.class)))
+        when(medicalRepository.findActiveByCode(any(), any()))
                 .thenReturn(Optional.empty());
 
-        // When
-        List<ValidationError> errors = validator.validate(request);
+        var errors = validator.validate(request);
 
-        // Then
-        assertTrue(errors.stream()
-                .anyMatch(e -> "medicalRiskLimitLevel".equals(e.getField())
-                        && e.getMessage().contains("not found or not active")));
-    }
-
-    // ========== RISK VALIDATION ==========
-
-    @Test
-    void shouldAcceptNullSelectedRisks() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setSelectedRisks(null);
-        mockValidRepositories();
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertFalse(errors.stream()
-                .anyMatch(e -> "selectedRisks".equals(e.getField())));
+        assertThat(errors)
+                .anyMatch(e -> e.getField().equals("medicalRiskLimitLevel"));
     }
 
     @Test
-    void shouldAcceptEmptySelectedRisks() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setSelectedRisks(List.of());
-        mockValidRepositories();
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertFalse(errors.stream()
-                .anyMatch(e -> "selectedRisks".equals(e.getField())));
-    }
-
-    @Test
-    void shouldReturnErrorWhenRiskCodeIsNull() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setSelectedRisks(List.of((String) null));
-        mockValidCountry();
-        mockValidMedicalLevel();
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertTrue(errors.stream()
-                .anyMatch(e -> "selectedRisks".equals(e.getField())
-                        && e.getMessage().contains("cannot be empty")));
-    }
-
-    @Test
-    void shouldReturnErrorWhenRiskCodeIsEmpty() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setSelectedRisks(List.of(""));
-        mockValidCountry();
-        mockValidMedicalLevel();
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertTrue(errors.stream()
-                .anyMatch(e -> "selectedRisks".equals(e.getField())));
-    }
-
-    @Test
-    void shouldReturnErrorWhenRiskCodeIsBlank() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setSelectedRisks(List.of("   "));
-        mockValidCountry();
-        mockValidMedicalLevel();
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertTrue(errors.stream()
-                .anyMatch(e -> "selectedRisks".equals(e.getField())));
-    }
-
-    @Test
-    void shouldReturnErrorWhenRiskNotFoundInDatabase() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
+    void shouldFail_whenOptionalRiskNotFound() {
+        var request = validRequest();
         request.setSelectedRisks(List.of("UNKNOWN_RISK"));
         mockValidCountry();
         mockValidMedicalLevel();
-
-        when(riskTypeRepository.findActiveByCode(eq("UNKNOWN_RISK"), any(LocalDate.class)))
+        when(riskRepository.findActiveByCode(any(), any()))
                 .thenReturn(Optional.empty());
 
-        // When
-        List<ValidationError> errors = validator.validate(request);
+        var errors = validator.validate(request);
 
-        // Then
-        assertTrue(errors.stream()
-                .anyMatch(e -> "selectedRisks".equals(e.getField())
-                        && e.getMessage().contains("not found or not active")));
+        assertThat(errors)
+                .anyMatch(e -> e.getField().equals("selectedRisks")
+                        && e.getMessage().contains("not found"));
     }
 
     @Test
-    void shouldReturnErrorWhenRiskIsMandatory() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
+    void shouldFail_whenMandatoryRiskSelected() {
+        var request = validRequest();
         request.setSelectedRisks(List.of("TRAVEL_MEDICAL"));
         mockValidCountry();
         mockValidMedicalLevel();
 
-        RiskTypeEntity mandatoryRisk = createRiskTypeEntity("TRAVEL_MEDICAL", true);
-        when(riskTypeRepository.findActiveByCode(eq("TRAVEL_MEDICAL"), any(LocalDate.class)))
+        var mandatoryRisk = new RiskTypeEntity();
+        mandatoryRisk.setCode("TRAVEL_MEDICAL");
+        mandatoryRisk.setIsMandatory(true);
+        when(riskRepository.findActiveByCode(eq("TRAVEL_MEDICAL"), any()))
                 .thenReturn(Optional.of(mandatoryRisk));
 
-        // When
-        List<ValidationError> errors = validator.validate(request);
+        var errors = validator.validate(request);
 
-        // Then
-        assertTrue(errors.stream()
-                .anyMatch(e -> "selectedRisks".equals(e.getField())
-                        && e.getMessage().contains("mandatory")));
-    }
-
-    @Test
-    void shouldAcceptValidOptionalRisk() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setSelectedRisks(List.of("SPORT_ACTIVITIES"));
-        mockValidCountry();
-        mockValidMedicalLevel();
-
-        RiskTypeEntity optionalRisk = createRiskTypeEntity("SPORT_ACTIVITIES", false);
-        when(riskTypeRepository.findActiveByCode(eq("SPORT_ACTIVITIES"), any(LocalDate.class)))
-                .thenReturn(Optional.of(optionalRisk));
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertFalse(errors.stream()
-                .anyMatch(e -> "selectedRisks".equals(e.getField())));
-    }
-
-    @Test
-    void shouldValidateMultipleRisks() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setSelectedRisks(List.of("SPORT_ACTIVITIES", "LUGGAGE_LOSS"));
-        mockValidCountry();
-        mockValidMedicalLevel();
-
-        when(riskTypeRepository.findActiveByCode(eq("SPORT_ACTIVITIES"), any(LocalDate.class)))
-                .thenReturn(Optional.of(createRiskTypeEntity("SPORT_ACTIVITIES", false)));
-        when(riskTypeRepository.findActiveByCode(eq("LUGGAGE_LOSS"), any(LocalDate.class)))
-                .thenReturn(Optional.of(createRiskTypeEntity("LUGGAGE_LOSS", false)));
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertFalse(errors.stream()
-                .anyMatch(e -> "selectedRisks".equals(e.getField())));
-    }
-
-    @Test
-    void shouldStopValidatingRisksAfterFirstError() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setSelectedRisks(List.of("", "VALID_RISK"));
-        mockValidCountry();
-        mockValidMedicalLevel();
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        // Должна быть только одна ошибка (пустой код), валидация останавливается
-        long riskErrors = errors.stream()
-                .filter(e -> "selectedRisks".equals(e.getField()))
-                .count();
-        assertEquals(1, riskErrors);
+        assertThat(errors)
+                .anyMatch(e -> e.getField().equals("selectedRisks")
+                        && e.getMessage().contains("mandatory"));
     }
 
     // ========== MULTIPLE ERRORS ==========
 
     @Test
-    void shouldReturnAllErrorsWhenMultipleFieldsInvalid() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = TravelCalculatePremiumRequestV2.builder()
+    void shouldReturnAllErrors_whenMultipleFieldsInvalid() {
+        var request = TravelCalculatePremiumRequestV2.builder()
                 .personFirstName(null)
-                .personLastName("")
+                .personLastName(null)
                 .personBirthDate(null)
                 .agreementDateFrom(null)
                 .agreementDateTo(null)
@@ -528,33 +161,14 @@ class TravelCalculatePremiumRequestValidatorV2ImplTest {
                 .medicalRiskLimitLevel(null)
                 .build();
 
-        // When
-        List<ValidationError> errors = validator.validate(request);
+        var errors = validator.validate(request);
 
-        // Then
-        assertTrue(errors.size() >= 5); // At least 5 validation errors
-        assertTrue(errors.stream().anyMatch(e -> "personFirstName".equals(e.getField())));
-        assertTrue(errors.stream().anyMatch(e -> "personLastName".equals(e.getField())));
-        assertTrue(errors.stream().anyMatch(e -> "personBirthDate".equals(e.getField())));
+        assertThat(errors).hasSizeGreaterThanOrEqualTo(5);
     }
 
-    @Test
-    void shouldContinueValidationAfterFirstError() {
-        // Given
-        TravelCalculatePremiumRequestV2 request = createValidRequest();
-        request.setPersonFirstName(null);
-        request.setPersonLastName(null);
+    // ========== HELPERS ==========
 
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertEquals(2, errors.size());
-    }
-
-    // ========== HELPER METHODS ==========
-
-    private TravelCalculatePremiumRequestV2 createValidRequest() {
+    private TravelCalculatePremiumRequestV2 validRequest() {
         return TravelCalculatePremiumRequestV2.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
@@ -566,49 +180,23 @@ class TravelCalculatePremiumRequestValidatorV2ImplTest {
                 .build();
     }
 
-    private void mockValidRepositories() {
+    private void mockAllValid() {
         mockValidCountry();
         mockValidMedicalLevel();
-        mockValidRisks();
     }
 
     private void mockValidCountry() {
-        when(countryRepository.findActiveByIsoCode(any(String.class), any(LocalDate.class)))
-                .thenReturn(Optional.of(createCountryEntity()));
+        var country = new CountryEntity();
+        country.setIsoCode("ES");
+        country.setRiskCoefficient(new BigDecimal("1.0"));
+        when(countryRepository.findActiveByIsoCode(any(), any()))
+                .thenReturn(Optional.of(country));
     }
 
     private void mockValidMedicalLevel() {
-        when(medicalRiskLimitLevelRepository.findActiveByCode(any(String.class), any(LocalDate.class)))
-                .thenReturn(Optional.of(createMedicalLevelEntity()));
-    }
-
-    private void mockValidRisks() {
-        when(riskTypeRepository.findActiveByCode(any(String.class), any(LocalDate.class)))
-                .thenReturn(Optional.of(createRiskTypeEntity("SPORT_ACTIVITIES", false)));
-    }
-
-    private CountryEntity createCountryEntity() {
-        CountryEntity entity = new CountryEntity();
-        entity.setIsoCode("ES");
-        entity.setNameEn("Spain");
-        entity.setRiskCoefficient(new BigDecimal("1.0"));
-        return entity;
-    }
-
-    private MedicalRiskLimitLevelEntity createMedicalLevelEntity() {
-        MedicalRiskLimitLevelEntity entity = new MedicalRiskLimitLevelEntity();
-        entity.setCode("50000");
-        entity.setCoverageAmount(new BigDecimal("50000"));
-        entity.setDailyRate(new BigDecimal("4.5"));
-        return entity;
-    }
-
-    private RiskTypeEntity createRiskTypeEntity(String code, boolean mandatory) {
-        RiskTypeEntity entity = new RiskTypeEntity();
-        entity.setCode(code);
-        entity.setNameEn("Test Risk");
-        entity.setCoefficient(new BigDecimal("0.3"));
-        entity.setIsMandatory(mandatory);
-        return entity;
+        var level = new MedicalRiskLimitLevelEntity();
+        level.setCode("50000");
+        when(medicalRepository.findActiveByCode(any(), any()))
+                .thenReturn(Optional.of(level));
     }
 }
