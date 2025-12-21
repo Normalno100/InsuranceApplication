@@ -10,14 +10,9 @@ import org.javaguru.travel.insurance.dto.v2.TravelCalculatePremiumResponseV2;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
-/**
- * Сервис расчета страховой премии
- */
 @Service
 @RequiredArgsConstructor
 public class TravelCalculatePremiumServiceV2 {
@@ -26,7 +21,6 @@ public class TravelCalculatePremiumServiceV2 {
     private final MedicalRiskPremiumCalculator medicalRiskCalculator;
     private final PromoCodeService promoCodeService;
     private final DiscountService discountService;
-    private final CurrencyExchangeService currencyExchangeService;
 
     private static final BigDecimal MIN_PREMIUM = new BigDecimal("10.00");
 
@@ -47,7 +41,7 @@ public class TravelCalculatePremiumServiceV2 {
             TravelCalculatePremiumResponseV2.PromoCodeInfo promoInfo = null;
             List<TravelCalculatePremiumResponseV2.DiscountInfo> discounts = new ArrayList<>();
 
-            if (request.hasPromoCode()) {
+            if (request.getPromoCode() != null && !request.getPromoCode().trim().isEmpty()) {
                 var promoResult = promoCodeService.applyPromoCode(
                         request.getPromoCode(),
                         request.getAgreementDateFrom(),
@@ -67,10 +61,14 @@ public class TravelCalculatePremiumServiceV2 {
             }
 
             // Дополнительные скидки
+            int personsCount = request.getPersonsCount() != null && request.getPersonsCount() > 0
+                    ? request.getPersonsCount() : 1;
+            boolean isCorporate = Boolean.TRUE.equals(request.getIsCorporate());
+
             var bestDiscount = discountService.calculateBestDiscount(
                     premium,
-                    request.getPersonsCountOrDefault(),
-                    request.isCorporateClient(),
+                    personsCount,
+                    isCorporate,
                     request.getAgreementDateFrom()
             );
 
@@ -85,16 +83,12 @@ public class TravelCalculatePremiumServiceV2 {
                 ));
             }
 
-            // Итоговая премия
+            // Итоговая премия с минимумом
             BigDecimal finalPremium = applyMinimumPremium(premium.subtract(totalDiscount));
 
-            // Конвертация валюты
-            String currency = request.getCurrencyOrDefault();
-            if (!"EUR".equals(currency)) {
-                premium = currencyExchangeService.convert(premium, "EUR", currency);
-                totalDiscount = currencyExchangeService.convert(totalDiscount, "EUR", currency);
-                finalPremium = currencyExchangeService.convert(finalPremium, "EUR", currency);
-            }
+            // Валюта (EUR по умолчанию, конвертация удалена - это mock)
+            String currency = request.getCurrency() != null && !request.getCurrency().trim().isEmpty()
+                    ? request.getCurrency() : "EUR";
 
             return buildResponse(request, calculationResult, premium, totalDiscount,
                     finalPremium, currency, promoInfo, discounts);
@@ -107,10 +101,10 @@ public class TravelCalculatePremiumServiceV2 {
     }
 
     private BigDecimal applyMinimumPremium(BigDecimal premium) {
-        if (premium.compareTo(BigDecimal.ZERO) < 0) {
+        if (premium.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
-        if (premium.compareTo(MIN_PREMIUM) < 0 && premium.compareTo(BigDecimal.ZERO) > 0) {
+        if (premium.compareTo(MIN_PREMIUM) < 0) {
             return MIN_PREMIUM;
         }
         return premium;
@@ -130,13 +124,13 @@ public class TravelCalculatePremiumServiceV2 {
                 .map(d -> new TravelCalculatePremiumResponseV2.RiskPremium(
                         d.riskCode(), d.riskName(), d.premium(), d.coefficient()
                 ))
-                .collect(Collectors.toList());
+                .toList();
 
         var steps = result.calculationSteps().stream()
                 .map(s -> new TravelCalculatePremiumResponseV2.CalculationStep(
                         s.description(), s.formula(), s.result()
                 ))
-                .collect(Collectors.toList());
+                .toList();
 
         var calculationDetails = new TravelCalculatePremiumResponseV2.CalculationDetails(
                 result.baseRate(),
@@ -188,28 +182,5 @@ public class TravelCalculatePremiumServiceV2 {
         }
 
         return formula.append(" × ").append(result.days()).append(" days").toString();
-    }
-
-    @Service
-    static class CurrencyExchangeService {
-        private static final java.util.Map<String, BigDecimal> RATES = java.util.Map.of(
-                "EUR", new BigDecimal("1.0"),
-                "USD", new BigDecimal("1.08"),
-                "GBP", new BigDecimal("0.85"),
-                "CHF", new BigDecimal("0.97"),
-                "JPY", new BigDecimal("158.0"),
-                "CNY", new BigDecimal("7.7"),
-                "RUB", new BigDecimal("105.0")
-        );
-
-        public BigDecimal convert(BigDecimal amount, String from, String to) {
-            if (from.equals(to)) return amount;
-
-            BigDecimal fromRate = RATES.getOrDefault(from, BigDecimal.ONE);
-            BigDecimal toRate = RATES.getOrDefault(to, BigDecimal.ONE);
-
-            return amount.multiply(toRate.divide(fromRate, 6, RoundingMode.HALF_UP))
-                    .setScale(2, RoundingMode.HALF_UP);
-        }
     }
 }

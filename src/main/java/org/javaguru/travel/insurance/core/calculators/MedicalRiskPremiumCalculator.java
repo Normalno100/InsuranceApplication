@@ -1,201 +1,127 @@
 package org.javaguru.travel.insurance.core.calculators;
 
 import lombok.RequiredArgsConstructor;
-import org.javaguru.travel.insurance.core.DateTimeService;
-import org.javaguru.travel.insurance.core.domain.Country;
-import org.javaguru.travel.insurance.core.domain.MedicalRiskLimitLevel;
-import org.javaguru.travel.insurance.core.domain.RiskType;
+import org.javaguru.travel.insurance.core.repositories.CountryRepository;
+import org.javaguru.travel.insurance.core.repositories.MedicalRiskLimitLevelRepository;
+import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
 import org.javaguru.travel.insurance.dto.v2.TravelCalculatePremiumRequestV2;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Главный калькулятор медицинской страховой премии
  *
- * Формула расчета:
- * ПРЕМИЯ = БАЗОВАЯ_СТАВКА × КОЭФФИЦИЕНТ_ВОЗРАСТА × КОЭФФИЦИЕНТ_СТРАНЫ × (1 + СУММА_КОЭФФ_РИСКОВ) × КОЛИЧЕСТВО_ДНЕЙ
+ * Формула: ПРЕМИЯ = БАЗОВАЯ_СТАВКА × КОЭФФ_ВОЗРАСТА × КОЭФФ_СТРАНЫ × (1 + СУММА_КОЭФФ_РИСКОВ) × ДНИ
  */
 @Component
 @RequiredArgsConstructor
 public class MedicalRiskPremiumCalculator {
 
     private final AgeCalculator ageCalculator;
-    private final DateTimeService dateTimeService;
+    private final MedicalRiskLimitLevelRepository medicalLevelRepository;
+    private final CountryRepository countryRepository;
+    private final RiskTypeRepository riskTypeRepository;
 
-    /**
-     * Рассчитывает премию по медицинскому риску
-     *
-     * @param request запрос с параметрами
-     * @return рассчитанная премия с деталями
-     */
     public BigDecimal calculatePremium(TravelCalculatePremiumRequestV2 request) {
-        // 1. Получаем базовую ставку
-        BigDecimal baseRate = getBaseRate(request.getMedicalRiskLimitLevel());
-
-        // 2. Рассчитываем коэффициент возраста
-        BigDecimal ageCoefficient = calculateAgeCoefficient(
-                request.getPersonBirthDate(),
-                request.getAgreementDateFrom()
-        );
-
-        // 3. Получаем коэффициент страны
-        BigDecimal countryCoefficient = getCountryCoefficient(request.getCountryIsoCode());
-
-        // 4. Рассчитываем коэффициент дополнительных рисков
-        BigDecimal additionalRisksCoefficient = calculateAdditionalRisksCoefficient(
-                request.getSelectedRisks()
-        );
-
-        // 5. Считаем количество дней
-        long days = dateTimeService.getDaysBetween(
-                request.getAgreementDateFrom(),
-                request.getAgreementDateTo()
-        );
-
-        // 6. Применяем формулу
-        BigDecimal premium = baseRate
-                .multiply(ageCoefficient)
-                .multiply(countryCoefficient)
-                .multiply(BigDecimal.ONE.add(additionalRisksCoefficient))
-                .multiply(BigDecimal.valueOf(days));
-
-        // 7. Округляем до 2 знаков
-        return premium.setScale(2, RoundingMode.HALF_UP);
+        var details = calculatePremiumWithDetails(request);
+        return details.premium();
     }
 
-    /**
-     * Рассчитывает премию с полной детализацией
-     *
-     * @param request запрос
-     * @return детализированный результат расчета
-     */
     public PremiumCalculationResult calculatePremiumWithDetails(TravelCalculatePremiumRequestV2 request) {
-        // 1. Базовая ставка
-        MedicalRiskLimitLevel limitLevel = MedicalRiskLimitLevel.fromCode(
-                request.getMedicalRiskLimitLevel()
-        );
-        BigDecimal baseRate = limitLevel.getDailyRate();
+        // 1. Получаем данные из БД
+        var medicalLevel = medicalLevelRepository
+                .findActiveByCode(request.getMedicalRiskLimitLevel(), request.getAgreementDateFrom())
+                .orElseThrow(() -> new IllegalArgumentException("Medical level not found"));
 
-        // 2. Возраст и коэффициент
-        AgeCalculator.AgeCalculationResult ageResult = ageCalculator.calculateAgeAndCoefficient(
+        var country = countryRepository
+                .findActiveByIsoCode(request.getCountryIsoCode(), request.getAgreementDateFrom())
+                .orElseThrow(() -> new IllegalArgumentException("Country not found"));
+
+        // 2. Расчёт возраста и коэффициента
+        var ageResult = ageCalculator.calculateAgeAndCoefficient(
                 request.getPersonBirthDate(),
                 request.getAgreementDateFrom()
         );
 
-        // 3. Страна и коэффициент
-        Country country = Country.fromIsoCode(request.getCountryIsoCode());
-        BigDecimal countryCoefficient = country.getRiskCoefficient();
-
-        // 4. Дополнительные риски
-        BigDecimal additionalRisksCoefficient = calculateAdditionalRisksCoefficient(
-                request.getSelectedRisks()
-        );
-        List<RiskPremiumDetail> riskDetails = calculateRiskDetails(
+        // 3. Коэффициент дополнительных рисков
+        BigDecimal additionalRisksCoeff = calculateAdditionalRisksCoefficient(
                 request.getSelectedRisks(),
-                baseRate,
-                ageResult.coefficient(),
-                countryCoefficient,
-                (int) dateTimeService.getDaysBetween(
-                        request.getAgreementDateFrom(),
-                        request.getAgreementDateTo()
-                )
+                request.getAgreementDateFrom()
         );
 
-        // 5. Количество дней
-        long days = dateTimeService.getDaysBetween(
+        // 4. Количество дней (inline вместо DateTimeService)
+        long days = ChronoUnit.DAYS.between(
                 request.getAgreementDateFrom(),
                 request.getAgreementDateTo()
         );
 
-        // 6. Итоговый коэффициент
-        BigDecimal totalCoefficient = ageResult.coefficient()
-                .multiply(countryCoefficient)
-                .multiply(BigDecimal.ONE.add(additionalRisksCoefficient));
+        // 5. Итоговый коэффициент
+        BigDecimal totalCoeff = ageResult.coefficient()
+                .multiply(country.getRiskCoefficient())
+                .multiply(BigDecimal.ONE.add(additionalRisksCoeff));
 
-        // 7. Итоговая премия
-        BigDecimal premium = baseRate
-                .multiply(totalCoefficient)
+        // 6. Итоговая премия
+        BigDecimal premium = medicalLevel.getDailyRate()
+                .multiply(totalCoeff)
                 .multiply(BigDecimal.valueOf(days))
                 .setScale(2, RoundingMode.HALF_UP);
+
+        // 7. Детали по рискам
+        List<RiskPremiumDetail> riskDetails = calculateRiskDetails(
+                request.getSelectedRisks(),
+                medicalLevel.getDailyRate(),
+                ageResult.coefficient(),
+                country.getRiskCoefficient(),
+                (int) days,
+                request.getAgreementDateFrom()
+        );
 
         // 8. Формируем результат
         return new PremiumCalculationResult(
                 premium,
-                baseRate,
+                medicalLevel.getDailyRate(),
                 ageResult.age(),
                 ageResult.coefficient(),
                 ageResult.description(),
-                countryCoefficient,
+                country.getRiskCoefficient(),
                 country.getNameEn(),
-                additionalRisksCoefficient,
-                totalCoefficient,
+                additionalRisksCoeff,
+                totalCoeff,
                 (int) days,
-                limitLevel.getCoverage(),
+                medicalLevel.getCoverageAmount(),
                 riskDetails,
-                buildCalculationSteps(baseRate, ageResult.coefficient(), countryCoefficient,
-                        additionalRisksCoefficient, days, premium)
+                buildCalculationSteps(medicalLevel.getDailyRate(), ageResult.coefficient(),
+                        country.getRiskCoefficient(), additionalRisksCoeff, days, premium)
         );
     }
 
-    /**
-     * Получает базовую ставку по уровню покрытия
-     */
-    private BigDecimal getBaseRate(String levelCode) {
-        MedicalRiskLimitLevel level = MedicalRiskLimitLevel.fromCode(levelCode);
-        return level.getDailyRate();
-    }
-
-    /**
-     * Рассчитывает коэффициент возраста
-     */
-    private BigDecimal calculateAgeCoefficient(LocalDate birthDate, LocalDate referenceDate) {
-        int age = ageCalculator.calculateAge(birthDate, referenceDate);
-        return ageCalculator.getAgeCoefficient(age);
-    }
-
-    /**
-     * Получает коэффициент страны
-     */
-    private BigDecimal getCountryCoefficient(String isoCode) {
-        Country country = Country.fromIsoCode(isoCode);
-        return country.getRiskCoefficient();
-    }
-
-    /**
-     * Рассчитывает суммарный коэффициент дополнительных рисков
-     * Коэффициенты складываются, а не перемножаются!
-     */
-    private BigDecimal calculateAdditionalRisksCoefficient(List<String> selectedRiskCodes) {
+    private BigDecimal calculateAdditionalRisksCoefficient(List<String> selectedRiskCodes,
+                                                           java.time.LocalDate agreementDate) {
         if (selectedRiskCodes == null || selectedRiskCodes.isEmpty()) {
             return BigDecimal.ZERO;
         }
 
-        BigDecimal total = BigDecimal.ZERO;
-        for (String riskCode : selectedRiskCodes) {
-            RiskType risk = RiskType.fromCode(riskCode);
-            // Пропускаем обязательный медицинский риск (он уже в базовой ставке)
-            if (!risk.isMandatory()) {
-                total = total.add(risk.getCoefficient());
-            }
-        }
-
-        return total;
+        return selectedRiskCodes.stream()
+                .map(code -> riskTypeRepository.findActiveByCode(code, agreementDate))
+                .filter(java.util.Optional::isPresent)
+                .map(java.util.Optional::get)
+                .filter(risk -> !risk.getIsMandatory())
+                .map(risk -> risk.getCoefficient())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    /**
-     * Рассчитывает детали по каждому риску
-     */
     private List<RiskPremiumDetail> calculateRiskDetails(
             List<String> selectedRiskCodes,
             BigDecimal baseRate,
             BigDecimal ageCoefficient,
             BigDecimal countryCoefficient,
-            int days) {
+            int days,
+            java.time.LocalDate agreementDate) {
 
         List<RiskPremiumDetail> details = new ArrayList<>();
 
@@ -206,9 +132,12 @@ public class MedicalRiskPremiumCalculator {
                 .multiply(BigDecimal.valueOf(days))
                 .setScale(2, RoundingMode.HALF_UP);
 
+        var medicalRisk = riskTypeRepository.findActiveByCode("TRAVEL_MEDICAL", agreementDate)
+                .orElseThrow();
+
         details.add(new RiskPremiumDetail(
-                RiskType.TRAVEL_MEDICAL.getCode(),
-                RiskType.TRAVEL_MEDICAL.getNameEn(),
+                medicalRisk.getCode(),
+                medicalRisk.getNameEn(),
                 basePremium,
                 BigDecimal.ZERO
         ));
@@ -216,8 +145,9 @@ public class MedicalRiskPremiumCalculator {
         // Дополнительные риски
         if (selectedRiskCodes != null) {
             for (String riskCode : selectedRiskCodes) {
-                RiskType risk = RiskType.fromCode(riskCode);
-                if (!risk.isMandatory()) {
+                var riskOpt = riskTypeRepository.findActiveByCode(riskCode, agreementDate);
+                if (riskOpt.isPresent() && !riskOpt.get().getIsMandatory()) {
+                    var risk = riskOpt.get();
                     BigDecimal riskPremium = basePremium
                             .multiply(risk.getCoefficient())
                             .setScale(2, RoundingMode.HALF_UP);
@@ -235,9 +165,6 @@ public class MedicalRiskPremiumCalculator {
         return details;
     }
 
-    /**
-     * Формирует пошаговый расчет
-     */
     private List<CalculationStep> buildCalculationSteps(
             BigDecimal baseRate,
             BigDecimal ageCoefficient,
@@ -287,9 +214,6 @@ public class MedicalRiskPremiumCalculator {
         return steps;
     }
 
-    /**
-     * Результат расчета премии с деталями
-     */
     public record PremiumCalculationResult(
             BigDecimal premium,
             BigDecimal baseRate,
@@ -306,9 +230,6 @@ public class MedicalRiskPremiumCalculator {
             List<CalculationStep> calculationSteps
     ) {}
 
-    /**
-     * Детали премии по риску
-     */
     public record RiskPremiumDetail(
             String riskCode,
             String riskName,
@@ -316,9 +237,6 @@ public class MedicalRiskPremiumCalculator {
             BigDecimal coefficient
     ) {}
 
-    /**
-     * Шаг расчета
-     */
     public record CalculationStep(
             String description,
             String formula,
