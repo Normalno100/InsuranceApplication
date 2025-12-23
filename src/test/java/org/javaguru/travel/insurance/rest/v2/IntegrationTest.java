@@ -65,7 +65,7 @@ class IntegrationTest {
                 .andExpect(jsonPath("$.agreementPrice").value(greaterThan(0.0)))
                 .andExpect(jsonPath("$.currency").value("EUR"))
                 .andExpect(jsonPath("$.personFirstName").value("John"))
-                .andExpect(jsonPath("$.errors").isEmpty());
+                .andExpect(jsonPath("$.errors").doesNotExist());
     }
 
     @Test
@@ -89,7 +89,7 @@ class IntegrationTest {
                 .andExpect(jsonPath("$.agreementPrice").isNumber())
                 .andExpect(jsonPath("$.selectedRisks[0]").value("SPORT_ACTIVITIES"))
                 .andExpect(jsonPath("$.riskPremiums").isArray())
-                .andExpect(jsonPath("$.errors").isEmpty());
+                .andExpect(jsonPath("$.errors").doesNotExist());
     }
 
     @Test
@@ -115,7 +115,7 @@ class IntegrationTest {
                 .andExpect(jsonPath("$.promoCodeInfo.code").value("SUMMER2025"))
                 .andExpect(jsonPath("$.discountAmount").isNumber())
                 .andExpect(jsonPath("$.discountAmount").value(greaterThan(0.0)))
-                .andExpect(jsonPath("$.errors").isEmpty());
+                .andExpect(jsonPath("$.errors").doesNotExist());
     }
 
     @Test
@@ -138,7 +138,7 @@ class IntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.promoCodeInfo").doesNotExist())  // Not applied
                 .andExpect(jsonPath("$.agreementPrice").isNumber())
-                .andExpect(jsonPath("$.errors").isEmpty());
+                .andExpect(jsonPath("$.errors").doesNotExist());
     }
 
     @Test
@@ -162,7 +162,7 @@ class IntegrationTest {
                 .andExpect(jsonPath("$.appliedDiscounts").isArray())
                 .andExpect(jsonPath("$.discountAmount").isNumber())
                 .andExpect(jsonPath("$.discountAmount").value(greaterThan(0.0)))
-                .andExpect(jsonPath("$.errors").isEmpty());
+                .andExpect(jsonPath("$.errors").doesNotExist());
     }
 
     // ========== VALIDATION ==========
@@ -213,7 +213,7 @@ class IntegrationTest {
                 .personBirthDate(LocalDate.of(1990, 1, 1))
                 .agreementDateFrom(LocalDate.of(2025, 6, 1))
                 .agreementDateTo(LocalDate.of(2025, 6, 10))
-                .countryIsoCode("XX")
+                .countryIsoCode("ZZ")
                 .medicalRiskLimitLevel("10000")
                 .build();
 

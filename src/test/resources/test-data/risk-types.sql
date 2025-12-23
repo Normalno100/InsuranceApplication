@@ -1,4 +1,10 @@
 -- Тестовые данные для таблицы risk_types
+DELETE FROM risk_types
+WHERE code IN (
+    'TRAVEL_MEDICAL',
+    'SPORT_ACTIVITIES',
+    'CHRONIC_DISEASES'
+);
 
 -- Обязательный риск
 INSERT INTO risk_types (code, name_en, name_ru, coefficient, is_mandatory, description, valid_from)

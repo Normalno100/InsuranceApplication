@@ -1,5 +1,8 @@
 -- Тестовые данные для таблицы medical_risk_limit_levels
 
+DELETE FROM medical_risk_limit_levels
+WHERE code IN ('5000', '10000', '20000', '50000');
+
 INSERT INTO medical_risk_limit_levels (code, coverage_amount, daily_rate, currency, valid_from)
 VALUES
 ('5000', 5000.00, 1.50, 'EUR', '2020-01-01'),
