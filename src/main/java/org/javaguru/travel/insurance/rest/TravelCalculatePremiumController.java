@@ -1,10 +1,10 @@
-package org.javaguru.travel.insurance.rest.v2;
+package org.javaguru.travel.insurance.rest;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.javaguru.travel.insurance.core.TravelCalculatePremiumServiceV2;
-import org.javaguru.travel.insurance.dto.v2.TravelCalculatePremiumRequestV2;
-import org.javaguru.travel.insurance.dto.v2.TravelCalculatePremiumResponseV2;
+import org.javaguru.travel.insurance.core.services.TravelCalculatePremiumService;
+import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.dto.TravelCalculatePremiumResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,17 +15,17 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/insurance/travel")
 @RequiredArgsConstructor
-public class TravelCalculatePremiumControllerV2 {
+public class TravelCalculatePremiumController {
 
-    private final TravelCalculatePremiumServiceV2 calculatePremiumService;
+    private final TravelCalculatePremiumService calculatePremiumService;
 
     @PostMapping(
             path = {"/", "/calculate", "/v2/", "/v2/calculate"},
             consumes = "application/json",
             produces = "application/json"
     )
-    public ResponseEntity<TravelCalculatePremiumResponseV2> calculatePremium(
-            @RequestBody TravelCalculatePremiumRequestV2 request) {
+    public ResponseEntity<TravelCalculatePremiumResponse> calculatePremium(
+            @RequestBody TravelCalculatePremiumRequest request) {
 
         log.info("Premium calculation request: {} {}, country: {}",
                 request.getPersonFirstName(),

@@ -5,7 +5,7 @@ import org.javaguru.travel.insurance.core.repositories.CountryRepository;
 import org.javaguru.travel.insurance.core.repositories.MedicalRiskLimitLevelRepository;
 import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
 import org.javaguru.travel.insurance.dto.ValidationError;
-import org.javaguru.travel.insurance.dto.v2.TravelCalculatePremiumRequestV2;
+import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
@@ -18,13 +18,13 @@ import java.util.List;
  */
 @Component
 @RequiredArgsConstructor
-public class TravelCalculatePremiumRequestValidatorV2Impl {
+public class TravelCalculatePremiumRequestValidator {
 
     private final CountryRepository countryRepository;
     private final MedicalRiskLimitLevelRepository medicalRiskLimitLevelRepository;
     private final RiskTypeRepository riskTypeRepository;
 
-    public List<ValidationError> validate(TravelCalculatePremiumRequestV2 request) {
+    public List<ValidationError> validate(TravelCalculatePremiumRequest request) {
         List<ValidationError> errors = new ArrayList<>();
 
         validatePersonalInfo(request, errors);
@@ -36,7 +36,7 @@ public class TravelCalculatePremiumRequestValidatorV2Impl {
         return errors;
     }
 
-    private void validatePersonalInfo(TravelCalculatePremiumRequestV2 request, List<ValidationError> errors) {
+    private void validatePersonalInfo(TravelCalculatePremiumRequest request, List<ValidationError> errors) {
         if (isBlank(request.getPersonFirstName())) {
             errors.add(new ValidationError("personFirstName", "Must not be empty!"));
         }
@@ -48,7 +48,7 @@ public class TravelCalculatePremiumRequestValidatorV2Impl {
         }
     }
 
-    private void validateDates(TravelCalculatePremiumRequestV2 request, List<ValidationError> errors) {
+    private void validateDates(TravelCalculatePremiumRequest request, List<ValidationError> errors) {
         LocalDate from = request.getAgreementDateFrom();
         LocalDate to = request.getAgreementDateTo();
 
@@ -63,7 +63,7 @@ public class TravelCalculatePremiumRequestValidatorV2Impl {
         }
     }
 
-    private void validateCountry(TravelCalculatePremiumRequestV2 request, List<ValidationError> errors) {
+    private void validateCountry(TravelCalculatePremiumRequest request, List<ValidationError> errors) {
         String isoCode = request.getCountryIsoCode();
 
         if (isBlank(isoCode)) {
@@ -77,7 +77,7 @@ public class TravelCalculatePremiumRequestValidatorV2Impl {
         }
     }
 
-    private void validateMedicalLevel(TravelCalculatePremiumRequestV2 request, List<ValidationError> errors) {
+    private void validateMedicalLevel(TravelCalculatePremiumRequest request, List<ValidationError> errors) {
         String level = request.getMedicalRiskLimitLevel();
 
         if (isBlank(level)) {
@@ -91,7 +91,7 @@ public class TravelCalculatePremiumRequestValidatorV2Impl {
         }
     }
 
-    private void validateRisks(TravelCalculatePremiumRequestV2 request, List<ValidationError> errors) {
+    private void validateRisks(TravelCalculatePremiumRequest request, List<ValidationError> errors) {
         List<String> risks = request.getSelectedRisks();
         if (risks == null || risks.isEmpty()) return;
 

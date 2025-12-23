@@ -6,8 +6,7 @@ import org.javaguru.travel.insurance.core.domain.entities.RiskTypeEntity;
 import org.javaguru.travel.insurance.core.repositories.CountryRepository;
 import org.javaguru.travel.insurance.core.repositories.MedicalRiskLimitLevelRepository;
 import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
-import org.javaguru.travel.insurance.dto.ValidationError;
-import org.javaguru.travel.insurance.dto.v2.TravelCalculatePremiumRequestV2;
+import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -28,7 +27,7 @@ import static org.mockito.Mockito.when;
  * Упрощённые тесты валидатора - проверяем только бизнес-правила
  */
 @ExtendWith(MockitoExtension.class)
-class TravelCalculatePremiumRequestValidatorV2ImplTest {
+class TravelCalculatePremiumRequestValidatorTest {
 
     @Mock
     private CountryRepository countryRepository;
@@ -38,7 +37,7 @@ class TravelCalculatePremiumRequestValidatorV2ImplTest {
     private RiskTypeRepository riskRepository;
 
     @InjectMocks
-    private TravelCalculatePremiumRequestValidatorV2Impl validator;
+    private TravelCalculatePremiumRequestValidator validator;
 
     // ========== HAPPY PATH ==========
 
@@ -151,7 +150,7 @@ class TravelCalculatePremiumRequestValidatorV2ImplTest {
 
     @Test
     void shouldReturnAllErrors_whenMultipleFieldsInvalid() {
-        var request = TravelCalculatePremiumRequestV2.builder()
+        var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName(null)
                 .personLastName(null)
                 .personBirthDate(null)
@@ -168,8 +167,8 @@ class TravelCalculatePremiumRequestValidatorV2ImplTest {
 
     // ========== HELPERS ==========
 
-    private TravelCalculatePremiumRequestV2 validRequest() {
-        return TravelCalculatePremiumRequestV2.builder()
+    private TravelCalculatePremiumRequest validRequest() {
+        return TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))

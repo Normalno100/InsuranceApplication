@@ -3,8 +3,9 @@ package org.javaguru.travel.insurance.core;
 import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator;
 import org.javaguru.travel.insurance.core.services.DiscountService;
 import org.javaguru.travel.insurance.core.services.PromoCodeService;
+import org.javaguru.travel.insurance.core.services.TravelCalculatePremiumService;
 import org.javaguru.travel.insurance.dto.ValidationError;
-import org.javaguru.travel.insurance.dto.v2.TravelCalculatePremiumRequestV2;
+import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,11 +28,11 @@ import static org.mockito.Mockito.*;
  * Фокус: интеграция компонентов, а не детали реализации
  */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("TravelCalculatePremiumServiceV2")
-class TravelCalculatePremiumServiceV2Test {
+@DisplayName("TravelCalculatePremiumService")
+class TravelCalculatePremiumServiceTest {
 
     @Mock
-    private TravelCalculatePremiumRequestValidatorV2Impl validator;
+    private TravelCalculatePremiumRequestValidator validator;
 
     @Mock
     private MedicalRiskPremiumCalculator calculator;
@@ -43,7 +44,7 @@ class TravelCalculatePremiumServiceV2Test {
     private DiscountService discountService;
 
     @InjectMocks
-    private TravelCalculatePremiumServiceV2 service;
+    private TravelCalculatePremiumService service;
 
     // ========== HAPPY PATH ==========
 
@@ -340,8 +341,8 @@ class TravelCalculatePremiumServiceV2Test {
 
     // ========== HELPER METHODS ==========
 
-    private TravelCalculatePremiumRequestV2 validRequest() {
-        return TravelCalculatePremiumRequestV2.builder()
+    private TravelCalculatePremiumRequest validRequest() {
+        return TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))

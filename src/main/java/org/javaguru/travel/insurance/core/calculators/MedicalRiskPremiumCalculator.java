@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.javaguru.travel.insurance.core.repositories.CountryRepository;
 import org.javaguru.travel.insurance.core.repositories.MedicalRiskLimitLevelRepository;
 import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
-import org.javaguru.travel.insurance.dto.v2.TravelCalculatePremiumRequestV2;
+import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -27,12 +27,12 @@ public class MedicalRiskPremiumCalculator {
     private final CountryRepository countryRepository;
     private final RiskTypeRepository riskTypeRepository;
 
-    public BigDecimal calculatePremium(TravelCalculatePremiumRequestV2 request) {
+    public BigDecimal calculatePremium(TravelCalculatePremiumRequest request) {
         var details = calculatePremiumWithDetails(request);
         return details.premium();
     }
 
-    public PremiumCalculationResult calculatePremiumWithDetails(TravelCalculatePremiumRequestV2 request) {
+    public PremiumCalculationResult calculatePremiumWithDetails(TravelCalculatePremiumRequest request) {
         // 1. Получаем данные из БД
         var medicalLevel = medicalLevelRepository
                 .findActiveByCode(request.getMedicalRiskLimitLevel(), request.getAgreementDateFrom())

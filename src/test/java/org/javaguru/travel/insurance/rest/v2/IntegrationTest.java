@@ -1,7 +1,7 @@
 package org.javaguru.travel.insurance.rest.v2;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.javaguru.travel.insurance.dto.v2.TravelCalculatePremiumRequestV2;
+import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,7 +47,7 @@ class IntegrationTest {
     @Test
     @DisplayName("calculates premium for simple trip")
     void shouldCalculateSimpleTrip() throws Exception {
-        var request = TravelCalculatePremiumRequestV2.builder()
+        var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))
@@ -71,7 +71,7 @@ class IntegrationTest {
     @Test
     @DisplayName("calculates premium with additional risks")
     void shouldCalculateWithRisks() throws Exception {
-        var request = TravelCalculatePremiumRequestV2.builder()
+        var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))
@@ -96,7 +96,7 @@ class IntegrationTest {
     @DisplayName("applies promo code discount")
     void shouldApplyPromoCode() throws Exception {
         // Use SUMMER2025 with higher premium to meet min requirement (50 EUR)
-        var request = TravelCalculatePremiumRequestV2.builder()
+        var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))
@@ -121,7 +121,7 @@ class IntegrationTest {
     @Test
     @DisplayName("ignores promo code when premium below minimum")
     void shouldIgnorePromoCodeBelowMinimum() throws Exception {
-        var request = TravelCalculatePremiumRequestV2.builder()
+        var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))
@@ -144,7 +144,7 @@ class IntegrationTest {
     @Test
     @DisplayName("applies group discount")
     void shouldApplyGroupDiscount() throws Exception {
-        var request = TravelCalculatePremiumRequestV2.builder()
+        var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))
@@ -170,7 +170,7 @@ class IntegrationTest {
     @Test
     @DisplayName("rejects invalid request with clear errors")
     void shouldRejectInvalidRequest() throws Exception {
-        var request = TravelCalculatePremiumRequestV2.builder()
+        var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("")
                 .personLastName("")
                 .build();
@@ -187,7 +187,7 @@ class IntegrationTest {
     @Test
     @DisplayName("rejects when date_to before date_from")
     void shouldRejectInvalidDateOrder() throws Exception {
-        var request = TravelCalculatePremiumRequestV2.builder()
+        var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))
@@ -207,7 +207,7 @@ class IntegrationTest {
     @Test
     @DisplayName("rejects unknown country")
     void shouldRejectUnknownCountry() throws Exception {
-        var request = TravelCalculatePremiumRequestV2.builder()
+        var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))

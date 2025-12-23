@@ -6,7 +6,7 @@ import org.javaguru.travel.insurance.core.domain.entities.RiskTypeEntity;
 import org.javaguru.travel.insurance.core.repositories.CountryRepository;
 import org.javaguru.travel.insurance.core.repositories.MedicalRiskLimitLevelRepository;
 import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
-import org.javaguru.travel.insurance.dto.v2.TravelCalculatePremiumRequestV2;
+import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -235,9 +235,9 @@ class MedicalRiskPremiumCalculatorTest {
         when(riskRepo.findActiveByCode(eq(code), any())).thenReturn(Optional.of(entity));
     }
 
-    private TravelCalculatePremiumRequestV2 createRequest(int days, List<String> risks) {
+    private TravelCalculatePremiumRequest createRequest(int days, List<String> risks) {
         LocalDate from = LocalDate.of(2025, 1, 1);
-        return TravelCalculatePremiumRequestV2.builder()
+        return TravelCalculatePremiumRequest.builder()
                 .medicalRiskLimitLevel("10000")
                 .countryIsoCode("ES")
                 .personBirthDate(LocalDate.of(1990, 1, 1))

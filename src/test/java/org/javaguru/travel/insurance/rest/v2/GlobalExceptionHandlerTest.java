@@ -1,7 +1,9 @@
 package org.javaguru.travel.insurance.rest.v2;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.javaguru.travel.insurance.core.TravelCalculatePremiumServiceV2;
+import org.javaguru.travel.insurance.core.services.TravelCalculatePremiumService;
+import org.javaguru.travel.insurance.rest.GlobalExceptionHandler;
+import org.javaguru.travel.insurance.rest.TravelCalculatePremiumController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -18,9 +20,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Упрощённые тесты обработчика ошибок - по 1 примеру каждого типа
  */
-@WebMvcTest(TravelCalculatePremiumControllerV2.class)
+@WebMvcTest(TravelCalculatePremiumController.class)
 @ContextConfiguration(classes = {
-        TravelCalculatePremiumControllerV2.class,
+        TravelCalculatePremiumController.class,
         GlobalExceptionHandler.class
 })
 class GlobalExceptionHandlerTest {
@@ -32,7 +34,7 @@ class GlobalExceptionHandlerTest {
     private ObjectMapper objectMapper;
 
     @MockBean
-    private TravelCalculatePremiumServiceV2 service;
+    private TravelCalculatePremiumService service;
 
     // ========== HTTP ERRORS ==========
 

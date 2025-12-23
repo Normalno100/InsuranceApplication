@@ -1,4 +1,4 @@
-package org.javaguru.travel.insurance.rest.v2;
+package org.javaguru.travel.insurance.rest;
 
 public record ErrorResponse(
         String error,

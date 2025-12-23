@@ -1,10 +1,8 @@
-package org.javaguru.travel.insurance.dto.v2;
+package org.javaguru.travel.insurance.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.*;
-import org.javaguru.travel.insurance.dto.CoreResponse;
-import org.javaguru.travel.insurance.dto.ValidationError;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -19,7 +17,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class TravelCalculatePremiumResponseV2 extends CoreResponse {
+public class TravelCalculatePremiumResponse extends CoreResponse {
 
     // Персональные данные
     private String personFirstName;
@@ -58,7 +56,7 @@ public class TravelCalculatePremiumResponseV2 extends CoreResponse {
     private PromoCodeInfo promoCodeInfo;
     private List<DiscountInfo> appliedDiscounts;
 
-    public TravelCalculatePremiumResponseV2(List<ValidationError> errors) {
+    public TravelCalculatePremiumResponse(List<ValidationError> errors) {
         super(errors);
     }
 

@@ -1,6 +1,6 @@
 package org.javaguru.travel.insurance.util;
 
-import org.javaguru.travel.insurance.dto.v2.TravelCalculatePremiumRequestV2;
+import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -17,8 +17,8 @@ public class SimplifiedTestUtils {
     /**
      * Базовый валидный запрос для большинства тестов
      */
-    public static TravelCalculatePremiumRequestV2 validRequest() {
-        return TravelCalculatePremiumRequestV2.builder()
+    public static TravelCalculatePremiumRequest validRequest() {
+        return TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))
@@ -32,7 +32,7 @@ public class SimplifiedTestUtils {
     /**
      * Запрос с дополнительными рисками
      */
-    public static TravelCalculatePremiumRequestV2 requestWithRisks(String... risks) {
+    public static TravelCalculatePremiumRequest requestWithRisks(String... risks) {
         var request = validRequest();
         request.setSelectedRisks(List.of(risks));
         return request;
@@ -41,7 +41,7 @@ public class SimplifiedTestUtils {
     /**
      * Запрос для группы
      */
-    public static TravelCalculatePremiumRequestV2 requestForGroup(int count) {
+    public static TravelCalculatePremiumRequest requestForGroup(int count) {
         var request = validRequest();
         request.setPersonsCount(count);
         return request;
@@ -50,7 +50,7 @@ public class SimplifiedTestUtils {
     /**
      * Запрос с промо-кодом
      */
-    public static TravelCalculatePremiumRequestV2 requestWithPromo(String code) {
+    public static TravelCalculatePremiumRequest requestWithPromo(String code) {
         var request = validRequest();
         request.setPromoCode(code);
         return request;
@@ -59,7 +59,7 @@ public class SimplifiedTestUtils {
     /**
      * Корпоративный запрос
      */
-    public static TravelCalculatePremiumRequestV2 corporateRequest() {
+    public static TravelCalculatePremiumRequest corporateRequest() {
         var request = validRequest();
         request.setIsCorporate(true);
         return request;

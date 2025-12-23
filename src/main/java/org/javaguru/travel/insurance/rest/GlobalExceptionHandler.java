@@ -1,4 +1,4 @@
-package org.javaguru.travel.insurance.rest.v2;
+package org.javaguru.travel.insurance.rest;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

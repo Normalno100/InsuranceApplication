@@ -1,12 +1,11 @@
-package org.javaguru.travel.insurance.core;
+package org.javaguru.travel.insurance.core.services;
 
 import lombok.RequiredArgsConstructor;
+import org.javaguru.travel.insurance.core.TravelCalculatePremiumRequestValidator;
 import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator;
-import org.javaguru.travel.insurance.core.services.DiscountService;
-import org.javaguru.travel.insurance.core.services.PromoCodeService;
 import org.javaguru.travel.insurance.dto.ValidationError;
-import org.javaguru.travel.insurance.dto.v2.TravelCalculatePremiumRequestV2;
-import org.javaguru.travel.insurance.dto.v2.TravelCalculatePremiumResponseV2;
+import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.dto.TravelCalculatePremiumResponse;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -15,20 +14,20 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class TravelCalculatePremiumServiceV2 {
+public class TravelCalculatePremiumService {
 
-    private final TravelCalculatePremiumRequestValidatorV2Impl validator;
+    private final TravelCalculatePremiumRequestValidator validator;
     private final MedicalRiskPremiumCalculator medicalRiskCalculator;
     private final PromoCodeService promoCodeService;
     private final DiscountService discountService;
 
     private static final BigDecimal MIN_PREMIUM = new BigDecimal("10.00");
 
-    public TravelCalculatePremiumResponseV2 calculatePremium(TravelCalculatePremiumRequestV2 request) {
+    public TravelCalculatePremiumResponse calculatePremium(TravelCalculatePremiumRequest request) {
         // Валидация
         List<ValidationError> errors = validator.validate(request);
         if (!errors.isEmpty()) {
-            return new TravelCalculatePremiumResponseV2(errors);
+            return new TravelCalculatePremiumResponse(errors);
         }
 
         try {
@@ -38,8 +37,8 @@ public class TravelCalculatePremiumServiceV2 {
 
             // Применение промо-кода и скидок
             BigDecimal totalDiscount = BigDecimal.ZERO;
-            TravelCalculatePremiumResponseV2.PromoCodeInfo promoInfo = null;
-            List<TravelCalculatePremiumResponseV2.DiscountInfo> discounts = new ArrayList<>();
+            TravelCalculatePremiumResponse.PromoCodeInfo promoInfo = null;
+            List<TravelCalculatePremiumResponse.DiscountInfo> discounts = new ArrayList<>();
 
             if (request.getPromoCode() != null && !request.getPromoCode().trim().isEmpty()) {
                 var promoResult = promoCodeService.applyPromoCode(
@@ -50,7 +49,7 @@ public class TravelCalculatePremiumServiceV2 {
 
                 if (promoResult.isValid()) {
                     totalDiscount = promoResult.actualDiscountAmount();
-                    promoInfo = new TravelCalculatePremiumResponseV2.PromoCodeInfo(
+                    promoInfo = new TravelCalculatePremiumResponse.PromoCodeInfo(
                             promoResult.code(),
                             promoResult.description(),
                             promoResult.discountType().name(),
@@ -75,7 +74,7 @@ public class TravelCalculatePremiumServiceV2 {
             if (bestDiscount.isPresent()) {
                 var discount = bestDiscount.get();
                 totalDiscount = totalDiscount.add(discount.amount());
-                discounts.add(new TravelCalculatePremiumResponseV2.DiscountInfo(
+                discounts.add(new TravelCalculatePremiumResponse.DiscountInfo(
                         discount.discountType().name(),
                         discount.name(),
                         discount.percentage(),
@@ -94,7 +93,7 @@ public class TravelCalculatePremiumServiceV2 {
                     finalPremium, currency, promoInfo, discounts);
 
         } catch (Exception e) {
-            return new TravelCalculatePremiumResponseV2(List.of(
+            return new TravelCalculatePremiumResponse(List.of(
                     new ValidationError("system", "Calculation error: " + e.getMessage())
             ));
         }
@@ -110,29 +109,29 @@ public class TravelCalculatePremiumServiceV2 {
         return premium;
     }
 
-    private TravelCalculatePremiumResponseV2 buildResponse(
-            TravelCalculatePremiumRequestV2 request,
+    private TravelCalculatePremiumResponse buildResponse(
+            TravelCalculatePremiumRequest request,
             MedicalRiskPremiumCalculator.PremiumCalculationResult result,
             BigDecimal premiumBeforeDiscount,
             BigDecimal discountAmount,
             BigDecimal finalPremium,
             String currency,
-            TravelCalculatePremiumResponseV2.PromoCodeInfo promoInfo,
-            List<TravelCalculatePremiumResponseV2.DiscountInfo> discounts) {
+            TravelCalculatePremiumResponse.PromoCodeInfo promoInfo,
+            List<TravelCalculatePremiumResponse.DiscountInfo> discounts) {
 
         var riskPremiums = result.riskDetails().stream()
-                .map(d -> new TravelCalculatePremiumResponseV2.RiskPremium(
+                .map(d -> new TravelCalculatePremiumResponse.RiskPremium(
                         d.riskCode(), d.riskName(), d.premium(), d.coefficient()
                 ))
                 .toList();
 
         var steps = result.calculationSteps().stream()
-                .map(s -> new TravelCalculatePremiumResponseV2.CalculationStep(
+                .map(s -> new TravelCalculatePremiumResponse.CalculationStep(
                         s.description(), s.formula(), s.result()
                 ))
                 .toList();
 
-        var calculationDetails = new TravelCalculatePremiumResponseV2.CalculationDetails(
+        var calculationDetails = new TravelCalculatePremiumResponse.CalculationDetails(
                 result.baseRate(),
                 result.ageCoefficient(),
                 result.countryCoefficient(),
@@ -143,7 +142,7 @@ public class TravelCalculatePremiumServiceV2 {
                 steps
         );
 
-        return TravelCalculatePremiumResponseV2.builder()
+        return TravelCalculatePremiumResponse.builder()
                 .personFirstName(request.getPersonFirstName())
                 .personLastName(request.getPersonLastName())
                 .personBirthDate(request.getPersonBirthDate())
