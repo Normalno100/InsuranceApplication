@@ -3,6 +3,8 @@ package org.javaguru.travel.insurance.core.services;
 import lombok.RequiredArgsConstructor;
 import org.javaguru.travel.insurance.core.TravelCalculatePremiumRequestValidator;
 import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator;
+import org.javaguru.travel.insurance.core.underwriting.UnderwritingService;
+import org.javaguru.travel.insurance.core.underwriting.domain.UnderwritingResult;
 import org.javaguru.travel.insurance.dto.ValidationError;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumResponse;
@@ -20,22 +22,56 @@ public class TravelCalculatePremiumService {
     private final MedicalRiskPremiumCalculator medicalRiskCalculator;
     private final PromoCodeService promoCodeService;
     private final DiscountService discountService;
+    private final UnderwritingService underwritingService;  // 👈 НОВАЯ ЗАВИСИМОСТЬ
 
     private static final BigDecimal MIN_PREMIUM = new BigDecimal("10.00");
 
     public TravelCalculatePremiumResponse calculatePremium(TravelCalculatePremiumRequest request) {
-        // Валидация
+        // 1. Валидация
         List<ValidationError> errors = validator.validate(request);
         if (!errors.isEmpty()) {
-            return new TravelCalculatePremiumResponse(errors);
+            return TravelCalculatePremiumResponse.builder()
+                    .errors(errors)
+                    .build();
+        }
+
+        // 2. НОВОЕ: Андеррайтинг (оценка рисков)
+        UnderwritingResult underwritingResult = underwritingService.evaluateApplication(request);
+
+        // 2a. Если заявка отклонена
+        if (underwritingResult.isDeclined()) {
+            return TravelCalculatePremiumResponse.builder()
+                    .personFirstName(request.getPersonFirstName())
+                    .personLastName(request.getPersonLastName())
+                    .underwritingDecision(underwritingResult.getDecision().name())
+                    .declineReason(underwritingResult.getDeclineReason())
+                    .errors(List.of(new ValidationError(
+                            "underwriting",
+                            "Application declined: " + underwritingResult.getDeclineReason()
+                    )))
+                    .build();
+        }
+
+        // 2b. Если требуется ручная проверка
+        if (underwritingResult.requiresManualReview()) {
+            return TravelCalculatePremiumResponse.builder()
+                    .personFirstName(request.getPersonFirstName())
+                    .personLastName(request.getPersonLastName())
+                    .underwritingDecision(underwritingResult.getDecision().name())
+                    .reviewReason(underwritingResult.getDeclineReason())
+                    .errors(List.of(new ValidationError(
+                            "underwriting",
+                            "Manual review required: " + underwritingResult.getDeclineReason()
+                    )))
+                    .build();
         }
 
         try {
-            // Расчет базовой премии
+            // 3. Расчет базовой премии (только если одобрено)
             var calculationResult = medicalRiskCalculator.calculatePremiumWithDetails(request);
             BigDecimal premium = calculationResult.premium();
 
-            // Применение промо-кода и скидок
+            // 4. Применение промо-кода и скидок
             BigDecimal totalDiscount = BigDecimal.ZERO;
             TravelCalculatePremiumResponse.PromoCodeInfo promoInfo = null;
             List<TravelCalculatePremiumResponse.DiscountInfo> discounts = new ArrayList<>();
@@ -59,7 +95,6 @@ public class TravelCalculatePremiumService {
                 }
             }
 
-            // Дополнительные скидки
             int personsCount = request.getPersonsCount() != null && request.getPersonsCount() > 0
                     ? request.getPersonsCount() : 1;
             boolean isCorporate = Boolean.TRUE.equals(request.getIsCorporate());
@@ -82,22 +117,27 @@ public class TravelCalculatePremiumService {
                 ));
             }
 
-            // Итоговая премия с минимумом
             BigDecimal finalPremium = applyMinimumPremium(premium.subtract(totalDiscount));
-
-            // Валюта (EUR по умолчанию, конвертация удалена - это mock)
             String currency = request.getCurrency() != null && !request.getCurrency().trim().isEmpty()
                     ? request.getCurrency() : "EUR";
 
-            return buildResponse(request, calculationResult, premium, totalDiscount,
+            var response = buildResponse(request, calculationResult, premium, totalDiscount,
                     finalPremium, currency, promoInfo, discounts);
 
+            // 5. Добавляем информацию об андеррайтинге
+            response.setUnderwritingDecision(underwritingResult.getDecision().name());
+
+            return response;
+
         } catch (Exception e) {
-            return new TravelCalculatePremiumResponse(List.of(
-                    new ValidationError("system", "Calculation error: " + e.getMessage())
-            ));
+            return TravelCalculatePremiumResponse.builder()
+                    .errors(List.of(
+                            new ValidationError("system", "Calculation error: " + e.getMessage())
+                    ))
+                    .build();
         }
     }
+
 
     private BigDecimal applyMinimumPremium(BigDecimal premium) {
         if (premium.compareTo(BigDecimal.ZERO) <= 0) {

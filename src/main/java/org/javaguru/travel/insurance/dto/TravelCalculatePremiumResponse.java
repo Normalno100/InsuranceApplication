@@ -56,9 +56,24 @@ public class TravelCalculatePremiumResponse extends CoreResponse {
     private PromoCodeInfo promoCodeInfo;
     private List<DiscountInfo> appliedDiscounts;
 
-    public TravelCalculatePremiumResponse(List<ValidationError> errors) {
-        super(errors);
-    }
+    // Поля для андеррайтинга
+    /**
+     * Решение андеррайтинга: APPROVED, REQUIRES_MANUAL_REVIEW, DECLINED
+     */
+    private String underwritingDecision;
+
+    /**
+     * Причина отказа (если declined)
+     */
+    private String declineReason;
+
+    /**
+     * Причина требования ручной проверки (если requires review)
+     */
+    private String reviewReason;
+
+    private List<ValidationError> errors;
+
 
     @Getter
     @Setter
