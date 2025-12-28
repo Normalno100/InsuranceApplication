@@ -4,35 +4,32 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.javaguru.travel.insurance.core.calculators.AgeCalculator;
 import org.javaguru.travel.insurance.core.repositories.MedicalRiskLimitLevelRepository;
+import org.javaguru.travel.insurance.core.underwriting.config.UnderwritingConfigService;
 import org.javaguru.travel.insurance.core.underwriting.domain.RuleResult;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 
-/**
- * Правило проверки медицинского покрытия в зависимости от возраста
- *
- * Логика:
- * - <70 лет: любое покрытие одобрено
- * - 70-75 лет + покрытие >100,000: требуется проверка
- * - >75 лет + покрытие >200,000: отклонено
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class MedicalCoverageRule implements UnderwritingRule {
 
-    private static final int REVIEW_AGE = 70;
-    private static final int BLOCKING_AGE = 75;
-    private static final BigDecimal REVIEW_COVERAGE_THRESHOLD = new BigDecimal("100000");
-    private static final BigDecimal BLOCKING_COVERAGE_THRESHOLD = new BigDecimal("200000");
-
     private final AgeCalculator ageCalculator;
     private final MedicalRiskLimitLevelRepository medicalRepository;
+    private final UnderwritingConfigService configService;
 
     @Override
     public RuleResult evaluate(TravelCalculatePremiumRequest request) {
+        // Загружаем параметры из БД
+        int reviewAge = configService.getIntParameter("MedicalCoverageRule", "REVIEW_AGE", 70);
+        int blockingAge = configService.getIntParameter("MedicalCoverageRule", "BLOCKING_AGE", 75);
+        BigDecimal reviewThreshold = configService.getBigDecimalParameter(
+                "MedicalCoverageRule", "REVIEW_COVERAGE_THRESHOLD", new BigDecimal("100000"));
+        BigDecimal blockingThreshold = configService.getBigDecimalParameter(
+                "MedicalCoverageRule", "BLOCKING_COVERAGE_THRESHOLD", new BigDecimal("200000"));
+
         int age = ageCalculator.calculateAge(
                 request.getPersonBirthDate(),
                 request.getAgreementDateFrom()
@@ -45,19 +42,20 @@ public class MedicalCoverageRule implements UnderwritingRule {
 
         BigDecimal coverage = medicalLevel.getCoverageAmount();
 
-        log.debug("Evaluating medical coverage rule: age={}, coverage={}", age, coverage);
+        log.debug("Evaluating medical coverage rule: age={}, coverage={}, reviewAge={}, blockingAge={}",
+                age, coverage, reviewAge, blockingAge);
 
         // Блокирующее условие
-        if (age > BLOCKING_AGE && coverage.compareTo(BLOCKING_COVERAGE_THRESHOLD) > 0) {
+        if (age > blockingAge && coverage.compareTo(blockingThreshold) > 0) {
             return RuleResult.blocking(
                     getRuleName(),
                     String.format("Coverage of %s EUR is too high for age %d (max %s EUR)",
-                            coverage, age, BLOCKING_COVERAGE_THRESHOLD)
+                            coverage, age, blockingThreshold)
             );
         }
 
         // Требует проверки
-        if (age >= REVIEW_AGE && coverage.compareTo(REVIEW_COVERAGE_THRESHOLD) > 0) {
+        if (age >= reviewAge && coverage.compareTo(reviewThreshold) > 0) {
             return RuleResult.reviewRequired(
                     getRuleName(),
                     String.format("High coverage (%s EUR) for age %d requires manual review",
@@ -70,7 +68,7 @@ public class MedicalCoverageRule implements UnderwritingRule {
 
     @Override
     public String getRuleName() {
-        return "Medical Coverage Rule";
+        return "MedicalCoverageRule";
     }
 
     @Override

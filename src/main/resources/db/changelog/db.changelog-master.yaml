@@ -11,3 +11,7 @@ databaseChangeLog:
       file: db/changelog/changes/005-create-functions-and-triggers.xml
   - include:
       file: db/changelog/changes/006-insert-initial-data.xml
+  - include:
+      file: db/changelog/changes/007-create-underwriting-tables.xml
+  - include:
+      file: db/changelog/changes/008-insert-underwriting-config.xml

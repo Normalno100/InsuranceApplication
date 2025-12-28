@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.javaguru.travel.insurance.core.calculators.AgeCalculator;
 import org.javaguru.travel.insurance.core.repositories.CountryRepository;
+import org.javaguru.travel.insurance.core.underwriting.config.UnderwritingConfigService;
 import org.javaguru.travel.insurance.core.underwriting.domain.RuleResult;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 import org.springframework.stereotype.Component;
@@ -23,25 +24,23 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AdditionalRisksRule implements UnderwritingRule {
 
-    private static final int MAX_AGE_FOR_EXTREME_SPORT = 70;
-    private static final int REVIEW_AGE_FOR_EXTREME_SPORT = 60;
-
     private final AgeCalculator ageCalculator;
     private final CountryRepository countryRepository;
+    private final UnderwritingConfigService configService;
 
     @Override
     public RuleResult evaluate(TravelCalculatePremiumRequest request) {
         List<String> risks = request.getSelectedRisks();
 
-        // Если нет дополнительных рисков, правило пройдено
-        if (risks == null || risks.isEmpty()) {
+        if (risks == null || risks.isEmpty() || !risks.contains("EXTREME_SPORT")) {
             return RuleResult.pass(getRuleName());
         }
 
-        // Проверяем только экстремальный спорт
-        if (!risks.contains("EXTREME_SPORT")) {
-            return RuleResult.pass(getRuleName());
-        }
+        // Загружаем параметры из БД
+        int maxAge = configService.getIntParameter(
+                "AdditionalRisksRule", "MAX_AGE_FOR_EXTREME_SPORT", 70);
+        int reviewAge = configService.getIntParameter(
+                "AdditionalRisksRule", "REVIEW_AGE_FOR_EXTREME_SPORT", 60);
 
         int age = ageCalculator.calculateAge(
                 request.getPersonBirthDate(),
@@ -53,28 +52,28 @@ public class AdditionalRisksRule implements UnderwritingRule {
                 request.getAgreementDateFrom()
         ).orElseThrow();
 
-        log.debug("Evaluating additional risks rule: EXTREME_SPORT, age={}, country={}",
-                age, country.getNameEn());
+        log.debug("Evaluating additional risks rule: EXTREME_SPORT, age={}, maxAge={}, reviewAge={}",
+                age, maxAge, reviewAge);
 
         // Блокирующие условия
-        if (age > MAX_AGE_FOR_EXTREME_SPORT) {
+        if (age > maxAge) {
             return RuleResult.blocking(
                     getRuleName(),
                     String.format("Extreme sport coverage not available for age %d (max age: %d)",
-                            age, MAX_AGE_FOR_EXTREME_SPORT)
+                            age, maxAge)
             );
         }
 
         if ("VERY_HIGH".equals(country.getRiskGroup())) {
             return RuleResult.blocking(
                     getRuleName(),
-                    String.format("Extreme sport coverage not available in %s " +
-                            "(very high risk country)", country.getNameEn())
+                    String.format("Extreme sport coverage not available in %s (very high risk country)",
+                            country.getNameEn())
             );
         }
 
         // Требует проверки
-        if (age >= REVIEW_AGE_FOR_EXTREME_SPORT) {
+        if (age >= reviewAge) {
             return RuleResult.reviewRequired(
                     getRuleName(),
                     String.format("Extreme sport coverage for age %d requires manual review", age)
@@ -86,7 +85,7 @@ public class AdditionalRisksRule implements UnderwritingRule {
 
     @Override
     public String getRuleName() {
-        return "Additional Risks Rule";
+        return "AdditionalRisksRule";
     }
 
     @Override

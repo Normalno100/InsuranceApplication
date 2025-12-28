@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- ============================================ -->
+    <!-- Конфигурация правила возраста (AgeRule) -->
+    <!-- ============================================ -->
+    <changeSet id="008-01-insert-age-rule-config" author="travel-insurance">
+        <insert tableName="underwriting_rules_config">
+            <column name="rule_name" value="AgeRule"/>
+            <column name="parameter_name" value="MAX_AGE"/>
+            <column name="parameter_value" value="80"/>
+            <column name="description" value="Maximum allowed age for insurance"/>
+        </insert>
+
+        <insert tableName="underwriting_rules_config">
+            <column name="rule_name" value="AgeRule"/>
+            <column name="parameter_name" value="REVIEW_AGE_THRESHOLD"/>
+            <column name="parameter_value" value="75"/>
+            <column name="description" value="Age threshold for manual review"/>
+        </insert>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Конфигурация правила медицинского покрытия -->
+    <!-- ============================================ -->
+    <changeSet id="008-02-insert-medical-coverage-rule-config" author="travel-insurance">
+        <insert tableName="underwriting_rules_config">
+            <column name="rule_name" value="MedicalCoverageRule"/>
+            <column name="parameter_name" value="REVIEW_AGE"/>
+            <column name="parameter_value" value="70"/>
+            <column name="description" value="Age threshold for medical coverage review"/>
+        </insert>
+
+        <insert tableName="underwriting_rules_config">
+            <column name="rule_name" value="MedicalCoverageRule"/>
+            <column name="parameter_name" value="BLOCKING_AGE"/>
+            <column name="parameter_value" value="75"/>
+            <column name="description" value="Age threshold for blocking high coverage"/>
+        </insert>
+
+        <insert tableName="underwriting_rules_config">
+            <column name="rule_name" value="MedicalCoverageRule"/>
+            <column name="parameter_name" value="REVIEW_COVERAGE_THRESHOLD"/>
+            <column name="parameter_value" value="100000"/>
+            <column name="description" value="Coverage amount requiring review for older applicants"/>
+        </insert>
+
+        <insert tableName="underwriting_rules_config">
+            <column name="rule_name" value="MedicalCoverageRule"/>
+            <column name="parameter_name" value="BLOCKING_COVERAGE_THRESHOLD"/>
+            <column name="parameter_value" value="200000"/>
+            <column name="description" value="Maximum coverage for very old applicants"/>
+        </insert>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Конфигурация правила дополнительных рисков -->
+    <!-- ============================================ -->
+    <changeSet id="008-03-insert-additional-risks-rule-config" author="travel-insurance">
+        <insert tableName="underwriting_rules_config">
+            <column name="rule_name" value="AdditionalRisksRule"/>
+            <column name="parameter_name" value="MAX_AGE_FOR_EXTREME_SPORT"/>
+            <column name="parameter_value" value="70"/>
+            <column name="description" value="Maximum age for extreme sport coverage"/>
+        </insert>
+
+        <insert tableName="underwriting_rules_config">
+            <column name="rule_name" value="AdditionalRisksRule"/>
+            <column name="parameter_name" value="REVIEW_AGE_FOR_EXTREME_SPORT"/>
+            <column name="parameter_value" value="60"/>
+            <column name="description" value="Age requiring review for extreme sport"/>
+        </insert>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Конфигурация правила длительности поездки -->
+    <!-- ============================================ -->
+    <changeSet id="008-04-insert-trip-duration-rule-config" author="travel-insurance">
+        <insert tableName="underwriting_rules_config">
+            <column name="rule_name" value="TripDurationRule"/>
+            <column name="parameter_name" value="MAX_DAYS"/>
+            <column name="parameter_value" value="180"/>
+            <column name="description" value="Maximum trip duration in days"/>
+        </insert>
+
+        <insert tableName="underwriting_rules_config">
+            <column name="rule_name" value="TripDurationRule"/>
+            <column name="parameter_name" value="REVIEW_DAYS_THRESHOLD"/>
+            <column name="parameter_value" value="90"/>
+            <column name="description" value="Trip duration requiring manual review"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

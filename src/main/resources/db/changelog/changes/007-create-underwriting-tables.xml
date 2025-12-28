@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- ============================================ -->
+    <!-- Таблица решений андеррайтинга -->
+    <!-- ============================================ -->
+    <changeSet id="007-01-create-underwriting-decisions" author="travel-insurance">
+        <createTable tableName="underwriting_decisions">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <!-- Связь с заявкой -->
+            <column name="request_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Персональные данные (для быстрого поиска) -->
+            <column name="person_first_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="person_last_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="person_birth_date" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Детали поездки -->
+            <column name="country_iso_code" type="VARCHAR(2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="agreement_date_from" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="agreement_date_to" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Решение -->
+            <column name="decision" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="decline_reason" type="TEXT"/>
+            <column name="review_reason" type="TEXT"/>
+
+            <!-- Детали проверки (JSON) -->
+            <column name="rule_results" type="JSONB"/>
+            <column name="request_data" type="JSONB"/>
+
+            <!-- Метаданные -->
+            <column name="evaluation_duration_ms" type="INT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_by" type="VARCHAR(100)"/>
+        </createTable>
+
+        <!-- Индексы -->
+        <createIndex tableName="underwriting_decisions" indexName="idx_underwriting_request_id">
+            <column name="request_id"/>
+        </createIndex>
+
+        <createIndex tableName="underwriting_decisions" indexName="idx_underwriting_decision">
+            <column name="decision"/>
+        </createIndex>
+
+        <createIndex tableName="underwriting_decisions" indexName="idx_underwriting_created_at">
+            <column name="created_at"/>
+        </createIndex>
+
+        <createIndex tableName="underwriting_decisions" indexName="idx_underwriting_person">
+            <column name="person_last_name"/>
+            <column name="person_first_name"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- GIN Index для rule_results -->
+    <changeSet id="007-01a-gin-index-rule-results" author="travel-insurance">
+        <sql>
+            CREATE INDEX IF NOT EXISTS idx_underwriting_rule_results
+            ON underwriting_decisions USING GIN (rule_results);
+        </sql>
+        <rollback>
+            DROP INDEX IF EXISTS idx_underwriting_rule_results;
+        </rollback>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Таблица конфигурации правил -->
+    <!-- ============================================ -->
+    <changeSet id="007-02-create-underwriting-rules-config" author="travel-insurance">
+        <createTable tableName="underwriting_rules_config">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <!-- Название правила -->
+            <column name="rule_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Параметр -->
+            <column name="parameter_name" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Значение (хранится как строка, парсится в нужный тип) -->
+            <column name="parameter_value" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Описание -->
+            <column name="description" type="TEXT"/>
+
+            <!-- Период действия -->
+            <column name="valid_from" type="DATE" defaultValueComputed="CURRENT_DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="valid_to" type="DATE"/>
+
+            <!-- Статус -->
+            <column name="is_active" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Метаданные -->
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_by" type="VARCHAR(100)"/>
+        </createTable>
+
+        <!-- Уникальный индекс (одно правило, один параметр, одна дата) -->
+        <addUniqueConstraint
+                tableName="underwriting_rules_config"
+                columnNames="rule_name, parameter_name, valid_from"
+                constraintName="uk_rule_parameter_date"/>
+
+        <!-- Индексы -->
+        <createIndex tableName="underwriting_rules_config" indexName="idx_rules_config_rule_name">
+            <column name="rule_name"/>
+        </createIndex>
+
+        <createIndex tableName="underwriting_rules_config" indexName="idx_rules_config_active">
+            <column name="is_active"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Таблица аудит-лога правил -->
+    <!-- ============================================ -->
+    <changeSet id="007-03-create-underwriting-audit-log" author="travel-insurance">
+        <createTable tableName="underwriting_audit_log">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <!-- Связь с решением -->
+            <column name="decision_id" type="BIGINT">
+                <constraints nullable="false"
+                             foreignKeyName="fk_audit_decision"
+                             references="underwriting_decisions(id)"
+                             deleteCascade="true"/>
+            </column>
+
+            <!-- Детали правила -->
+            <column name="rule_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="severity" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="message" type="TEXT"/>
+
+            <!-- Контекст -->
+            <column name="rule_order" type="INT"/>
+            <column name="execution_time_ms" type="INT"/>
+
+            <!-- Время -->
+            <column name="evaluated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Индексы -->
+        <createIndex tableName="underwriting_audit_log" indexName="idx_audit_decision">
+            <column name="decision_id"/>
+        </createIndex>
+
+        <createIndex tableName="underwriting_audit_log" indexName="idx_audit_rule_name">
+            <column name="rule_name"/>
+        </createIndex>
+
+        <createIndex tableName="underwriting_audit_log" indexName="idx_audit_severity">
+            <column name="severity"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
