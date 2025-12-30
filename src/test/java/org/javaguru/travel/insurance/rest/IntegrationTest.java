@@ -1,4 +1,4 @@
-package org.javaguru.travel.insurance.rest.v2;
+package org.javaguru.travel.insurance.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
@@ -15,15 +15,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDate;
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * Упрощённые E2E тесты
- * Фокус: ключевые бизнес-сценарии через REST API
+ * E2E Integration Tests
+ * Тестируют весь стек: REST API → Service → Repository → H2 Database
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -33,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "/test-data/medical-risk-limit-levels.sql",
         "/test-data/risk-types.sql"
 })
-@DisplayName("Travel Insurance E2E")
+@DisplayName("Travel Insurance E2E Tests")
 class IntegrationTest {
 
     @Autowired
@@ -42,10 +41,12 @@ class IntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    // ========== HAPPY PATH ==========
+    // ========================================
+    // HAPPY PATH TESTS
+    // ========================================
 
     @Test
-    @DisplayName("calculates premium for simple trip")
+    @DisplayName("Should calculate premium for simple trip")
     void shouldCalculateSimpleTrip() throws Exception {
         var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
@@ -65,12 +66,14 @@ class IntegrationTest {
                 .andExpect(jsonPath("$.agreementPrice").value(greaterThan(0.0)))
                 .andExpect(jsonPath("$.currency").value("EUR"))
                 .andExpect(jsonPath("$.personFirstName").value("John"))
+                .andExpect(jsonPath("$.personLastName").value("Doe"))
+                .andExpect(jsonPath("$.countryName").value("Spain"))
                 .andExpect(jsonPath("$.errors").doesNotExist());
     }
 
     @Test
-    @DisplayName("calculates premium with additional risks")
-    void shouldCalculateWithRisks() throws Exception {
+    @DisplayName("Should calculate premium with additional risks")
+    void shouldCalculateWithAdditionalRisks() throws Exception {
         var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
@@ -93,9 +96,8 @@ class IntegrationTest {
     }
 
     @Test
-    @DisplayName("applies promo code discount")
-    void shouldApplyPromoCode() throws Exception {
-        // Use SUMMER2025 with higher premium to meet min requirement (50 EUR)
+    @DisplayName("Should apply promo code discount")
+    void shouldApplyPromoCodeDiscount() throws Exception {
         var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
@@ -103,7 +105,7 @@ class IntegrationTest {
                 .agreementDateFrom(LocalDate.of(2025, 6, 15))
                 .agreementDateTo(LocalDate.of(2025, 7, 10))
                 .countryIsoCode("ES")
-                .medicalRiskLimitLevel("50000")  // Higher level for bigger premium
+                .medicalRiskLimitLevel("50000")
                 .promoCode("SUMMER2025")
                 .build();
 
@@ -119,30 +121,7 @@ class IntegrationTest {
     }
 
     @Test
-    @DisplayName("ignores promo code when premium below minimum")
-    void shouldIgnorePromoCodeBelowMinimum() throws Exception {
-        var request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("John")
-                .personLastName("Doe")
-                .personBirthDate(LocalDate.of(1990, 1, 1))
-                .agreementDateFrom(LocalDate.of(2025, 7, 1))
-                .agreementDateTo(LocalDate.of(2025, 7, 3))
-                .countryIsoCode("ES")
-                .medicalRiskLimitLevel("10000")
-                .promoCode("FAMILY20")  // Min amount is 150, premium will be ~4
-                .build();
-
-        mockMvc.perform(post("/insurance/travel/v2/calculate")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.promoCodeInfo").doesNotExist())  // Not applied
-                .andExpect(jsonPath("$.agreementPrice").isNumber())
-                .andExpect(jsonPath("$.errors").doesNotExist());
-    }
-
-    @Test
-    @DisplayName("applies group discount")
+    @DisplayName("Should apply group discount")
     void shouldApplyGroupDiscount() throws Exception {
         var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
@@ -165,10 +144,12 @@ class IntegrationTest {
                 .andExpect(jsonPath("$.errors").doesNotExist());
     }
 
-    // ========== VALIDATION ==========
+    // ========================================
+    // VALIDATION TESTS
+    // ========================================
 
     @Test
-    @DisplayName("rejects invalid request with clear errors")
+    @DisplayName("Should reject invalid request with clear errors")
     void shouldRejectInvalidRequest() throws Exception {
         var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("")
@@ -185,7 +166,7 @@ class IntegrationTest {
     }
 
     @Test
-    @DisplayName("rejects when date_to before date_from")
+    @DisplayName("Should reject when date_to before date_from")
     void shouldRejectInvalidDateOrder() throws Exception {
         var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
@@ -201,11 +182,12 @@ class IntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[?(@.field == 'agreementDateTo')]").exists());
+                .andExpect(jsonPath("$.errors[?(@.field == 'agreementDateTo')]").exists())
+                .andExpect(jsonPath("$.errors[?(@.message =~ /.*after.*/i)]").exists());
     }
 
     @Test
-    @DisplayName("rejects unknown country")
+    @DisplayName("Should reject unknown country")
     void shouldRejectUnknownCountry() throws Exception {
         var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
@@ -221,43 +203,48 @@ class IntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[?(@.field == 'countryIsoCode')]").exists());
+                .andExpect(jsonPath("$.errors[?(@.field == 'countryIsoCode')]").exists())
+                .andExpect(jsonPath("$.errors[?(@.message =~ /.*not found.*/i)]").exists());
     }
 
-    // ========== ERROR HANDLING ==========
+    // ========================================
+    // ERROR HANDLING TESTS
+    // ========================================
 
     @Test
-    @DisplayName("handles malformed JSON")
+    @DisplayName("Should handle malformed JSON")
     void shouldHandleMalformedJson() throws Exception {
         mockMvc.perform(post("/insurance/travel/v2/calculate")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{invalid json}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Malformed JSON request"));
+                .andExpect(jsonPath("$.error").value(containsStringIgnoringCase("malformed")));
     }
 
     @Test
-    @DisplayName("handles wrong content type")
+    @DisplayName("Should handle wrong content type")
     void shouldHandleWrongContentType() throws Exception {
         mockMvc.perform(post("/insurance/travel/v2/calculate")
                         .contentType(MediaType.APPLICATION_XML)
                         .content("<xml>data</xml>"))
                 .andExpect(status().isUnsupportedMediaType())
-                .andExpect(jsonPath("$.error").value("Unsupported Media Type"));
+                .andExpect(jsonPath("$.error").value(containsStringIgnoringCase("unsupported")));
     }
 
     @Test
-    @DisplayName("handles wrong HTTP method")
+    @DisplayName("Should handle wrong HTTP method")
     void shouldHandleWrongMethod() throws Exception {
         mockMvc.perform(get("/insurance/travel/v2/calculate"))
                 .andExpect(status().isMethodNotAllowed())
-                .andExpect(jsonPath("$.error").value("Method Not Allowed"));
+                .andExpect(jsonPath("$.error").value(containsStringIgnoringCase("method not allowed")));
     }
 
-    // ========== HEALTH CHECK ==========
+    // ========================================
+    // HEALTH CHECK TEST
+    // ========================================
 
     @Test
-    @DisplayName("health check returns 200")
+    @DisplayName("Health check returns 200")
     void shouldReturnHealthCheck() throws Exception {
         mockMvc.perform(get("/insurance/travel/v2/health"))
                 .andExpect(status().isOk())

@@ -4,6 +4,8 @@ import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculat
 import org.javaguru.travel.insurance.core.services.DiscountService;
 import org.javaguru.travel.insurance.core.services.PromoCodeService;
 import org.javaguru.travel.insurance.core.services.TravelCalculatePremiumService;
+import org.javaguru.travel.insurance.core.underwriting.UnderwritingService;
+import org.javaguru.travel.insurance.core.underwriting.domain.UnderwritingResult;
 import org.javaguru.travel.insurance.dto.ValidationError;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 import org.junit.jupiter.api.DisplayName;
@@ -23,10 +25,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-/**
- * Упрощённые тесты главного сервиса V2
- * Фокус: интеграция компонентов, а не детали реализации
- */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("TravelCalculatePremiumService")
 class TravelCalculatePremiumServiceTest {
@@ -43,6 +41,9 @@ class TravelCalculatePremiumServiceTest {
     @Mock
     private DiscountService discountService;
 
+    @Mock
+    private UnderwritingService underwritingService;
+
     @InjectMocks
     private TravelCalculatePremiumService service;
 
@@ -53,6 +54,8 @@ class TravelCalculatePremiumServiceTest {
     void shouldCalculatePremiumWithoutDiscounts() {
         // Given
         when(validator.validate(any())).thenReturn(Collections.emptyList());
+        when(underwritingService.evaluateApplication(any()))
+                .thenReturn(UnderwritingResult.approved(Collections.emptyList()));
         when(calculator.calculatePremiumWithDetails(any()))
                 .thenReturn(createCalculationResult(new BigDecimal("50.00")));
         when(discountService.calculateBestDiscount(any(), anyInt(), anyBoolean(), any()))
@@ -76,6 +79,8 @@ class TravelCalculatePremiumServiceTest {
     void shouldApplyMinimumPremium() {
         // Given
         when(validator.validate(any())).thenReturn(Collections.emptyList());
+        when(underwritingService.evaluateApplication(any()))
+                .thenReturn(UnderwritingResult.approved(Collections.emptyList()));
         when(calculator.calculatePremiumWithDetails(any()))
                 .thenReturn(createCalculationResult(new BigDecimal("5.00")));
         when(discountService.calculateBestDiscount(any(), anyInt(), anyBoolean(), any()))
@@ -95,6 +100,8 @@ class TravelCalculatePremiumServiceTest {
     void shouldApplyPromoCodeDiscount() {
         // Given
         when(validator.validate(any())).thenReturn(Collections.emptyList());
+        when(underwritingService.evaluateApplication(any()))
+                .thenReturn(UnderwritingResult.approved(Collections.emptyList()));
         when(calculator.calculatePremiumWithDetails(any()))
                 .thenReturn(createCalculationResult(new BigDecimal("100.00")));
 
@@ -128,6 +135,8 @@ class TravelCalculatePremiumServiceTest {
     void shouldApplyAdditionalDiscount() {
         // Given
         when(validator.validate(any())).thenReturn(Collections.emptyList());
+        when(underwritingService.evaluateApplication(any()))
+                .thenReturn(UnderwritingResult.approved(Collections.emptyList()));
         when(calculator.calculatePremiumWithDetails(any()))
                 .thenReturn(createCalculationResult(new BigDecimal("100.00")));
 
@@ -159,6 +168,8 @@ class TravelCalculatePremiumServiceTest {
     void shouldCombinePromoCodeAndDiscount() {
         // Given
         when(validator.validate(any())).thenReturn(Collections.emptyList());
+        when(underwritingService.evaluateApplication(any()))
+                .thenReturn(UnderwritingResult.approved(Collections.emptyList()));
         when(calculator.calculatePremiumWithDetails(any()))
                 .thenReturn(createCalculationResult(new BigDecimal("100.00")));
 
@@ -214,13 +225,11 @@ class TravelCalculatePremiumServiceTest {
         assertNotNull(response.getErrors());
         assertEquals(2, response.getErrors().size());
 
-        // Check that errors are present
         assertTrue(response.getErrors().stream()
                 .anyMatch(e -> "personFirstName".equals(e.getField())));
         assertTrue(response.getErrors().stream()
                 .anyMatch(e -> "personLastName".equals(e.getField())));
 
-        // Check that calculation was not performed
         assertNull(response.getAgreementPrice());
         verify(calculator, never()).calculatePremiumWithDetails(any());
     }
@@ -230,6 +239,8 @@ class TravelCalculatePremiumServiceTest {
     void shouldHandleCalculationException() {
         // Given
         when(validator.validate(any())).thenReturn(Collections.emptyList());
+        when(underwritingService.evaluateApplication(any()))
+                .thenReturn(UnderwritingResult.approved(Collections.emptyList()));
         when(calculator.calculatePremiumWithDetails(any()))
                 .thenThrow(new RuntimeException("Calculation failed"));
 
@@ -254,6 +265,8 @@ class TravelCalculatePremiumServiceTest {
     void shouldHandleZeroPremiumAfterDiscount() {
         // Given
         when(validator.validate(any())).thenReturn(Collections.emptyList());
+        when(underwritingService.evaluateApplication(any()))
+                .thenReturn(UnderwritingResult.approved(Collections.emptyList()));
         when(calculator.calculatePremiumWithDetails(any()))
                 .thenReturn(createCalculationResult(new BigDecimal("10.00")));
 
@@ -284,13 +297,15 @@ class TravelCalculatePremiumServiceTest {
     void shouldUseEurAsDefaultCurrency() {
         // Given
         when(validator.validate(any())).thenReturn(Collections.emptyList());
+        when(underwritingService.evaluateApplication(any()))
+                .thenReturn(UnderwritingResult.approved(Collections.emptyList()));
         when(calculator.calculatePremiumWithDetails(any()))
                 .thenReturn(createCalculationResult(new BigDecimal("50.00")));
         when(discountService.calculateBestDiscount(any(), anyInt(), anyBoolean(), any()))
                 .thenReturn(Optional.empty());
 
         var request = validRequest();
-        request.setCurrency(null); // No currency specified
+        request.setCurrency(null);
 
         // When
         var response = service.calculatePremium(request);
@@ -304,6 +319,8 @@ class TravelCalculatePremiumServiceTest {
     void shouldUseSpecifiedCurrency() {
         // Given
         when(validator.validate(any())).thenReturn(Collections.emptyList());
+        when(underwritingService.evaluateApplication(any()))
+                .thenReturn(UnderwritingResult.approved(Collections.emptyList()));
         when(calculator.calculatePremiumWithDetails(any()))
                 .thenReturn(createCalculationResult(new BigDecimal("50.00")));
         when(discountService.calculateBestDiscount(any(), anyInt(), anyBoolean(), any()))
@@ -324,6 +341,8 @@ class TravelCalculatePremiumServiceTest {
     void shouldDefaultToOnePerson() {
         // Given
         when(validator.validate(any())).thenReturn(Collections.emptyList());
+        when(underwritingService.evaluateApplication(any()))
+                .thenReturn(UnderwritingResult.approved(Collections.emptyList()));
         when(calculator.calculatePremiumWithDetails(any()))
                 .thenReturn(createCalculationResult(new BigDecimal("50.00")));
         when(discountService.calculateBestDiscount(any(), anyInt(), anyBoolean(), any()))
@@ -358,18 +377,18 @@ class TravelCalculatePremiumServiceTest {
 
         return new MedicalRiskPremiumCalculator.PremiumCalculationResult(
                 premium,
-                new BigDecimal("4.5"),      // baseRate
-                35,                          // age
-                new BigDecimal("1.0"),      // ageCoefficient
-                "Adults",                    // ageGroupDescription
-                new BigDecimal("1.0"),      // countryCoefficient
-                "Spain",                     // countryName
-                BigDecimal.ZERO,            // additionalRisksCoefficient
-                new BigDecimal("1.0"),      // totalCoefficient
-                14,                          // days
-                new BigDecimal("50000"),    // coverageAmount
-                Collections.emptyList(),     // riskDetails
-                Collections.emptyList()      // calculationSteps
+                new BigDecimal("4.5"),
+                35,
+                new BigDecimal("1.0"),
+                "Adults",
+                new BigDecimal("1.0"),
+                "Spain",
+                BigDecimal.ZERO,
+                new BigDecimal("1.0"),
+                14,
+                new BigDecimal("50000"),
+                Collections.emptyList(),
+                Collections.emptyList()
         );
     }
 
