@@ -9,8 +9,8 @@ import java.util.List;
 
 @Getter
 @Setter
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 public abstract class CoreResponse {
 
     private List<ValidationError> errors;
@@ -18,5 +18,4 @@ public abstract class CoreResponse {
     public boolean hasErrors() {
         return errors != null && !errors.isEmpty();
     }
-
 }

@@ -72,8 +72,8 @@ public class TravelCalculatePremiumResponse extends CoreResponse {
      */
     private String reviewReason;
 
-    private List<ValidationError> errors;
-
+    // ВАЖНО: поле errors находится в родительском классе CoreResponse!
+    // Не добавляйте его здесь, иначе будет дублирование
 
     @Getter
     @Setter

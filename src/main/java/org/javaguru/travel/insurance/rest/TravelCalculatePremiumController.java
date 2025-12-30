@@ -21,7 +21,7 @@ public class TravelCalculatePremiumController {
     private final TravelCalculatePremiumService calculatePremiumService;
 
     @PostMapping(
-            path = {"/", "/calculate"},
+            path = {"/", "/calculate", "/v2/calculate"},
             consumes = "application/json",
             produces = "application/json"
     )

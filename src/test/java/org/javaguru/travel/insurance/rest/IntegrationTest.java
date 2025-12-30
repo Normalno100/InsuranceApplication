@@ -246,7 +246,7 @@ class IntegrationTest {
     @Test
     @DisplayName("Health check returns 200")
     void shouldReturnHealthCheck() throws Exception {
-        mockMvc.perform(get("/insurance/travel/v2/health"))
+        mockMvc.perform(get("/insurance/travel/health"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("running")));
     }

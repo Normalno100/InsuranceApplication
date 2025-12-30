@@ -22,7 +22,7 @@ public class TravelCalculatePremiumService {
     private final MedicalRiskPremiumCalculator medicalRiskCalculator;
     private final PromoCodeService promoCodeService;
     private final DiscountService discountService;
-    private final UnderwritingService underwritingService;  // 👈 НОВАЯ ЗАВИСИМОСТЬ
+    private final UnderwritingService underwritingService;
 
     private static final BigDecimal MIN_PREMIUM = new BigDecimal("10.00");
 
@@ -30,40 +30,44 @@ public class TravelCalculatePremiumService {
         // 1. Валидация
         List<ValidationError> errors = validator.validate(request);
         if (!errors.isEmpty()) {
-            return TravelCalculatePremiumResponse.builder()
-                    .errors(errors)
-                    .build();
+            TravelCalculatePremiumResponse response = new TravelCalculatePremiumResponse();
+            response.setErrors(errors);  // ✅ Используем сеттер из родительского класса
+            return response;
         }
 
-        // 2. НОВОЕ: Андеррайтинг (оценка рисков)
+        // 2. Андеррайтинг (оценка рисков)
         UnderwritingResult underwritingResult = underwritingService.evaluateApplication(request);
 
         // 2a. Если заявка отклонена
         if (underwritingResult.isDeclined()) {
-            return TravelCalculatePremiumResponse.builder()
+            TravelCalculatePremiumResponse response = TravelCalculatePremiumResponse.builder()
                     .personFirstName(request.getPersonFirstName())
                     .personLastName(request.getPersonLastName())
                     .underwritingDecision(underwritingResult.getDecision().name())
                     .declineReason(underwritingResult.getDeclineReason())
-                    .errors(List.of(new ValidationError(
-                            "underwriting",
-                            "Application declined: " + underwritingResult.getDeclineReason()
-                    )))
                     .build();
+            // ✅ Устанавливаем errors через сеттер, а не через билдер
+            response.setErrors(List.of(new ValidationError(
+                    "underwriting",
+                    "Application declined: " + underwritingResult.getDeclineReason()
+            )));
+            return response;
         }
 
         // 2b. Если требуется ручная проверка
         if (underwritingResult.requiresManualReview()) {
-            return TravelCalculatePremiumResponse.builder()
+            TravelCalculatePremiumResponse response = TravelCalculatePremiumResponse.builder()
                     .personFirstName(request.getPersonFirstName())
                     .personLastName(request.getPersonLastName())
                     .underwritingDecision(underwritingResult.getDecision().name())
                     .reviewReason(underwritingResult.getDeclineReason())
-                    .errors(List.of(new ValidationError(
-                            "underwriting",
-                            "Manual review required: " + underwritingResult.getDeclineReason()
-                    )))
                     .build();
+            // ✅ Устанавливаем errors через сеттер
+            response.setErrors(List.of(new ValidationError(
+                    "underwriting",
+                    "Manual review required: " + underwritingResult.getDeclineReason()
+            )));
+            return response;
         }
 
         try {
@@ -130,14 +134,14 @@ public class TravelCalculatePremiumService {
             return response;
 
         } catch (Exception e) {
-            return TravelCalculatePremiumResponse.builder()
-                    .errors(List.of(
-                            new ValidationError("system", "Calculation error: " + e.getMessage())
-                    ))
-                    .build();
+            TravelCalculatePremiumResponse response = new TravelCalculatePremiumResponse();
+            // ✅ Устанавливаем errors через сеттер
+            response.setErrors(List.of(
+                    new ValidationError("system", "Calculation error: " + e.getMessage())
+            ));
+            return response;
         }
     }
-
 
     private BigDecimal applyMinimumPremium(BigDecimal premium) {
         if (premium.compareTo(BigDecimal.ZERO) <= 0) {
