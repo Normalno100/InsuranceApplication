@@ -1,7 +1,7 @@
 package org.javaguru.travel.insurance.core.services;
 
 import lombok.RequiredArgsConstructor;
-import org.javaguru.travel.insurance.core.TravelCalculatePremiumRequestValidator;
+import org.javaguru.travel.insurance.core.validation.TravelCalculatePremiumRequestValidator;
 import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator;
 import org.javaguru.travel.insurance.core.underwriting.UnderwritingService;
 import org.javaguru.travel.insurance.core.underwriting.domain.UnderwritingResult;

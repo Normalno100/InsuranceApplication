@@ -6,6 +6,7 @@ import org.javaguru.travel.insurance.core.services.PromoCodeService;
 import org.javaguru.travel.insurance.core.services.TravelCalculatePremiumService;
 import org.javaguru.travel.insurance.core.underwriting.UnderwritingService;
 import org.javaguru.travel.insurance.core.underwriting.domain.UnderwritingResult;
+import org.javaguru.travel.insurance.core.validation.TravelCalculatePremiumRequestValidator;
 import org.javaguru.travel.insurance.dto.ValidationError;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 import org.junit.jupiter.api.DisplayName;
