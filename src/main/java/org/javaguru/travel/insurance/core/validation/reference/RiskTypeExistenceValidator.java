@@ -42,7 +42,7 @@ public class RiskTypeExistenceValidator extends AbstractValidationRule<TravelCal
             }
 
             Optional<RiskTypeEntity> riskOpt =
-                    riskRepository.findActiveByRiskType(riskType, agreementDateFrom);
+                    riskRepository.findActiveByCode(riskType, agreementDateFrom);
 
             if (riskOpt.isEmpty()) {
                 resultBuilder.addError(

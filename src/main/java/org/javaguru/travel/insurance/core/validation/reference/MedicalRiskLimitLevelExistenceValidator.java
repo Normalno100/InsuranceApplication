@@ -34,7 +34,7 @@ public class MedicalRiskLimitLevelExistenceValidator
         }
 
         Optional<MedicalRiskLimitLevelEntity> levelOpt =
-                medicalRiskLimitLevelRepository.findActiveByMedicalRiskLimitLevel(
+                medicalRiskLimitLevelRepository.findActiveByCode(
                         medicalRiskLimitLevel, agreementDateFrom
                 );
 

@@ -41,9 +41,9 @@ public class RiskTypeNotMandatoryValidator extends AbstractValidationRule<Travel
             }
 
             Optional<RiskTypeEntity> riskOpt =
-                    riskRepository.findActiveByRiskType(riskType, agreementDateFrom);
+                    riskRepository.findActiveByCode(riskType, agreementDateFrom);
 
-            if (riskOpt.isPresent() && riskOpt.get().isMandatory()) {
+            if (riskOpt.isPresent() && riskOpt.get().getIsMandatory()) {
                 resultBuilder.addError(
                         ValidationError.error(
                                         "selectedRisks",
