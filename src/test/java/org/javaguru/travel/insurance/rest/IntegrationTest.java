@@ -52,8 +52,8 @@ class IntegrationTest {
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))
-                .agreementDateFrom(LocalDate.of(2025, 6, 1))
-                .agreementDateTo(LocalDate.of(2025, 6, 15))
+                .agreementDateFrom(LocalDate.now().plusDays(1)) // ✅ Будущая дата
+                .agreementDateTo(LocalDate.now().plusDays(15))
                 .countryIsoCode("ES")
                 .medicalRiskLimitLevel("10000")
                 .build();
@@ -68,6 +68,7 @@ class IntegrationTest {
                 .andExpect(jsonPath("$.personFirstName").value("John"))
                 .andExpect(jsonPath("$.personLastName").value("Doe"))
                 .andExpect(jsonPath("$.countryName").value("Spain"))
+                .andExpect(jsonPath("$.underwritingDecision").value("APPROVED")) // ✅ Проверяем андеррайтинг
                 .andExpect(jsonPath("$.errors").doesNotExist());
     }
 
@@ -78,8 +79,8 @@ class IntegrationTest {
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))
-                .agreementDateFrom(LocalDate.of(2025, 6, 1))
-                .agreementDateTo(LocalDate.of(2025, 6, 10))
+                .agreementDateFrom(LocalDate.now().plusDays(1))
+                .agreementDateTo(LocalDate.now().plusDays(10))
                 .countryIsoCode("ES")
                 .medicalRiskLimitLevel("10000")
                 .selectedRisks(List.of("SPORT_ACTIVITIES"))
@@ -92,6 +93,7 @@ class IntegrationTest {
                 .andExpect(jsonPath("$.agreementPrice").isNumber())
                 .andExpect(jsonPath("$.selectedRisks[0]").value("SPORT_ACTIVITIES"))
                 .andExpect(jsonPath("$.riskPremiums").isArray())
+                .andExpect(jsonPath("$.underwritingDecision").value("APPROVED"))
                 .andExpect(jsonPath("$.errors").doesNotExist());
     }
 
@@ -117,6 +119,7 @@ class IntegrationTest {
                 .andExpect(jsonPath("$.promoCodeInfo.code").value("SUMMER2025"))
                 .andExpect(jsonPath("$.discountAmount").isNumber())
                 .andExpect(jsonPath("$.discountAmount").value(greaterThan(0.0)))
+                .andExpect(jsonPath("$.underwritingDecision").value("APPROVED"))
                 .andExpect(jsonPath("$.errors").doesNotExist());
     }
 
@@ -127,8 +130,8 @@ class IntegrationTest {
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))
-                .agreementDateFrom(LocalDate.of(2025, 6, 1))
-                .agreementDateTo(LocalDate.of(2025, 6, 10))
+                .agreementDateFrom(LocalDate.now().plusDays(1))
+                .agreementDateTo(LocalDate.now().plusDays(10))
                 .countryIsoCode("ES")
                 .medicalRiskLimitLevel("10000")
                 .personsCount(10)
@@ -141,6 +144,7 @@ class IntegrationTest {
                 .andExpect(jsonPath("$.appliedDiscounts").isArray())
                 .andExpect(jsonPath("$.discountAmount").isNumber())
                 .andExpect(jsonPath("$.discountAmount").value(greaterThan(0.0)))
+                .andExpect(jsonPath("$.underwritingDecision").value("APPROVED"))
                 .andExpect(jsonPath("$.errors").doesNotExist());
     }
 
@@ -152,8 +156,8 @@ class IntegrationTest {
     @DisplayName("Should reject invalid request with clear errors")
     void shouldRejectInvalidRequest() throws Exception {
         var request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("")
-                .personLastName("")
+                .personFirstName("") // ✅ Пустое имя
+                .personLastName("")  // ✅ Пустая фамилия
                 .build();
 
         mockMvc.perform(post("/insurance/travel/v2/calculate")
@@ -161,7 +165,7 @@ class IntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors").isArray())
-                .andExpect(jsonPath("$.errors.length()").value(greaterThan(0)))
+                .andExpect(jsonPath("$.errors.length()").value(1)) // ✅ Критичная ошибка останавливает валидацию
                 .andExpect(jsonPath("$.agreementPrice").doesNotExist());
     }
 
@@ -173,7 +177,7 @@ class IntegrationTest {
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))
                 .agreementDateFrom(LocalDate.of(2025, 6, 15))
-                .agreementDateTo(LocalDate.of(2025, 6, 1))
+                .agreementDateTo(LocalDate.of(2025, 6, 1))  // ✅ Раньше dateFrom
                 .countryIsoCode("ES")
                 .medicalRiskLimitLevel("10000")
                 .build();
@@ -183,7 +187,7 @@ class IntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[?(@.field == 'agreementDateTo')]").exists())
-                .andExpect(jsonPath("$.errors[?(@.message =~ /.*after.*/i)]").exists());
+                .andExpect(jsonPath("$.errors[?(@.message =~ /.*greater.*/i)]").exists()); // ✅ Новое сообщение
     }
 
     @Test
@@ -193,9 +197,9 @@ class IntegrationTest {
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))
-                .agreementDateFrom(LocalDate.of(2025, 6, 1))
-                .agreementDateTo(LocalDate.of(2025, 6, 10))
-                .countryIsoCode("ZZ")
+                .agreementDateFrom(LocalDate.now().plusDays(1))
+                .agreementDateTo(LocalDate.now().plusDays(10))
+                .countryIsoCode("ZZ") // ✅ Несуществующая страна
                 .medicalRiskLimitLevel("10000")
                 .build();
 
@@ -205,6 +209,117 @@ class IntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[?(@.field == 'countryIsoCode')]").exists())
                 .andExpect(jsonPath("$.errors[?(@.message =~ /.*not found.*/i)]").exists());
+    }
+
+    @Test
+    @DisplayName("Should reject when age exceeds 80")
+    void shouldRejectAgeTooOld() throws Exception {
+        var request = TravelCalculatePremiumRequest.builder()
+                .personFirstName("John")
+                .personLastName("Doe")
+                .personBirthDate(LocalDate.of(1940, 1, 1)) // ✅ Возраст 85
+                .agreementDateFrom(LocalDate.now().plusDays(1))
+                .agreementDateTo(LocalDate.now().plusDays(10))
+                .countryIsoCode("ES")
+                .medicalRiskLimitLevel("10000")
+                .build();
+
+        mockMvc.perform(post("/insurance/travel/v2/calculate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[?(@.field == 'personBirthDate')]").exists())
+                .andExpect(jsonPath("$.errors[?(@.message =~ /.*80.*/)]").exists());
+    }
+
+    @Test
+    @DisplayName("Should reject trip longer than 365 days")
+    void shouldRejectTooLongTrip() throws Exception {
+        var request = TravelCalculatePremiumRequest.builder()
+                .personFirstName("John")
+                .personLastName("Doe")
+                .personBirthDate(LocalDate.of(1990, 1, 1))
+                .agreementDateFrom(LocalDate.now().plusDays(1))
+                .agreementDateTo(LocalDate.now().plusDays(400)) // ✅ Слишком долго
+                .countryIsoCode("ES")
+                .medicalRiskLimitLevel("10000")
+                .build();
+
+        mockMvc.perform(post("/insurance/travel/v2/calculate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[?(@.field == 'agreementDateTo')]").exists())
+                .andExpect(jsonPath("$.errors[?(@.message =~ /.*365.*/)]").exists());
+    }
+
+    @Test
+    @DisplayName("Should warn about past trip date")
+    void shouldWarnAboutPastTrip() throws Exception {
+        var request = TravelCalculatePremiumRequest.builder()
+                .personFirstName("John")
+                .personLastName("Doe")
+                .personBirthDate(LocalDate.of(1990, 1, 1))
+                .agreementDateFrom(LocalDate.now().minusDays(10)) // ✅ В прошлом
+                .agreementDateTo(LocalDate.now().plusDays(5))
+                .countryIsoCode("ES")
+                .medicalRiskLimitLevel("10000")
+                .build();
+
+        mockMvc.perform(post("/insurance/travel/v2/calculate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk()) // ✅ Предупреждение не блокирует
+                .andExpect(jsonPath("$.agreementPrice").exists())
+                .andExpect(jsonPath("$.underwritingDecision").value("APPROVED"));
+    }
+
+    // ========================================
+    // UNDERWRITING TESTS
+    // ========================================
+
+    @Test
+    @DisplayName("Should decline extreme sport for age 75+")
+    void shouldDeclineExtremeSportForOld() throws Exception {
+        var request = TravelCalculatePremiumRequest.builder()
+                .personFirstName("John")
+                .personLastName("Doe")
+                .personBirthDate(LocalDate.of(1945, 1, 1)) // ✅ Возраст 80
+                .agreementDateFrom(LocalDate.now().plusDays(1))
+                .agreementDateTo(LocalDate.now().plusDays(10))
+                .countryIsoCode("ES")
+                .medicalRiskLimitLevel("10000")
+                .selectedRisks(List.of("EXTREME_SPORT")) // ✅ Экстремальный спорт
+                .build();
+
+        mockMvc.perform(post("/insurance/travel/v2/calculate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.underwritingDecision").value("DECLINED"))
+                .andExpect(jsonPath("$.declineReason").exists())
+                .andExpect(jsonPath("$.errors[0].field").value("underwriting"));
+    }
+
+    @Test
+    @DisplayName("Should require manual review for high coverage + old age")
+    void shouldRequireReviewForHighCoverageOldAge() throws Exception {
+        var request = TravelCalculatePremiumRequest.builder()
+                .personFirstName("John")
+                .personLastName("Doe")
+                .personBirthDate(LocalDate.of(1950, 1, 1)) // ✅ Возраст 75
+                .agreementDateFrom(LocalDate.now().plusDays(1))
+                .agreementDateTo(LocalDate.now().plusDays(10))
+                .countryIsoCode("ES")
+                .medicalRiskLimitLevel("200000") // ✅ Высокое покрытие
+                .build();
+
+        mockMvc.perform(post("/insurance/travel/v2/calculate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.underwritingDecision").value("REQUIRES_MANUAL_REVIEW"))
+                .andExpect(jsonPath("$.reviewReason").exists());
     }
 
     // ========================================

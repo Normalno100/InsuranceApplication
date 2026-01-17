@@ -36,13 +36,30 @@ public class TravelCalculatePremiumController {
         var response = calculatePremiumService.calculatePremium(request);
 
         // Проверяем наличие ошибок и возвращаем соответствующий HTTP статус
-        if (response.hasErrors()) {
+        if (response.hasErrors() && hasBlockingErrors(response)) {
             log.warn("Validation errors: {}", response.getErrors());
             return ResponseEntity.badRequest().body(response); // HTTP 400
         }
 
+        // Если есть только warnings - возвращаем 200 OK с предупреждениями
+        if (response.hasErrors()) {
+            log.warn("Validation warnings: {}", response.getErrors());
+        }
+
         log.info("Premium calculated: {} {}", response.getAgreementPrice(), response.getCurrency());
         return ResponseEntity.ok(response); // HTTP 200
+    }
+
+    /**
+     * Проверяет наличие блокирующих ошибок (не warnings)
+     */
+    private boolean hasBlockingErrors(TravelCalculatePremiumResponse response) {
+        if (response.getErrors() == null) {
+            return false;
+        }
+
+        // Если нет цены в ответе - значит были блокирующие ошибки
+        return response.getAgreementPrice() == null;
     }
 
     @GetMapping({"/health"})
