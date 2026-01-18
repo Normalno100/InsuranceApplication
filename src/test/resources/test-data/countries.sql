@@ -1,6 +1,6 @@
 -- Тестовые данные для таблицы countries
 
-DELETE FROM countries WHERE iso_code IN ('ES', 'DE', 'FR');
+DELETE FROM countries;
 
 -- Страны с низким риском
 INSERT INTO countries (iso_code, name_en, name_ru, risk_group, risk_coefficient, valid_from)

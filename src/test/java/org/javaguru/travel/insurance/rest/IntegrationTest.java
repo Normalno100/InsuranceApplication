@@ -254,14 +254,14 @@ class IntegrationTest {
     }
 
     @Test
-    @DisplayName("Should warn about past trip date")
-    void shouldWarnAboutPastTrip() throws Exception {
+    @DisplayName("Should calculate premium even for past trip dates")
+    void shouldCalculatePremiumForPastTrip() throws Exception {
         var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))
-                .agreementDateFrom(LocalDate.now().minusDays(10)) // ✅ В прошлом
-                .agreementDateTo(LocalDate.now().plusDays(5))
+                .agreementDateFrom(LocalDate.of(2026, 1, 7)) // ✅ Дата из лога (в прошлом на момент теста)
+                .agreementDateTo(LocalDate.of(2026, 1, 22))
                 .countryIsoCode("ES")
                 .medicalRiskLimitLevel("10000")
                 .build();
@@ -269,9 +269,11 @@ class IntegrationTest {
         mockMvc.perform(post("/insurance/travel/v2/calculate")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk()) // ✅ Предупреждение не блокирует
+                .andExpect(status().isOk()) // ✅ Прошлые даты не блокируют расчёт
                 .andExpect(jsonPath("$.agreementPrice").exists())
-                .andExpect(jsonPath("$.underwritingDecision").value("APPROVED"));
+                .andExpect(jsonPath("$.agreementPrice").isNumber())
+                .andExpect(jsonPath("$.underwritingDecision").value("APPROVED"))
+                .andExpect(jsonPath("$.errors").doesNotExist()); // ✅ Нет ошибок
     }
 
     // ========================================
