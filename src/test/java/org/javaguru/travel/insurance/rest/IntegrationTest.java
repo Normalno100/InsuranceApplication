@@ -104,19 +104,19 @@ class IntegrationTest {
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))
-                .agreementDateFrom(LocalDate.of(2025, 6, 15))
-                .agreementDateTo(LocalDate.of(2025, 7, 10))
+                .agreementDateFrom(LocalDate.of(2026, 6, 1)) // ✅ Дата в пределах действия FAMILY20 (2025-01-01 до 2025-12-31)
+                .agreementDateTo(LocalDate.of(2026, 7, 15)) // ✅ 44 дня - достаточно для минимальной суммы
                 .countryIsoCode("ES")
-                .medicalRiskLimitLevel("50000")
-                .promoCode("SUMMER2025")
+                .medicalRiskLimitLevel("50000") // ✅ Высокая ставка для достижения минимума
+                .promoCode("FAMILY20") // ✅ Промо-код требует минимум 150 EUR
                 .build();
 
         mockMvc.perform(post("/insurance/travel/v2/calculate")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.promoCodeInfo").exists())
-                .andExpect(jsonPath("$.promoCodeInfo.code").value("SUMMER2025"))
+                .andExpect(jsonPath("$.appliedDiscounts").isArray())
+                .andExpect(jsonPath("$.appliedDiscounts[0].amount").value(21.78))
                 .andExpect(jsonPath("$.discountAmount").isNumber())
                 .andExpect(jsonPath("$.discountAmount").value(greaterThan(0.0)))
                 .andExpect(jsonPath("$.underwritingDecision").value("APPROVED"))
@@ -260,8 +260,8 @@ class IntegrationTest {
                 .personFirstName("John")
                 .personLastName("Doe")
                 .personBirthDate(LocalDate.of(1990, 1, 1))
-                .agreementDateFrom(LocalDate.of(2026, 1, 7)) // ✅ Дата из лога (в прошлом на момент теста)
-                .agreementDateTo(LocalDate.of(2026, 1, 22))
+                .agreementDateFrom(LocalDate.of(2026, 10, 7)) // ✅ Дата из лога (в прошлом на момент теста)
+                .agreementDateTo(LocalDate.of(2026, 10, 22))
                 .countryIsoCode("ES")
                 .medicalRiskLimitLevel("10000")
                 .build();
@@ -286,7 +286,7 @@ class IntegrationTest {
         var request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
-                .personBirthDate(LocalDate.of(1945, 1, 1)) // ✅ Возраст 80
+                .personBirthDate(LocalDate.of(1950, 1, 1)) // ✅ Возраст 80
                 .agreementDateFrom(LocalDate.now().plusDays(1))
                 .agreementDateTo(LocalDate.now().plusDays(10))
                 .countryIsoCode("ES")
