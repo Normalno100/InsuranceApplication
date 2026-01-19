@@ -54,7 +54,7 @@ public class MedicalRiskPremiumCalculator {
                 request.getAgreementDateFrom()
         );
 
-        // 4. Количество дней (inline вместо DateTimeService)
+        // 4. Количество дней
         long days = ChronoUnit.DAYS.between(
                 request.getAgreementDateFrom(),
                 request.getAgreementDateTo()

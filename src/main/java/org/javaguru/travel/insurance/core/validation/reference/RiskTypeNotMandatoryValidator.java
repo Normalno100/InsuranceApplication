@@ -12,6 +12,7 @@ import java.util.Optional;
 /**
  * Проверяет что выбранные риски НЕ являются обязательными
  * (обязательные риски добавляются автоматически)
+ * ОБНОВЛЕНО: task_95 - теперь ИГНОРИРУЕМ обязательные риски вместо ошибки
  */
 public class RiskTypeNotMandatoryValidator extends AbstractValidationRule<TravelCalculatePremiumRequest> {
 
@@ -33,6 +34,10 @@ public class RiskTypeNotMandatoryValidator extends AbstractValidationRule<Travel
             return success();
         }
 
+        // ✅ ОБНОВЛЕНИЕ: ИГНОРИРУЕМ обязательные риски (не возвращаем ошибку)
+        // Старая логика закомментирована для истории:
+
+        /*
         ValidationResult.Builder resultBuilder = ValidationResult.builder();
 
         for (String riskType : selectedRisks) {
@@ -59,5 +64,9 @@ public class RiskTypeNotMandatoryValidator extends AbstractValidationRule<Travel
         }
 
         return resultBuilder.build();
+        */
+
+        // Теперь всегда успех - обязательные риски просто игнорируются
+        return success();
     }
 }

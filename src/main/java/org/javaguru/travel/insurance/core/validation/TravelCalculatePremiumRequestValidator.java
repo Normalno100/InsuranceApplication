@@ -122,13 +122,14 @@ public class TravelCalculatePremiumRequestValidator {
                 // ==========================================
 
                 .addRule(new DateInPastValidator<>("personBirthDate",
-                        TravelCalculatePremiumRequest::getPersonBirthDate))                    // 110
-                .addRule(new DateRangeValidator())                        // 120
-                .addRule(new AgeValidator())                              // 130
-                .addRule(new TripDurationValidator())                     // 140
-                .addRule(new AgreementDateFromNotTooFarValidator())       // 145
-                .addRule(new FutureTripWarningValidator())                // 150
-                .addRule(new MandatoryRisksValidator())                   // 160
+                        TravelCalculatePremiumRequest::getPersonBirthDate))     // 110
+                .addRule(new DateRangeValidator())                              // 120
+                .addRule(new AgeValidator())                                    // 130
+                .addRule(new TripDurationValidator())                           // 140
+                .addRule(new AgreementDateFromNotTooFarValidator())             // 145
+                .addRule(new FutureTripWarningValidator())                      // 150
+                .addRule(new MandatoryRisksValidator())                         // 160
+                .addRule(new DuplicateRisksValidator())                         // 165
 
                 // ==========================================
                 // LEVEL 3: REFERENCE DATA (Order: 200-299)

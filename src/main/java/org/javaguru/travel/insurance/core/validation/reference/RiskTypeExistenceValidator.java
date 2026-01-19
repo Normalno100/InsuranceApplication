@@ -12,6 +12,7 @@ import java.util.Optional;
 
 /**
  * Проверяет что все выбранные риски существуют и активны
+ * ОБНОВЛЕНО: task_95 - игнорируем null/пустые элементы, ошибки с индексами
  */
 public class RiskTypeExistenceValidator extends AbstractValidationRule<TravelCalculatePremiumRequest> {
 
@@ -36,23 +37,28 @@ public class RiskTypeExistenceValidator extends AbstractValidationRule<TravelCal
         ValidationResult.Builder resultBuilder = ValidationResult.builder();
         List<RiskTypeEntity> foundRisks = new ArrayList<>();
 
-        for (String riskType : selectedRisks) {
+        for (int i = 0; i < selectedRisks.size(); i++) {
+            String riskType = selectedRisks.get(i);
+
+            // ✅ ОБНОВЛЕНИЕ: игнорируем null и пустые элементы
             if (riskType == null || riskType.trim().isEmpty()) {
-                continue; // Пустые элементы проверяются другим валидатором
+                continue;
             }
 
             Optional<RiskTypeEntity> riskOpt =
                     riskRepository.findActiveByCode(riskType, agreementDateFrom);
 
             if (riskOpt.isEmpty()) {
+                // ✅ ОБНОВЛЕНИЕ: ошибка с индексом элемента
                 resultBuilder.addError(
                         ValidationError.error(
-                                        "selectedRisks",
+                                        "selectedRisks[" + i + "]",
                                         String.format("Risk type '%s' not found or not active on %s!",
                                                 riskType, agreementDateFrom)
                                 )
                                 .withParameter("riskType", riskType)
                                 .withParameter("agreementDateFrom", agreementDateFrom)
+                                .withParameter("index", i)
                 );
             } else {
                 foundRisks.add(riskOpt.get());
