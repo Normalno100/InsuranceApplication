@@ -46,7 +46,7 @@ public class TravelCalculatePremiumService {
                     .underwritingDecision(underwritingResult.getDecision().name())
                     .declineReason(underwritingResult.getDeclineReason())
                     .build();
-            // ✅ Устанавливаем errors через сеттер, а не через билдер
+            // Устанавливаем errors через сеттер, а не через билдер
             response.setErrors(List.of(new ValidationError(
                     "underwriting",
                     "Application declined: " + underwritingResult.getDeclineReason()
@@ -163,22 +163,30 @@ public class TravelCalculatePremiumService {
             TravelCalculatePremiumResponse.PromoCodeInfo promoInfo,
             List<TravelCalculatePremiumResponse.DiscountInfo> discounts) {
 
+        // Риски с возрастными модификаторами
         var riskPremiums = result.riskDetails().stream()
                 .map(d -> new TravelCalculatePremiumResponse.RiskPremium(
-                        d.riskCode(), d.riskName(), d.premium(), d.coefficient()
+                        d.riskCode(),
+                        d.riskName(),
+                        d.premium(),
+                        d.coefficient(),
+                        d.ageModifier()
                 ))
                 .toList();
 
+        // Шаги расчета
         var steps = result.calculationSteps().stream()
                 .map(s -> new TravelCalculatePremiumResponse.CalculationStep(
                         s.description(), s.formula(), s.result()
                 ))
                 .toList();
 
+        // Детали расчета
         var calculationDetails = new TravelCalculatePremiumResponse.CalculationDetails(
                 result.baseRate(),
                 result.ageCoefficient(),
                 result.countryCoefficient(),
+                result.durationCoefficient(),
                 result.additionalRisksCoefficient(),
                 result.totalCoefficient(),
                 result.days(),
@@ -186,6 +194,21 @@ public class TravelCalculatePremiumService {
                 steps
         );
 
+        // Информация о пакете рисков
+        TravelCalculatePremiumResponse.BundleInfo bundleInfo = null;
+        var bundleDiscount = result.bundleDiscount();
+
+        if (bundleDiscount != null && bundleDiscount.bundle() != null) {
+            bundleInfo = new TravelCalculatePremiumResponse.BundleInfo(
+                    bundleDiscount.bundle().code(),
+                    bundleDiscount.bundle().name(),
+                    bundleDiscount.bundle().discountPercentage(),
+                    bundleDiscount.discountAmount(),
+                    bundleDiscount.bundle().requiredRisks()
+            );
+        }
+
+        // Строим ответ
         return TravelCalculatePremiumResponse.builder()
                 .personFirstName(request.getPersonFirstName())
                 .personLastName(request.getPersonLastName())
@@ -207,6 +230,7 @@ public class TravelCalculatePremiumService {
                 .calculation(calculationDetails)
                 .promoCodeInfo(promoInfo)
                 .appliedDiscounts(discounts.isEmpty() ? null : discounts)
+                .appliedBundle(bundleInfo)  //
                 .build();
     }
 
@@ -216,7 +240,9 @@ public class TravelCalculatePremiumService {
                 .append(" × ")
                 .append(String.format("%.2f", result.ageCoefficient()))
                 .append(" × ")
-                .append(String.format("%.2f", result.countryCoefficient()));
+                .append(String.format("%.2f", result.countryCoefficient()))
+                .append(" × ")
+                .append(String.format("%.2f", result.durationCoefficient()));  //
 
         if (result.additionalRisksCoefficient().compareTo(BigDecimal.ZERO) > 0) {
             formula.append(" × (1 + ")
@@ -224,6 +250,16 @@ public class TravelCalculatePremiumService {
                     .append(")");
         }
 
-        return formula.append(" × ").append(result.days()).append(" days").toString();
+        formula.append(" × ").append(result.days()).append(" days");
+
+        // Показываем пакетную скидку в формуле
+        if (result.bundleDiscount() != null
+                && result.bundleDiscount().discountAmount().compareTo(BigDecimal.ZERO) > 0) {
+            formula.append(" - ")
+                    .append(String.format("%.2f", result.bundleDiscount().discountAmount()))
+                    .append(" (bundle discount)");
+        }
+
+        return formula.toString();
     }
 }

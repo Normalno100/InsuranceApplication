@@ -377,19 +377,21 @@ class TravelCalculatePremiumServiceTest {
             BigDecimal premium) {
 
         return new MedicalRiskPremiumCalculator.PremiumCalculationResult(
-                premium,
-                new BigDecimal("4.5"),
-                35,
-                new BigDecimal("1.0"),
-                "Adults",
-                new BigDecimal("1.0"),
-                "Spain",
-                BigDecimal.ZERO,
-                new BigDecimal("1.0"),
-                14,
-                new BigDecimal("50000"),
-                Collections.emptyList(),
-                Collections.emptyList()
+                premium,                    // premium
+                new BigDecimal("4.5"),       // baseRate
+                35,                          // age
+                BigDecimal.ONE,              // ageCoefficient
+                "Adults",                    // ageGroupDescription
+                BigDecimal.ONE,              // countryCoefficient
+                "Spain",                     // countryName
+                BigDecimal.ONE,              // durationCoefficient
+                BigDecimal.ZERO,             // additionalRisksCoefficient
+                BigDecimal.ONE,              // totalCoefficient
+                14,                          // days
+                new BigDecimal("50000"),     // coverageAmount
+                Collections.emptyList(),     // riskDetails
+                null,                        // bundleDiscount
+                Collections.emptyList()      // calculationSteps
         );
     }
 

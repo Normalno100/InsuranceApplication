@@ -1,9 +1,13 @@
 package org.javaguru.travel.insurance.core.calculators;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.javaguru.travel.insurance.core.repositories.CountryRepository;
 import org.javaguru.travel.insurance.core.repositories.MedicalRiskLimitLevelRepository;
 import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
+import org.javaguru.travel.insurance.core.services.AgeRiskPricingService;
+import org.javaguru.travel.insurance.core.services.RiskBundleService;
+import org.javaguru.travel.insurance.core.services.TripDurationPricingService;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 import org.springframework.stereotype.Component;
 
@@ -16,8 +20,16 @@ import java.util.List;
 /**
  * Главный калькулятор медицинской страховой премии
  *
- * Формула: ПРЕМИЯ = БАЗОВАЯ_СТАВКА × КОЭФФ_ВОЗРАСТА × КОЭФФ_СТРАНЫ × (1 + СУММА_КОЭФФ_РИСКОВ) × ДНИ
+ * ФОРМУЛА:
+ * ПРЕМИЯ = БАЗОВАЯ_СТАВКА × КОЭФФ_ВОЗРАСТА × КОЭФФ_СТРАНЫ × КОЭФФ_ДЛИТЕЛЬНОСТИ
+ *          × (1 + СУММА_МОДИФИЦИРОВАННЫХ_РИСКОВ) × ДНИ - СКИДКА_ПАКЕТА
+ *
+ * ГДЕ:
+ * - КОЭФФ_ДЛИТЕЛЬНОСТИ: прогрессивная скидка за длительные поездки (ИДЕЯ #3)
+ * - МОДИФИЦИРОВАННЫЕ_РИСКИ: риски с учетом возраста (ИДЕЯ #5)
+ * - СКИДКА_ПАКЕТА: скидка за покупку пакета рисков (ИДЕЯ #2)
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class MedicalRiskPremiumCalculator {
@@ -27,12 +39,18 @@ public class MedicalRiskPremiumCalculator {
     private final CountryRepository countryRepository;
     private final RiskTypeRepository riskTypeRepository;
 
+    private final TripDurationPricingService durationPricingService;
+    private final RiskBundleService riskBundleService;
+    private final AgeRiskPricingService ageRiskPricingService;
+
     public BigDecimal calculatePremium(TravelCalculatePremiumRequest request) {
         var details = calculatePremiumWithDetails(request);
         return details.premium();
     }
 
     public PremiumCalculationResult calculatePremiumWithDetails(TravelCalculatePremiumRequest request) {
+        log.info("Starting premium calculation with advanced pricing features");
+
         // 1. Получаем данные из БД
         var medicalLevel = medicalLevelRepository
                 .findActiveByCode(request.getMedicalRiskLimitLevel(), request.getAgreementDateFrom())
@@ -48,79 +66,195 @@ public class MedicalRiskPremiumCalculator {
                 request.getAgreementDateFrom()
         );
 
-        // 3. Коэффициент дополнительных рисков
-        BigDecimal additionalRisksCoeff = calculateAdditionalRisksCoefficient(
-                request.getSelectedRisks(),
-                request.getAgreementDateFrom()
-        );
-
-        // 4. Количество дней
+        // 3. Количество дней
         long days = ChronoUnit.DAYS.between(
                 request.getAgreementDateFrom(),
                 request.getAgreementDateTo()
         );
 
-        // 5. Итоговый коэффициент
+        //  4. Коэффициент длительности (прогрессивная скидка)
+        BigDecimal durationCoefficient = durationPricingService.getDurationCoefficient(
+                (int) days,
+                request.getAgreementDateFrom()
+        );
+
+        log.debug("Duration coefficient for {} days: {}", days, durationCoefficient);
+
+        // 5. Коэффициент дополнительных рисков с возрастными модификаторами
+        AdditionalRisksCalculation additionalRisksCalc = calculateAdditionalRisksWithAgeModifiers(
+                request.getSelectedRisks(),
+                ageResult.age(),
+                request.getAgreementDateFrom()
+        );
+
+        log.debug("Additional risks coefficient (age-modified): {}",
+                additionalRisksCalc.totalCoefficient());
+
+        // 6. Итоговый коэффициент (БЕЗ пакетной скидки - она применяется отдельно)
         BigDecimal totalCoeff = ageResult.coefficient()
                 .multiply(country.getRiskCoefficient())
-                .multiply(BigDecimal.ONE.add(additionalRisksCoeff));
+                .multiply(durationCoefficient)
+                .multiply(BigDecimal.ONE.add(additionalRisksCalc.totalCoefficient()));
 
-        // 6. Итоговая премия
-        BigDecimal premium = medicalLevel.getDailyRate()
+        // 7. Базовая премия (ДО пакетной скидки)
+        BigDecimal basePremium = medicalLevel.getDailyRate()
                 .multiply(totalCoeff)
                 .multiply(BigDecimal.valueOf(days))
                 .setScale(2, RoundingMode.HALF_UP);
 
-        // 7. Детали по рискам
+        log.debug("Base premium (before bundle discount): {}", basePremium);
+
+        // 8. Пакетная скидка
+        BundleDiscountResult bundleDiscount = calculateBundleDiscount(
+                request.getSelectedRisks(),
+                basePremium,
+                request.getAgreementDateFrom()
+        );
+
+        // 9. Итоговая премия
+        BigDecimal finalPremium = basePremium.subtract(bundleDiscount.discountAmount())
+                .setScale(2, RoundingMode.HALF_UP);
+
+        log.info("Final premium: {} (bundle discount: {})",
+                finalPremium, bundleDiscount.discountAmount());
+
+        // 10. Детали по рискам
         List<RiskPremiumDetail> riskDetails = calculateRiskDetails(
                 request.getSelectedRisks(),
                 medicalLevel.getDailyRate(),
                 ageResult.coefficient(),
                 country.getRiskCoefficient(),
+                durationCoefficient,
                 (int) days,
+                ageResult.age(),
                 request.getAgreementDateFrom()
         );
 
-        // 8. Формируем результат
+        // 11. Формируем результат
         return new PremiumCalculationResult(
-                premium,
+                finalPremium,
                 medicalLevel.getDailyRate(),
                 ageResult.age(),
                 ageResult.coefficient(),
                 ageResult.description(),
                 country.getRiskCoefficient(),
                 country.getNameEn(),
-                additionalRisksCoeff,
+                durationCoefficient,
+                additionalRisksCalc.totalCoefficient(),
                 totalCoeff,
                 (int) days,
                 medicalLevel.getCoverageAmount(),
                 riskDetails,
-                buildCalculationSteps(medicalLevel.getDailyRate(), ageResult.coefficient(),
-                        country.getRiskCoefficient(), additionalRisksCoeff, days, premium)
+                bundleDiscount,
+                buildCalculationSteps(
+                        medicalLevel.getDailyRate(),
+                        ageResult.coefficient(),
+                        country.getRiskCoefficient(),
+                        durationCoefficient,
+                        additionalRisksCalc.totalCoefficient(),
+                        days,
+                        basePremium,
+                        bundleDiscount.discountAmount(),
+                        finalPremium
+                )
         );
     }
 
-    private BigDecimal calculateAdditionalRisksCoefficient(List<String> selectedRiskCodes,
-                                                           java.time.LocalDate agreementDate) {
+    /**
+     * Расчет дополнительных рисков с возрастными модификаторами
+     */
+    private AdditionalRisksCalculation calculateAdditionalRisksWithAgeModifiers(
+            List<String> selectedRiskCodes,
+            int age,
+            java.time.LocalDate agreementDate) {
+
         if (selectedRiskCodes == null || selectedRiskCodes.isEmpty()) {
-            return BigDecimal.ZERO;
+            return new AdditionalRisksCalculation(
+                    BigDecimal.ZERO,
+                    new ArrayList<>()
+            );
         }
 
-        return selectedRiskCodes.stream()
-                .map(code -> riskTypeRepository.findActiveByCode(code, agreementDate))
-                .filter(java.util.Optional::isPresent)
-                .map(java.util.Optional::get)
-                .filter(risk -> !risk.getIsMandatory())
-                .map(risk -> risk.getCoefficient())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        List<ModifiedRiskDetail> modifiedRisks = new ArrayList<>();
+        BigDecimal totalCoefficient = BigDecimal.ZERO;
+
+        for (String riskCode : selectedRiskCodes) {
+            var riskOpt = riskTypeRepository.findActiveByCode(riskCode, agreementDate);
+
+            if (riskOpt.isPresent() && !riskOpt.get().getIsMandatory()) {
+                var risk = riskOpt.get();
+                BigDecimal baseCoefficient = risk.getCoefficient();
+
+                // Получаем возрастной модификатор
+                BigDecimal ageModifier = ageRiskPricingService.getAgeRiskModifier(
+                        riskCode, age, agreementDate
+                );
+
+                // Модифицированный коэффициент
+                BigDecimal modifiedCoefficient = baseCoefficient.multiply(ageModifier);
+
+                modifiedRisks.add(new ModifiedRiskDetail(
+                        riskCode,
+                        baseCoefficient,
+                        ageModifier,
+                        modifiedCoefficient
+                ));
+
+                totalCoefficient = totalCoefficient.add(modifiedCoefficient);
+
+                log.debug("Risk '{}': base={}, age_modifier={}, modified={}",
+                        riskCode, baseCoefficient, ageModifier, modifiedCoefficient);
+            }
+        }
+
+        return new AdditionalRisksCalculation(totalCoefficient, modifiedRisks);
     }
 
+    /**
+     * Расчет пакетной скидки
+     */
+    private BundleDiscountResult calculateBundleDiscount(
+            List<String> selectedRisks,
+            BigDecimal premiumAmount,
+            java.time.LocalDate agreementDate) {
+
+        if (selectedRisks == null || selectedRisks.isEmpty()) {
+            return new BundleDiscountResult(null, BigDecimal.ZERO);
+        }
+
+        var bestBundleOpt = riskBundleService.getBestApplicableBundle(
+                selectedRisks,
+                agreementDate
+        );
+
+        if (bestBundleOpt.isEmpty()) {
+            log.debug("No applicable bundle found");
+            return new BundleDiscountResult(null, BigDecimal.ZERO);
+        }
+
+        var bundle = bestBundleOpt.get();
+        BigDecimal discountAmount = riskBundleService.calculateBundleDiscount(
+                premiumAmount,
+                bundle
+        );
+
+        log.info("Applied bundle '{}' with {}% discount = {} EUR",
+                bundle.code(), bundle.discountPercentage(), discountAmount);
+
+        return new BundleDiscountResult(bundle, discountAmount);
+    }
+
+    /**
+     * Детали расчета рисков (ОБНОВЛЕНО для возрастных модификаторов)
+     */
     private List<RiskPremiumDetail> calculateRiskDetails(
             List<String> selectedRiskCodes,
             BigDecimal baseRate,
             BigDecimal ageCoefficient,
             BigDecimal countryCoefficient,
+            BigDecimal durationCoefficient,
             int days,
+            int age,
             java.time.LocalDate agreementDate) {
 
         List<RiskPremiumDetail> details = new ArrayList<>();
@@ -129,6 +263,7 @@ public class MedicalRiskPremiumCalculator {
         BigDecimal basePremium = baseRate
                 .multiply(ageCoefficient)
                 .multiply(countryCoefficient)
+                .multiply(durationCoefficient)
                 .multiply(BigDecimal.valueOf(days))
                 .setScale(2, RoundingMode.HALF_UP);
 
@@ -139,24 +274,35 @@ public class MedicalRiskPremiumCalculator {
                 medicalRisk.getCode(),
                 medicalRisk.getNameEn(),
                 basePremium,
-                BigDecimal.ZERO
+                BigDecimal.ZERO,
+                BigDecimal.ONE  // без возрастного модификатора
         ));
 
-        // Дополнительные риски
+        // Дополнительные риски (с возрастными модификаторами)
         if (selectedRiskCodes != null) {
             for (String riskCode : selectedRiskCodes) {
                 var riskOpt = riskTypeRepository.findActiveByCode(riskCode, agreementDate);
                 if (riskOpt.isPresent() && !riskOpt.get().getIsMandatory()) {
                     var risk = riskOpt.get();
+
+                    // Получаем возрастной модификатор
+                    BigDecimal ageModifier = ageRiskPricingService.getAgeRiskModifier(
+                            riskCode, age, agreementDate
+                    );
+
+                    // Модифицированный коэффициент
+                    BigDecimal modifiedCoefficient = risk.getCoefficient().multiply(ageModifier);
+
                     BigDecimal riskPremium = basePremium
-                            .multiply(risk.getCoefficient())
+                            .multiply(modifiedCoefficient)
                             .setScale(2, RoundingMode.HALF_UP);
 
                     details.add(new RiskPremiumDetail(
                             risk.getCode(),
                             risk.getNameEn(),
                             riskPremium,
-                            risk.getCoefficient()
+                            risk.getCoefficient(),
+                            ageModifier
                     ));
                 }
             }
@@ -165,12 +311,18 @@ public class MedicalRiskPremiumCalculator {
         return details;
     }
 
+    /**
+     * Шаги расчета
+     */
     private List<CalculationStep> buildCalculationSteps(
             BigDecimal baseRate,
             BigDecimal ageCoefficient,
             BigDecimal countryCoefficient,
+            BigDecimal durationCoefficient,
             BigDecimal additionalRisksCoefficient,
             long days,
+            BigDecimal basePremium,
+            BigDecimal bundleDiscount,
             BigDecimal finalPremium) {
 
         List<CalculationStep> steps = new ArrayList<>();
@@ -195,12 +347,23 @@ public class MedicalRiskPremiumCalculator {
                 baseRate.multiply(ageCoefficient).multiply(countryCoefficient)
         ));
 
+        steps.add(new CalculationStep(
+                "Trip duration coefficient",
+                String.format("Previous × Duration Coeff = %.2f × %.2f",
+                        baseRate.multiply(ageCoefficient).multiply(countryCoefficient),
+                        durationCoefficient),
+                baseRate.multiply(ageCoefficient)
+                        .multiply(countryCoefficient)
+                        .multiply(durationCoefficient)
+        ));
+
         if (additionalRisksCoefficient.compareTo(BigDecimal.ZERO) > 0) {
             steps.add(new CalculationStep(
-                    "Additional risks coefficient",
+                    "Additional risks coefficient (age-modified)",
                     String.format("Previous × (1 + %.2f)", additionalRisksCoefficient),
                     baseRate.multiply(ageCoefficient)
                             .multiply(countryCoefficient)
+                            .multiply(durationCoefficient)
                             .multiply(BigDecimal.ONE.add(additionalRisksCoefficient))
             ));
         }
@@ -208,12 +371,52 @@ public class MedicalRiskPremiumCalculator {
         steps.add(new CalculationStep(
                 "Multiply by number of days",
                 String.format("Previous × %d days", days),
-                finalPremium
+                basePremium
         ));
+
+        if (bundleDiscount.compareTo(BigDecimal.ZERO) > 0) {
+            steps.add(new CalculationStep(
+                    "Bundle discount",
+                    String.format("Previous - Bundle Discount = %.2f - %.2f",
+                            basePremium, bundleDiscount),
+                    finalPremium
+            ));
+        }
 
         return steps;
     }
 
+    // ========== ВЛОЖЕННЫЕ КЛАССЫ ==========
+
+    /**
+     * Результат расчета дополнительных рисков с модификаторами
+     */
+    private record AdditionalRisksCalculation(
+            BigDecimal totalCoefficient,
+            List<ModifiedRiskDetail> modifiedRisks
+    ) {}
+
+    /**
+     * Детали модифицированного риска
+     */
+    private record ModifiedRiskDetail(
+            String riskCode,
+            BigDecimal baseCoefficient,
+            BigDecimal ageModifier,
+            BigDecimal modifiedCoefficient
+    ) {}
+
+    /**
+     * Результат пакетной скидки
+     */
+    public record BundleDiscountResult(
+            RiskBundleService.ApplicableBundleResult bundle,
+            BigDecimal discountAmount
+    ) {}
+
+    /**
+     * Результат расчета премии (ОБНОВЛЕНО)
+     */
     public record PremiumCalculationResult(
             BigDecimal premium,
             BigDecimal baseRate,
@@ -222,19 +425,25 @@ public class MedicalRiskPremiumCalculator {
             String ageGroupDescription,
             BigDecimal countryCoefficient,
             String countryName,
+            BigDecimal durationCoefficient,  // 🆕
             BigDecimal additionalRisksCoefficient,
             BigDecimal totalCoefficient,
             int days,
             BigDecimal coverageAmount,
             List<RiskPremiumDetail> riskDetails,
+            BundleDiscountResult bundleDiscount,  // 🆕
             List<CalculationStep> calculationSteps
     ) {}
 
+    /**
+     * Детали премии по риску
+     */
     public record RiskPremiumDetail(
             String riskCode,
             String riskName,
             BigDecimal premium,
-            BigDecimal coefficient
+            BigDecimal coefficient,
+            BigDecimal ageModifier  // 🆕
     ) {}
 
     public record CalculationStep(

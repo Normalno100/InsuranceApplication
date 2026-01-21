@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- ============================================ -->
+    <!-- Данные для прогрессивной шкалы длительности -->
+    <!-- ============================================ -->
+    <changeSet id="010-01-insert-trip-duration-coefficients" author="travel-insurance">
+
+        <!-- 1-7 дней: без скидки -->
+        <insert tableName="trip_duration_coefficients">
+            <column name="days_from" valueNumeric="1"/>
+            <column name="days_to" valueNumeric="7"/>
+            <column name="coefficient" valueNumeric="1.00"/>
+            <column name="description" value="Short trip (1 week)"/>
+        </insert>
+
+        <!-- 8-14 дней: -5% скидка -->
+        <insert tableName="trip_duration_coefficients">
+            <column name="days_from" valueNumeric="8"/>
+            <column name="days_to" valueNumeric="14"/>
+            <column name="coefficient" valueNumeric="0.95"/>
+            <column name="description" value="Medium trip (2 weeks) - 5% discount"/>
+        </insert>
+
+        <!-- 15-30 дней: -10% скидка -->
+        <insert tableName="trip_duration_coefficients">
+            <column name="days_from" valueNumeric="15"/>
+            <column name="days_to" valueNumeric="30"/>
+            <column name="coefficient" valueNumeric="0.90"/>
+            <column name="description" value="Long trip (1 month) - 10% discount"/>
+        </insert>
+
+        <!-- 31-60 дней: -12% скидка -->
+        <insert tableName="trip_duration_coefficients">
+            <column name="days_from" valueNumeric="31"/>
+            <column name="days_to" valueNumeric="60"/>
+            <column name="coefficient" valueNumeric="0.88"/>
+            <column name="description" value="Extended trip (2 months) - 12% discount"/>
+        </insert>
+
+        <!-- 61-90 дней: -15% скидка -->
+        <insert tableName="trip_duration_coefficients">
+            <column name="days_from" valueNumeric="61"/>
+            <column name="days_to" valueNumeric="90"/>
+            <column name="coefficient" valueNumeric="0.85"/>
+            <column name="description" value="Very long trip (3 months) - 15% discount"/>
+        </insert>
+
+        <!-- 91+ дней: -18% скидка -->
+        <insert tableName="trip_duration_coefficients">
+            <column name="days_from" valueNumeric="91"/>
+            <column name="days_to" valueNumeric="365"/>
+            <column name="coefficient" valueNumeric="0.82"/>
+            <column name="description" value="Ultra long trip (3+ months) - 18% discount"/>
+        </insert>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Данные для пакетов рисков -->
+    <!-- ============================================ -->
+    <changeSet id="010-02-insert-risk-bundles" author="travel-insurance">
+
+        <!-- Пакет "Active Traveler" -->
+        <insert tableName="risk_bundles">
+            <column name="code" value="ACTIVE_TRAVELER"/>
+            <column name="name_en" value="Active Traveler Package"/>
+            <column name="name_ru" value="Пакет 'Активный путешественник'"/>
+            <column name="description" value="For sports enthusiasts - includes sports and accident coverage"/>
+            <column name="discount_percentage" valueNumeric="15.00"/>
+            <column name="required_risks" value='["SPORT_ACTIVITIES", "ACCIDENT_COVERAGE"]'/>
+            <column name="is_active" valueBoolean="true"/>
+        </insert>
+
+        <!-- Пакет "Full Protection" -->
+        <insert tableName="risk_bundles">
+            <column name="code" value="FULL_PROTECTION"/>
+            <column name="name_en" value="Full Protection Package"/>
+            <column name="name_ru" value="Пакет 'Полная защита'"/>
+            <column name="description" value="Complete coverage for worry-free travel"/>
+            <column name="discount_percentage" valueNumeric="20.00"/>
+            <column name="required_risks" value='["TRIP_CANCELLATION", "LUGGAGE_LOSS", "FLIGHT_DELAY"]'/>
+            <column name="is_active" valueBoolean="true"/>
+        </insert>
+
+        <!-- Пакет "Extreme Adventure" -->
+        <insert tableName="risk_bundles">
+            <column name="code" value="EXTREME_ADVENTURE"/>
+            <column name="name_en" value="Extreme Adventure Package"/>
+            <column name="name_ru" value="Пакет 'Экстремальное приключение'"/>
+            <column name="description" value="For adrenaline junkies - extreme sports with full accident coverage"/>
+            <column name="discount_percentage" valueNumeric="18.00"/>
+            <column name="required_risks" value='["EXTREME_SPORT", "ACCIDENT_COVERAGE", "CHRONIC_DISEASES"]'/>
+            <column name="is_active" valueBoolean="true"/>
+        </insert>
+
+        <!-- Пакет "Family Care" -->
+        <insert tableName="risk_bundles">
+            <column name="code" value="FAMILY_CARE"/>
+            <column name="name_en" value="Family Care Package"/>
+            <column name="name_ru" value="Пакет 'Семейная забота'"/>
+            <column name="description" value="Perfect for family trips with children"/>
+            <column name="discount_percentage" valueNumeric="12.00"/>
+            <column name="required_risks" value='["TRIP_CANCELLATION", "LUGGAGE_LOSS"]'/>
+            <column name="is_active" valueBoolean="true"/>
+        </insert>
+
+        <!-- Пакет "Business Traveler" -->
+        <insert tableName="risk_bundles">
+            <column name="code" value="BUSINESS_TRAVELER"/>
+            <column name="name_en" value="Business Traveler Package"/>
+            <column name="name_ru" value="Пакет 'Деловой путешественник'"/>
+            <column name="description" value="Essential coverage for business trips"/>
+            <column name="discount_percentage" valueNumeric="10.00"/>
+            <column name="required_risks" value='["TRIP_CANCELLATION", "FLIGHT_DELAY", "CIVIL_LIABILITY"]'/>
+            <column name="is_active" valueBoolean="true"/>
+        </insert>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Данные для возрастных коэффициентов рисков -->
+    <!-- ============================================ -->
+    <changeSet id="010-03-insert-age-risk-coefficients" author="travel-insurance">
+
+        <!-- EXTREME_SPORT: дороже для пожилых -->
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="EXTREME_SPORT"/>
+            <column name="age_from" valueNumeric="18"/>
+            <column name="age_to" valueNumeric="35"/>
+            <column name="coefficient_modifier" valueNumeric="1.00"/>
+            <column name="description" value="Standard rate for young adults"/>
+        </insert>
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="EXTREME_SPORT"/>
+            <column name="age_from" valueNumeric="36"/>
+            <column name="age_to" valueNumeric="50"/>
+            <column name="coefficient_modifier" valueNumeric="1.30"/>
+            <column name="description" value="+30% for middle-aged"/>
+        </insert>
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="EXTREME_SPORT"/>
+            <column name="age_from" valueNumeric="51"/>
+            <column name="age_to" valueNumeric="65"/>
+            <column name="coefficient_modifier" valueNumeric="1.80"/>
+            <column name="description" value="+80% for seniors"/>
+        </insert>
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="EXTREME_SPORT"/>
+            <column name="age_from" valueNumeric="66"/>
+            <column name="age_to" valueNumeric="80"/>
+            <column name="coefficient_modifier" valueNumeric="2.50"/>
+            <column name="description" value="+150% for elderly (high risk)"/>
+        </insert>
+
+        <!-- PREGNANCY: дороже для поздней беременности -->
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="PREGNANCY"/>
+            <column name="age_from" valueNumeric="18"/>
+            <column name="age_to" valueNumeric="30"/>
+            <column name="coefficient_modifier" valueNumeric="1.00"/>
+            <column name="description" value="Standard rate for optimal age"/>
+        </insert>
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="PREGNANCY"/>
+            <column name="age_from" valueNumeric="31"/>
+            <column name="age_to" valueNumeric="35"/>
+            <column name="coefficient_modifier" valueNumeric="1.20"/>
+            <column name="description" value="+20% for age 31-35"/>
+        </insert>
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="PREGNANCY"/>
+            <column name="age_from" valueNumeric="36"/>
+            <column name="age_to" valueNumeric="40"/>
+            <column name="coefficient_modifier" valueNumeric="1.50"/>
+            <column name="description" value="+50% for late pregnancy (higher risk)"/>
+        </insert>
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="PREGNANCY"/>
+            <column name="age_from" valueNumeric="41"/>
+            <column name="age_to" valueNumeric="50"/>
+            <column name="coefficient_modifier" valueNumeric="2.00"/>
+            <column name="description" value="+100% for very late pregnancy"/>
+        </insert>
+
+        <!-- CHRONIC_DISEASES: дороже для пожилых -->
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="CHRONIC_DISEASES"/>
+            <column name="age_from" valueNumeric="18"/>
+            <column name="age_to" valueNumeric="45"/>
+            <column name="coefficient_modifier" valueNumeric="1.00"/>
+            <column name="description" value="Standard rate for adults"/>
+        </insert>
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="CHRONIC_DISEASES"/>
+            <column name="age_from" valueNumeric="46"/>
+            <column name="age_to" valueNumeric="60"/>
+            <column name="coefficient_modifier" valueNumeric="1.40"/>
+            <column name="description" value="+40% for middle-aged"/>
+        </insert>
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="CHRONIC_DISEASES"/>
+            <column name="age_from" valueNumeric="61"/>
+            <column name="age_to" valueNumeric="70"/>
+            <column name="coefficient_modifier" valueNumeric="1.80"/>
+            <column name="description" value="+80% for seniors"/>
+        </insert>
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="CHRONIC_DISEASES"/>
+            <column name="age_from" valueNumeric="71"/>
+            <column name="age_to" valueNumeric="80"/>
+            <column name="coefficient_modifier" valueNumeric="2.50"/>
+            <column name="description" value="+150% for elderly (very high risk)"/>
+        </insert>
+
+        <!-- SPORT_ACTIVITIES: умеренное увеличение для старших -->
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="SPORT_ACTIVITIES"/>
+            <column name="age_from" valueNumeric="18"/>
+            <column name="age_to" valueNumeric="50"/>
+            <column name="coefficient_modifier" valueNumeric="1.00"/>
+            <column name="description" value="Standard rate"/>
+        </insert>
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="SPORT_ACTIVITIES"/>
+            <column name="age_from" valueNumeric="51"/>
+            <column name="age_to" valueNumeric="65"/>
+            <column name="coefficient_modifier" valueNumeric="1.20"/>
+            <column name="description" value="+20% for seniors"/>
+        </insert>
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="SPORT_ACTIVITIES"/>
+            <column name="age_from" valueNumeric="66"/>
+            <column name="age_to" valueNumeric="80"/>
+            <column name="coefficient_modifier" valueNumeric="1.50"/>
+            <column name="description" value="+50% for elderly"/>
+        </insert>
+
+        <!-- ACCIDENT_COVERAGE: дороже для детей и пожилых -->
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="ACCIDENT_COVERAGE"/>
+            <column name="age_from" valueNumeric="0"/>
+            <column name="age_to" valueNumeric="12"/>
+            <column name="coefficient_modifier" valueNumeric="1.20"/>
+            <column name="description" value="+20% for children (more accidents)"/>
+        </insert>
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="ACCIDENT_COVERAGE"/>
+            <column name="age_from" valueNumeric="13"/>
+            <column name="age_to" valueNumeric="60"/>
+            <column name="coefficient_modifier" valueNumeric="1.00"/>
+            <column name="description" value="Standard rate"/>
+        </insert>
+        <insert tableName="age_risk_coefficients">
+            <column name="risk_type_code" value="ACCIDENT_COVERAGE"/>
+            <column name="age_from" valueNumeric="61"/>
+            <column name="age_to" valueNumeric="80"/>
+            <column name="coefficient_modifier" valueNumeric="1.40"/>
+            <column name="description" value="+40% for elderly (falls, slower recovery)"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

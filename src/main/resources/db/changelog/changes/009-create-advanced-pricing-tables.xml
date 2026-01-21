@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- ============================================ -->
+    <!--         Прогрессивная шкала длительности     -->
+    <!-- ============================================ -->
+    <changeSet id="009-01-create-trip-duration-coefficients" author="travel-insurance">
+        <createTable tableName="trip_duration_coefficients">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <!-- Диапазон дней -->
+            <column name="days_from" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="days_to" type="INT">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Коэффициент (1.0 = без скидки, 0.9 = -10%) -->
+            <column name="coefficient" type="DECIMAL(5, 2)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Описание -->
+            <column name="description" type="VARCHAR(100)"/>
+
+            <!-- Период действия -->
+            <column name="valid_from" type="DATE" defaultValueComputed="CURRENT_DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="valid_to" type="DATE"/>
+
+            <!-- Метаданные -->
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <!-- Уникальный диапазон -->
+        <addUniqueConstraint
+                tableName="trip_duration_coefficients"
+                columnNames="days_from, days_to, valid_from"
+                constraintName="uk_duration_range"/>
+
+        <!-- Индекс для поиска -->
+        <createIndex tableName="trip_duration_coefficients" indexName="idx_duration_range">
+            <column name="days_from"/>
+            <column name="days_to"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!--         Пакеты рисков (Risk Bundles)         -->
+    <!-- ============================================ -->
+    <changeSet id="009-02-create-risk-bundles" author="travel-insurance">
+        <createTable tableName="risk_bundles">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <!-- Код и название пакета -->
+            <column name="code" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name_en" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name_ru" type="VARCHAR(100)"/>
+
+            <!-- Описание -->
+            <column name="description" type="TEXT"/>
+
+            <!-- Скидка в процентах (10 = 10% скидка) -->
+            <column name="discount_percentage" type="DECIMAL(5, 2)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Требуемые риски (JSON array) -->
+            <column name="required_risks" type="JSONB">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Период действия -->
+            <column name="valid_from" type="DATE" defaultValueComputed="CURRENT_DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="valid_to" type="DATE"/>
+
+            <!-- Активность -->
+            <column name="is_active" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Метаданные -->
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <!-- Уникальный код -->
+        <addUniqueConstraint
+                tableName="risk_bundles"
+                columnNames="code, valid_from"
+                constraintName="uk_bundle_code"/>
+
+        <!-- Индекс для активных пакетов -->
+        <createIndex tableName="risk_bundles" indexName="idx_bundle_active">
+            <column name="is_active"/>
+        </createIndex>
+
+        <!-- GIN индекс для поиска по рискам -->
+        <sql>
+            CREATE INDEX idx_bundle_risks ON risk_bundles USING GIN (required_risks);
+        </sql>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!--        Возрастные коэффициенты рисков        -->
+    <!-- ============================================ -->
+    <changeSet id="009-03-create-age-risk-coefficients" author="travel-insurance">
+        <createTable tableName="age_risk_coefficients">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <!-- Тип риска -->
+            <column name="risk_type_code" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Диапазон возраста -->
+            <column name="age_from" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="age_to" type="INT">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Модификатор коэффициента -->
+            <!-- 1.0 = нет изменений, 1.5 = +50%, 0.8 = -20% -->
+            <column name="coefficient_modifier" type="DECIMAL(5, 2)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Описание -->
+            <column name="description" type="VARCHAR(255)"/>
+
+            <!-- Период действия -->
+            <column name="valid_from" type="DATE" defaultValueComputed="CURRENT_DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="valid_to" type="DATE"/>
+
+            <!-- Метаданные -->
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <!-- Уникальный индекс -->
+        <addUniqueConstraint
+                tableName="age_risk_coefficients"
+                columnNames="risk_type_code, age_from, age_to, valid_from"
+                constraintName="uk_age_risk"/>
+
+        <!-- Составной индекс для поиска -->
+        <createIndex tableName="age_risk_coefficients" indexName="idx_age_risk_lookup">
+            <column name="risk_type_code"/>
+            <column name="age_from"/>
+            <column name="age_to"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Триггеры для updated_at -->
+    <!-- ============================================ -->
+    <changeSet id="009-04-create-triggers-for-new-tables" author="travel-insurance">
+        <sql splitStatements="false"><![CDATA[
+            CREATE TRIGGER update_trip_duration_coefficients_updated_at
+            BEFORE UPDATE ON trip_duration_coefficients
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+        ]]></sql>
+
+        <sql splitStatements="false"><![CDATA[
+            CREATE TRIGGER update_risk_bundles_updated_at
+            BEFORE UPDATE ON risk_bundles
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+        ]]></sql>
+
+        <sql splitStatements="false"><![CDATA[
+            CREATE TRIGGER update_age_risk_coefficients_updated_at
+            BEFORE UPDATE ON age_risk_coefficients
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+        ]]></sql>
+
+        <rollback>
+            DROP TRIGGER IF EXISTS update_trip_duration_coefficients_updated_at ON trip_duration_coefficients;
+            DROP TRIGGER IF EXISTS update_risk_bundles_updated_at ON risk_bundles;
+            DROP TRIGGER IF EXISTS update_age_risk_coefficients_updated_at ON age_risk_coefficients;
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

@@ -9,7 +9,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Ответ на расчет страховой премии (версия 2)
+ * Ответ на расчет страховой премии
  */
 @Getter
 @Setter
@@ -53,28 +53,22 @@ public class TravelCalculatePremiumResponse extends CoreResponse {
 
     // Детали расчета
     private CalculationDetails calculation;
+
+    // Промо-коды и скидки
     private PromoCodeInfo promoCodeInfo;
     private List<DiscountInfo> appliedDiscounts;
 
-    // Поля для андеррайтинга
-    /**
-     * Решение андеррайтинга: APPROVED, REQUIRES_MANUAL_REVIEW, DECLINED
-     */
+    //  Информация о пакете рисков (ИДЕЯ #2)
+    private BundleInfo appliedBundle;
+
+    // Андеррайтинг
     private String underwritingDecision;
-
-    /**
-     * Причина отказа (если declined)
-     */
     private String declineReason;
-
-    /**
-     * Причина требования ручной проверки (если requires review)
-     */
     private String reviewReason;
 
-    // ВАЖНО: поле errors находится в родительском классе CoreResponse!
-    // Не добавляйте его здесь, иначе будет дублирование
-
+    /**
+     *  Детали премии по риску (с возрастным модификатором)
+     */
     @Getter
     @Setter
     @NoArgsConstructor
@@ -84,8 +78,14 @@ public class TravelCalculatePremiumResponse extends CoreResponse {
         private String riskName;
         private BigDecimal premium;
         private BigDecimal coefficient;
+
+        // 🆕 НОВОЕ: возрастной модификатор (ИДЕЯ #5)
+        private BigDecimal ageModifier;
     }
 
+    /**
+     *  Детали расчета
+     */
     @Getter
     @Setter
     @NoArgsConstructor
@@ -94,6 +94,10 @@ public class TravelCalculatePremiumResponse extends CoreResponse {
         private BigDecimal baseRate;
         private BigDecimal ageCoefficient;
         private BigDecimal countryCoefficient;
+
+        // коэффициент длительности
+        private BigDecimal durationCoefficient;
+
         private BigDecimal additionalRisksCoefficient;
         private BigDecimal totalCoefficient;
         private Integer days;
@@ -132,5 +136,20 @@ public class TravelCalculatePremiumResponse extends CoreResponse {
         private String name;
         private BigDecimal percentage;
         private BigDecimal amount;
+    }
+
+    /**
+     * Информация о примененном пакете рисков
+     */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BundleInfo {
+        private String code;
+        private String name;
+        private BigDecimal discountPercentage;
+        private BigDecimal discountAmount;
+        private List<String> includedRisks;
     }
 }
