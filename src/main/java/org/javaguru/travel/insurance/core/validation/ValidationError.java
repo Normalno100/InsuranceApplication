@@ -1,13 +1,19 @@
 package org.javaguru.travel.insurance.core.validation;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.util.HashMap;
 import java.util.Map;
 
 /**
  * Ошибка валидации с поддержкой severity и i18n
  */
+@Getter
+@Setter
 public class ValidationError {
 
+    // Getters
     private final String field;
     private final String message;
     private final String errorCode;
@@ -28,27 +34,6 @@ public class ValidationError {
         this.errorCode = errorCode;
         this.severity = severity != null ? severity : Severity.ERROR;
         this.parameters = new HashMap<>();
-    }
-
-    // Getters
-    public String getField() {
-        return field;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public String getErrorCode() {
-        return errorCode;
-    }
-
-    public Severity getSeverity() {
-        return severity;
-    }
-
-    public Map<String, Object> getParameters() {
-        return parameters;
     }
 
     /**

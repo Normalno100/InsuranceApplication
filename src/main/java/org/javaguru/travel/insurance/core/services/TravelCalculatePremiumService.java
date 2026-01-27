@@ -5,14 +5,14 @@ import org.javaguru.travel.insurance.core.validation.TravelCalculatePremiumReque
 import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator;
 import org.javaguru.travel.insurance.core.underwriting.UnderwritingService;
 import org.javaguru.travel.insurance.core.underwriting.domain.UnderwritingResult;
-import org.javaguru.travel.insurance.dto.ValidationError;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumResponse;
+import org.javaguru.travel.insurance.dto.*;
+import org.javaguru.travel.insurance.dto.TravelCalculatePremiumResponse.*;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -26,85 +26,83 @@ public class TravelCalculatePremiumService {
 
     private static final BigDecimal MIN_PREMIUM = new BigDecimal("10.00");
 
-    public TravelCalculatePremiumResponse calculatePremium(TravelCalculatePremiumRequest request) {
+    /**
+     * Расчет премии с полными деталями
+     */
+    public TravelCalculatePremiumResponse calculatePremium(
+            TravelCalculatePremiumRequest request) {
+        return calculatePremium(request, true);
+    }
+
+    /**
+     * Расчет премии с опциональными деталями
+     *
+     * @param request запрос на расчет
+     * @param includeDetails включать ли детальную разбивку расчета
+     */
+    public TravelCalculatePremiumResponse calculatePremium(
+            TravelCalculatePremiumRequest request,
+            boolean includeDetails) {
+
+        var responseBuilder = TravelCalculatePremiumResponse.builder();
+
         // 1. Валидация
-        List<ValidationError> errors = validator.validate(request);
-        if (!errors.isEmpty()) {
-            TravelCalculatePremiumResponse response = new TravelCalculatePremiumResponse();
-            response.setErrors(errors);  // ✅ Используем сеттер из родительского класса
-            return response;
+        List<org.javaguru.travel.insurance.core.validation.ValidationError> validationErrors =
+                validator.validate(request);
+
+        if (!validationErrors.isEmpty()) {
+            return buildValidationErrorResponse(validationErrors);
         }
 
-        // 2. Андеррайтинг (оценка рисков)
+        // 2. Андеррайтинг
         UnderwritingResult underwritingResult = underwritingService.evaluateApplication(request);
 
         // 2a. Если заявка отклонена
         if (underwritingResult.isDeclined()) {
-            TravelCalculatePremiumResponse response = TravelCalculatePremiumResponse.builder()
-                    .personFirstName(request.getPersonFirstName())
-                    .personLastName(request.getPersonLastName())
-                    .underwritingDecision(underwritingResult.getDecision().name())
-                    .declineReason(underwritingResult.getDeclineReason())
-                    .build();
-            // Устанавливаем errors через сеттер, а не через билдер
-            response.setErrors(List.of(new ValidationError(
-                    "underwriting",
-                    "Application declined: " + underwritingResult.getDeclineReason()
-            )));
-            return response;
+            return buildDeclinedResponse(request, underwritingResult);
         }
 
         // 2b. Если требуется ручная проверка
         if (underwritingResult.requiresManualReview()) {
-            TravelCalculatePremiumResponse response = TravelCalculatePremiumResponse.builder()
-                    .personFirstName(request.getPersonFirstName())
-                    .personLastName(request.getPersonLastName())
-                    .underwritingDecision(underwritingResult.getDecision().name())
-                    .reviewReason(underwritingResult.getDeclineReason())
-                    .build();
-            // ✅ Устанавливаем errors через сеттер
-            response.setErrors(List.of(new ValidationError(
-                    "underwriting",
-                    "Manual review required: " + underwritingResult.getDeclineReason()
-            )));
-            return response;
+            return buildReviewRequiredResponse(request, underwritingResult);
         }
 
+        // 3. Расчет премии (только если одобрено)
         try {
-            // 3. Расчет базовой премии (только если одобрено)
             var calculationResult = medicalRiskCalculator.calculatePremiumWithDetails(request);
-            BigDecimal premium = calculationResult.premium();
+            BigDecimal basePremium = calculationResult.premium();
 
             // 4. Применение промо-кода и скидок
+            List<AppliedDiscount> appliedDiscounts = new ArrayList<>();
             BigDecimal totalDiscount = BigDecimal.ZERO;
-            TravelCalculatePremiumResponse.PromoCodeInfo promoInfo = null;
-            List<TravelCalculatePremiumResponse.DiscountInfo> discounts = new ArrayList<>();
 
+            // Промо-код
             if (request.getPromoCode() != null && !request.getPromoCode().trim().isEmpty()) {
                 var promoResult = promoCodeService.applyPromoCode(
                         request.getPromoCode(),
                         request.getAgreementDateFrom(),
-                        premium
+                        basePremium
                 );
 
                 if (promoResult.isValid()) {
-                    totalDiscount = promoResult.actualDiscountAmount();
-                    promoInfo = new TravelCalculatePremiumResponse.PromoCodeInfo(
-                            promoResult.code(),
-                            promoResult.description(),
-                            promoResult.discountType().name(),
-                            promoResult.discountValue(),
-                            promoResult.actualDiscountAmount()
-                    );
+                    totalDiscount = totalDiscount.add(promoResult.actualDiscountAmount());
+                    appliedDiscounts.add(AppliedDiscount.builder()
+                            .type("PROMO_CODE")
+                            .code(promoResult.code())
+                            .description(promoResult.description())
+                            .amount(promoResult.actualDiscountAmount())
+                            .percentage(promoResult.discountValue())
+                            .build());
                 }
             }
 
+            // Другие скидки (групповые, корпоративные)
             int personsCount = request.getPersonsCount() != null && request.getPersonsCount() > 0
                     ? request.getPersonsCount() : 1;
             boolean isCorporate = Boolean.TRUE.equals(request.getIsCorporate());
 
             var bestDiscount = discountService.calculateBestDiscount(
-                    premium,
+                    basePremium,
                     personsCount,
                     isCorporate,
                     request.getAgreementDateFrom()
@@ -113,127 +111,283 @@ public class TravelCalculatePremiumService {
             if (bestDiscount.isPresent()) {
                 var discount = bestDiscount.get();
                 totalDiscount = totalDiscount.add(discount.amount());
-                discounts.add(new TravelCalculatePremiumResponse.DiscountInfo(
-                        discount.discountType().name(),
-                        discount.name(),
-                        discount.percentage(),
-                        discount.amount()
-                ));
+                appliedDiscounts.add(AppliedDiscount.builder()
+                        .type(discount.discountType().name())
+                        .code(discount.code())
+                        .description(discount.name())
+                        .amount(discount.amount())
+                        .percentage(discount.percentage())
+                        .build());
             }
 
-            BigDecimal finalPremium = applyMinimumPremium(premium.subtract(totalDiscount));
+            // Пакетная скидка
+            var bundleDiscount = calculationResult.bundleDiscount();
+            if (bundleDiscount != null && bundleDiscount.bundle() != null) {
+                var bundle = bundleDiscount.bundle();
+                appliedDiscounts.add(AppliedDiscount.builder()
+                        .type("BUNDLE")
+                        .code(bundle.code())
+                        .description(bundle.name())
+                        .amount(bundleDiscount.discountAmount())
+                        .percentage(bundle.discountPercentage())
+                        .build());
+            }
+
+            BigDecimal finalPremium = applyMinimumPremium(
+                    basePremium.subtract(totalDiscount)
+            );
+
             String currency = request.getCurrency() != null && !request.getCurrency().trim().isEmpty()
                     ? request.getCurrency() : "EUR";
 
-            var response = buildResponse(request, calculationResult, premium, totalDiscount,
-                    finalPremium, currency, promoInfo, discounts);
-
-            // 5. Добавляем информацию об андеррайтинге
-            response.setUnderwritingDecision(underwritingResult.getDecision().name());
-
-            return response;
+            // 5. Строим успешный ответ
+            return buildSuccessResponse(
+                    request,
+                    calculationResult,
+                    basePremium,
+                    totalDiscount,
+                    finalPremium,
+                    currency,
+                    appliedDiscounts,
+                    underwritingResult,
+                    includeDetails
+            );
 
         } catch (Exception e) {
-            TravelCalculatePremiumResponse response = new TravelCalculatePremiumResponse();
-            // ✅ Устанавливаем errors через сеттер
-            response.setErrors(List.of(
-                    new ValidationError("system", "Calculation error: " + e.getMessage())
-            ));
-            return response;
+            return buildSystemErrorResponse(e.getMessage());
         }
     }
 
-    private BigDecimal applyMinimumPremium(BigDecimal premium) {
-        if (premium.compareTo(BigDecimal.ZERO) <= 0) {
-            return BigDecimal.ZERO;
-        }
-        if (premium.compareTo(MIN_PREMIUM) < 0) {
-            return MIN_PREMIUM;
-        }
-        return premium;
-    }
+    /**
+     * Строит ответ с ошибками валидации
+     */
+    private TravelCalculatePremiumResponse buildValidationErrorResponse(
+            List<org.javaguru.travel.insurance.core.validation.ValidationError> errors) {
 
-    private TravelCalculatePremiumResponse buildResponse(
-            TravelCalculatePremiumRequest request,
-            MedicalRiskPremiumCalculator.PremiumCalculationResult result,
-            BigDecimal premiumBeforeDiscount,
-            BigDecimal discountAmount,
-            BigDecimal finalPremium,
-            String currency,
-            TravelCalculatePremiumResponse.PromoCodeInfo promoInfo,
-            List<TravelCalculatePremiumResponse.DiscountInfo> discounts) {
+        var validationErrors = errors.stream()
+                .map(e -> TravelCalculatePremiumResponse.ValidationError.builder()
+                        .field(e.getField())
+                        .message(e.getMessage())
+                        .build())
+                .collect(Collectors.toList());
 
-        // Риски с возрастными модификаторами
-        var riskPremiums = result.riskDetails().stream()
-                .map(d -> new TravelCalculatePremiumResponse.RiskPremium(
-                        d.riskCode(),
-                        d.riskName(),
-                        d.premium(),
-                        d.coefficient(),
-                        d.ageModifier()
-                ))
-                .toList();
-
-        // Шаги расчета
-        var steps = result.calculationSteps().stream()
-                .map(s -> new TravelCalculatePremiumResponse.CalculationStep(
-                        s.description(), s.formula(), s.result()
-                ))
-                .toList();
-
-        // Детали расчета
-        var calculationDetails = new TravelCalculatePremiumResponse.CalculationDetails(
-                result.baseRate(),
-                result.ageCoefficient(),
-                result.countryCoefficient(),
-                result.durationCoefficient(),
-                result.additionalRisksCoefficient(),
-                result.totalCoefficient(),
-                result.days(),
-                buildFormula(result),
-                steps
-        );
-
-        // Информация о пакете рисков
-        TravelCalculatePremiumResponse.BundleInfo bundleInfo = null;
-        var bundleDiscount = result.bundleDiscount();
-
-        if (bundleDiscount != null && bundleDiscount.bundle() != null) {
-            bundleInfo = new TravelCalculatePremiumResponse.BundleInfo(
-                    bundleDiscount.bundle().code(),
-                    bundleDiscount.bundle().name(),
-                    bundleDiscount.bundle().discountPercentage(),
-                    bundleDiscount.discountAmount(),
-                    bundleDiscount.bundle().requiredRisks()
-            );
-        }
-
-        // Строим ответ
         return TravelCalculatePremiumResponse.builder()
-                .personFirstName(request.getPersonFirstName())
-                .personLastName(request.getPersonLastName())
-                .personBirthDate(request.getPersonBirthDate())
-                .personAge(result.age())
-                .agreementDateFrom(request.getAgreementDateFrom())
-                .agreementDateTo(request.getAgreementDateTo())
-                .agreementDays(result.days())
-                .countryIsoCode(request.getCountryIsoCode())
-                .countryName(result.countryName())
-                .medicalRiskLimitLevel(request.getMedicalRiskLimitLevel())
-                .coverageAmount(result.coverageAmount())
-                .selectedRisks(request.getSelectedRisks())
-                .riskPremiums(riskPremiums)
-                .agreementPriceBeforeDiscount(premiumBeforeDiscount)
-                .discountAmount(discountAmount)
-                .agreementPrice(finalPremium)
-                .currency(currency)
-                .calculation(calculationDetails)
-                .promoCodeInfo(promoInfo)
-                .appliedDiscounts(discounts.isEmpty() ? null : discounts)
-                .appliedBundle(bundleInfo)  //
+                .status(ResponseStatus.VALIDATION_ERROR)
+                .success(false)
+                .errors(validationErrors)
                 .build();
     }
 
+    /**
+     * Строит ответ для отклоненной заявки
+     */
+    private TravelCalculatePremiumResponse buildDeclinedResponse(
+            TravelCalculatePremiumRequest request,
+            UnderwritingResult underwritingResult) {
+
+        return TravelCalculatePremiumResponse.builder()
+                .status(ResponseStatus.DECLINED)
+                .success(false)
+                .person(buildPersonSummary(request, null))
+                .underwriting(UnderwritingInfo.builder()
+                        .decision(underwritingResult.getDecision().name())
+                        .reason(underwritingResult.getDeclineReason())
+                        .evaluatedRules(buildRuleEvaluations(underwritingResult))
+                        .build())
+                .errors(List.of(ValidationError.builder()
+                        .field("underwriting")
+                        .message("Application declined: " + underwritingResult.getDeclineReason())
+                        .build()))
+                .build();
+    }
+
+    /**
+     * Строит ответ для заявки, требующей проверки
+     */
+    private TravelCalculatePremiumResponse buildReviewRequiredResponse(
+            TravelCalculatePremiumRequest request,
+            UnderwritingResult underwritingResult) {
+
+        return TravelCalculatePremiumResponse.builder()
+                .status(ResponseStatus.REQUIRES_REVIEW)
+                .success(false)
+                .person(buildPersonSummary(request, null))
+                .underwriting(UnderwritingInfo.builder()
+                        .decision(underwritingResult.getDecision().name())
+                        .reason(underwritingResult.getDeclineReason())
+                        .evaluatedRules(buildRuleEvaluations(underwritingResult))
+                        .build())
+                .errors(List.of(TravelCalculatePremiumResponse.ValidationError.builder()
+                        .field("underwriting")
+                        .message("Manual review required: " + underwritingResult.getDeclineReason())
+                        .build()))
+                .build();
+    }
+
+    /**
+     * Строит успешный ответ
+     */
+    private TravelCalculatePremiumResponse buildSuccessResponse(
+            TravelCalculatePremiumRequest request,
+            MedicalRiskPremiumCalculator.PremiumCalculationResult calculationResult,
+            BigDecimal basePremium,
+            BigDecimal totalDiscount,
+            BigDecimal finalPremium,
+            String currency,
+            List<AppliedDiscount> appliedDiscounts,
+            UnderwritingResult underwritingResult,
+            boolean includeDetails) {
+
+        var builder = TravelCalculatePremiumResponse.builder()
+                .status(ResponseStatus.SUCCESS)
+                .success(true)
+                .errors(List.of());
+
+        // Pricing Summary
+        builder.pricing(PricingSummary.builder()
+                .totalPremium(finalPremium)
+                .baseAmount(basePremium)
+                .totalDiscount(totalDiscount)
+                .currency(currency)
+                .includedRisks(request.getSelectedRisks() != null
+                        ? request.getSelectedRisks()
+                        : List.of())
+                .build());
+
+        // Person Summary
+        builder.person(buildPersonSummary(request, calculationResult));
+
+        // Trip Summary
+        builder.trip(buildTripSummary(request, calculationResult));
+
+        // Applied Discounts
+        if (!appliedDiscounts.isEmpty()) {
+            builder.appliedDiscounts(appliedDiscounts);
+        }
+
+        // Underwriting Info
+        builder.underwriting(UnderwritingInfo.builder()
+                .decision(underwritingResult.getDecision().name())
+                .evaluatedRules(buildRuleEvaluations(underwritingResult))
+                .build());
+
+        // Pricing Details (опционально)
+        if (includeDetails) {
+            builder.pricingDetails(buildPricingDetails(calculationResult));
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * Строит ответ с системной ошибкой
+     */
+    private TravelCalculatePremiumResponse buildSystemErrorResponse(String errorMessage) {
+        return TravelCalculatePremiumResponse.builder()
+                .status(ResponseStatus.VALIDATION_ERROR)
+                .success(false)
+                .errors(List.of(ValidationError.builder()
+                        .field("system")
+                        .message("Calculation error: " + errorMessage)
+                        .build()))
+                .build();
+    }
+
+    /**
+     * Строит PersonSummary
+     */
+    private PersonSummary buildPersonSummary(
+            TravelCalculatePremiumRequest request,
+            MedicalRiskPremiumCalculator.PremiumCalculationResult calculationResult) {
+
+        Integer age = calculationResult != null ? calculationResult.age() : null;
+        String ageGroup = calculationResult != null ? calculationResult.ageGroupDescription() : null;
+
+        return PersonSummary.builder()
+                .firstName(request.getPersonFirstName())
+                .lastName(request.getPersonLastName())
+                .birthDate(request.getPersonBirthDate())
+                .age(age)
+                .ageGroup(ageGroup)
+                .build();
+    }
+
+    /**
+     * Строит TripSummary
+     */
+    private TripSummary buildTripSummary(
+            TravelCalculatePremiumRequest request,
+            MedicalRiskPremiumCalculator.PremiumCalculationResult calculationResult) {
+
+        return TripSummary.builder()
+                .dateFrom(request.getAgreementDateFrom())
+                .dateTo(request.getAgreementDateTo())
+                .days(calculationResult != null ? calculationResult.days() : null)
+                .countryCode(request.getCountryIsoCode())
+                .countryName(calculationResult != null ? calculationResult.countryName() : null)
+                .medicalCoverageLevel(request.getMedicalRiskLimitLevel())
+                .coverageAmount(calculationResult != null ? calculationResult.coverageAmount() : null)
+                .build();
+    }
+
+    /**
+     * Строит PricingDetails
+     */
+    private PricingDetails buildPricingDetails(
+            MedicalRiskPremiumCalculator.PremiumCalculationResult calculationResult) {
+
+        var builder = PricingDetails.builder()
+                .baseRate(calculationResult.baseRate())
+                .ageCoefficient(calculationResult.ageCoefficient())
+                .countryCoefficient(calculationResult.countryCoefficient())
+                .durationCoefficient(calculationResult.durationCoefficient())
+                .calculationFormula(buildFormula(calculationResult));
+
+        // Risk Breakdown
+        var riskBreakdown = calculationResult.riskDetails().stream()
+                .map(r -> RiskBreakdown.builder()
+                        .riskCode(r.riskCode())
+                        .riskName(r.riskName())
+                        .premium(r.premium())
+                        .baseCoefficient(r.coefficient())
+                        .ageModifier(r.ageModifier())
+                        .isMandatory("TRAVEL_MEDICAL".equals(r.riskCode()))
+                        .build())
+                .collect(Collectors.toList());
+        builder.riskBreakdown(riskBreakdown);
+
+        // Calculation Steps
+        var steps = calculationResult.calculationSteps().stream()
+                .map(s -> {
+                    var step = new CalculationStep();
+                    step.setStepNumber(calculationResult.calculationSteps().indexOf(s) + 1);
+                    step.setDescription(s.description());
+                    step.setFormula(s.formula());
+                    step.setResult(s.result());
+                    return step;
+                })
+                .collect(Collectors.toList());
+        builder.steps(steps);
+
+        return builder.build();
+    }
+
+    /**
+     * Строит список оценок правил
+     */
+    private List<RuleEvaluation> buildRuleEvaluations(UnderwritingResult underwritingResult) {
+        return underwritingResult.getRuleResults().stream()
+                .map(r -> new RuleEvaluation(
+                        r.getRuleName(),
+                        r.getSeverity().name(),
+                        r.getMessage()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Строит формулу расчета
+     */
     private String buildFormula(MedicalRiskPremiumCalculator.PremiumCalculationResult result) {
         var formula = new StringBuilder("Premium = ")
                 .append(String.format("%.2f", result.baseRate()))
@@ -242,7 +396,7 @@ public class TravelCalculatePremiumService {
                 .append(" × ")
                 .append(String.format("%.2f", result.countryCoefficient()))
                 .append(" × ")
-                .append(String.format("%.2f", result.durationCoefficient()));  //
+                .append(String.format("%.2f", result.durationCoefficient()));
 
         if (result.additionalRisksCoefficient().compareTo(BigDecimal.ZERO) > 0) {
             formula.append(" × (1 + ")
@@ -252,7 +406,6 @@ public class TravelCalculatePremiumService {
 
         formula.append(" × ").append(result.days()).append(" days");
 
-        // Показываем пакетную скидку в формуле
         if (result.bundleDiscount() != null
                 && result.bundleDiscount().discountAmount().compareTo(BigDecimal.ZERO) > 0) {
             formula.append(" - ")
@@ -261,5 +414,18 @@ public class TravelCalculatePremiumService {
         }
 
         return formula.toString();
+    }
+
+    /**
+     * Применяет минимальную премию
+     */
+    private BigDecimal applyMinimumPremium(BigDecimal premium) {
+        if (premium.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+        if (premium.compareTo(MIN_PREMIUM) < 0) {
+            return MIN_PREMIUM;
+        }
+        return premium;
     }
 }

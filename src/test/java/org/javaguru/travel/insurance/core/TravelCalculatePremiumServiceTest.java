@@ -7,8 +7,9 @@ import org.javaguru.travel.insurance.core.services.TravelCalculatePremiumService
 import org.javaguru.travel.insurance.core.underwriting.UnderwritingService;
 import org.javaguru.travel.insurance.core.underwriting.domain.UnderwritingResult;
 import org.javaguru.travel.insurance.core.validation.TravelCalculatePremiumRequestValidator;
-import org.javaguru.travel.insurance.dto.ValidationError;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.dto.TravelCalculatePremiumResponse;
+import org.javaguru.travel.insurance.dto.TravelCalculatePremiumResponse.ResponseStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,8 +27,12 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * Тесты для TravelCalculatePremiumService
+ * Обновлено для API v2.0 с новым форматом ответа
+ */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("TravelCalculatePremiumService")
+@DisplayName("TravelCalculatePremiumService v2.0")
 class TravelCalculatePremiumServiceTest {
 
     @Mock
@@ -48,7 +53,9 @@ class TravelCalculatePremiumServiceTest {
     @InjectMocks
     private TravelCalculatePremiumService service;
 
-    // ========== HAPPY PATH ==========
+    // ========================================
+    // HAPPY PATH TESTS
+    // ========================================
 
     @Test
     @DisplayName("calculates premium without discounts")
@@ -69,10 +76,35 @@ class TravelCalculatePremiumServiceTest {
 
         // Then
         assertNotNull(response);
-        assertEquals(new BigDecimal("50.00"), response.getAgreementPrice());
-        assertEquals("EUR", response.getCurrency());
-        assertNull(response.getAppliedDiscounts());
-        assertTrue(response.getErrors() == null || response.getErrors().isEmpty());
+        assertEquals(ResponseStatus.SUCCESS, response.getStatus());
+        assertTrue(response.isSuccessful());
+        assertTrue(response.getErrors().isEmpty());
+
+        // Проверяем pricing summary
+        assertNotNull(response.getPricing());
+        assertEquals(new BigDecimal("50.00"), response.getPricing().getTotalPremium());
+        assertEquals("EUR", response.getPricing().getCurrency());
+        assertEquals(BigDecimal.ZERO, response.getPricing().getTotalDiscount());
+
+        // Проверяем person summary
+        assertNotNull(response.getPerson());
+        assertEquals("John", response.getPerson().getFirstName());
+        assertEquals("Doe", response.getPerson().getLastName());
+        assertEquals(35, response.getPerson().getAge());
+
+        // Проверяем trip summary
+        assertNotNull(response.getTrip());
+        assertEquals(14, response.getTrip().getDays());
+        assertEquals("ES", response.getTrip().getCountryCode());
+
+        // Проверяем underwriting
+        assertNotNull(response.getUnderwriting());
+        assertEquals("APPROVED", response.getUnderwriting().getDecision());
+
+        // Проверяем metadata
+        assertNotNull(response.getRequestId());
+        assertNotNull(response.getTimestamp());
+        assertEquals("2.0", response.getApiVersion());
     }
 
     @Test
@@ -93,7 +125,8 @@ class TravelCalculatePremiumServiceTest {
         var response = service.calculatePremium(request);
 
         // Then
-        assertEquals(new BigDecimal("10.00"), response.getAgreementPrice());
+        assertEquals(ResponseStatus.SUCCESS, response.getStatus());
+        assertEquals(new BigDecimal("10.00"), response.getPricing().getTotalPremium());
     }
 
     @Test
@@ -125,10 +158,18 @@ class TravelCalculatePremiumServiceTest {
         var response = service.calculatePremium(request);
 
         // Then
-        assertEquals(new BigDecimal("90.00"), response.getAgreementPrice());
-        assertEquals(new BigDecimal("10.00"), response.getDiscountAmount());
-        assertNotNull(response.getPromoCodeInfo());
-        assertEquals("PROMO10", response.getPromoCodeInfo().getCode());
+        assertEquals(ResponseStatus.SUCCESS, response.getStatus());
+        assertEquals(new BigDecimal("90.00"), response.getPricing().getTotalPremium());
+        assertEquals(new BigDecimal("10.00"), response.getPricing().getTotalDiscount());
+
+        // Проверяем примененные скидки
+        assertNotNull(response.getAppliedDiscounts());
+        assertEquals(1, response.getAppliedDiscounts().size());
+
+        var promoDiscount = response.getAppliedDiscounts().get(0);
+        assertEquals("PROMO_CODE", promoDiscount.getType());
+        assertEquals("PROMO10", promoDiscount.getCode());
+        assertEquals(new BigDecimal("10.00"), promoDiscount.getAmount());
     }
 
     @Test
@@ -158,10 +199,13 @@ class TravelCalculatePremiumServiceTest {
         var response = service.calculatePremium(request);
 
         // Then
-        assertEquals(new BigDecimal("95.00"), response.getAgreementPrice());
-        assertEquals(new BigDecimal("5.00"), response.getDiscountAmount());
+        assertEquals(ResponseStatus.SUCCESS, response.getStatus());
+        assertEquals(new BigDecimal("95.00"), response.getPricing().getTotalPremium());
+        assertEquals(new BigDecimal("5.00"), response.getPricing().getTotalDiscount());
+
         assertNotNull(response.getAppliedDiscounts());
         assertEquals(1, response.getAppliedDiscounts().size());
+        assertEquals("GROUP", response.getAppliedDiscounts().get(0).getType());
     }
 
     @Test
@@ -201,19 +245,72 @@ class TravelCalculatePremiumServiceTest {
         var response = service.calculatePremium(request);
 
         // Then
-        assertEquals(new BigDecimal("85.00"), response.getAgreementPrice());
-        assertEquals(new BigDecimal("15.00"), response.getDiscountAmount());
+        assertEquals(ResponseStatus.SUCCESS, response.getStatus());
+        assertEquals(new BigDecimal("85.00"), response.getPricing().getTotalPremium());
+        assertEquals(new BigDecimal("15.00"), response.getPricing().getTotalDiscount());
+
+        // Проверяем что применены обе скидки
+        assertNotNull(response.getAppliedDiscounts());
+        assertEquals(2, response.getAppliedDiscounts().size());
     }
 
-    // ========== VALIDATION ERRORS ==========
+    @Test
+    @DisplayName("includes pricing details when requested")
+    void shouldIncludePricingDetailsWhenRequested() {
+        // Given
+        when(validator.validate(any())).thenReturn(Collections.emptyList());
+        when(underwritingService.evaluateApplication(any()))
+                .thenReturn(UnderwritingResult.approved(Collections.emptyList()));
+        when(calculator.calculatePremiumWithDetails(any()))
+                .thenReturn(createCalculationResult(new BigDecimal("50.00")));
+        when(discountService.calculateBestDiscount(any(), anyInt(), anyBoolean(), any()))
+                .thenReturn(Optional.empty());
+
+        var request = validRequest();
+
+        // When
+        var response = service.calculatePremium(request, true);  // includeDetails = true
+
+        // Then
+        assertNotNull(response.getPricingDetails());
+        assertEquals(new BigDecimal("4.5"), response.getPricingDetails().getBaseRate());
+        assertEquals(BigDecimal.ONE, response.getPricingDetails().getAgeCoefficient());
+    }
+
+    @Test
+    @DisplayName("excludes pricing details when not requested")
+    void shouldExcludePricingDetailsWhenNotRequested() {
+        // Given
+        when(validator.validate(any())).thenReturn(Collections.emptyList());
+        when(underwritingService.evaluateApplication(any()))
+                .thenReturn(UnderwritingResult.approved(Collections.emptyList()));
+        when(calculator.calculatePremiumWithDetails(any()))
+                .thenReturn(createCalculationResult(new BigDecimal("50.00")));
+        when(discountService.calculateBestDiscount(any(), anyInt(), anyBoolean(), any()))
+                .thenReturn(Optional.empty());
+
+        var request = validRequest();
+
+        // When
+        var response = service.calculatePremium(request, false);  // includeDetails = false
+
+        // Then
+        assertNull(response.getPricingDetails());
+    }
+
+    // ========================================
+    // VALIDATION ERROR TESTS
+    // ========================================
 
     @Test
     @DisplayName("returns validation errors without calculation")
     void shouldReturnValidationErrors() {
         // Given
         var validationErrors = List.of(
-                new ValidationError("personFirstName", "Must not be empty!"),
-                new ValidationError("personLastName", "Must not be empty!")
+                org.javaguru.travel.insurance.core.validation.ValidationError.error(
+                        "personFirstName", "Must not be empty!"),
+                org.javaguru.travel.insurance.core.validation.ValidationError.error(
+                        "personLastName", "Must not be empty!")
         );
         when(validator.validate(any())).thenReturn(validationErrors);
 
@@ -223,6 +320,9 @@ class TravelCalculatePremiumServiceTest {
         var response = service.calculatePremium(request);
 
         // Then
+        assertEquals(ResponseStatus.VALIDATION_ERROR, response.getStatus());
+        assertFalse(response.isSuccessful());
+
         assertNotNull(response.getErrors());
         assertEquals(2, response.getErrors().size());
 
@@ -231,7 +331,11 @@ class TravelCalculatePremiumServiceTest {
         assertTrue(response.getErrors().stream()
                 .anyMatch(e -> "personLastName".equals(e.getField())));
 
-        assertNull(response.getAgreementPrice());
+        // Pricing должен быть null при ошибках валидации
+        assertNull(response.getPricing());
+        assertNull(response.getPerson());
+        assertNull(response.getTrip());
+
         verify(calculator, never()).calculatePremiumWithDetails(any());
     }
 
@@ -251,6 +355,9 @@ class TravelCalculatePremiumServiceTest {
         var response = service.calculatePremium(request);
 
         // Then
+        assertEquals(ResponseStatus.VALIDATION_ERROR, response.getStatus());
+        assertFalse(response.isSuccessful());
+
         assertNotNull(response.getErrors());
         assertFalse(response.getErrors().isEmpty());
 
@@ -259,7 +366,75 @@ class TravelCalculatePremiumServiceTest {
         assertTrue(systemError.getMessage().contains("Calculation error"));
     }
 
-    // ========== EDGE CASES ==========
+    // ========================================
+    // UNDERWRITING TESTS
+    // ========================================
+
+    @Test
+    @DisplayName("handles declined underwriting decision")
+    void shouldHandleDeclinedUnderwriting() {
+        // Given
+        when(validator.validate(any())).thenReturn(Collections.emptyList());
+        when(underwritingService.evaluateApplication(any()))
+                .thenReturn(UnderwritingResult.declined(
+                        Collections.emptyList(),
+                        "Age exceeds maximum allowed"
+                ));
+
+        var request = validRequest();
+
+        // When
+        var response = service.calculatePremium(request);
+
+        // Then
+        assertEquals(ResponseStatus.DECLINED, response.getStatus());
+        assertFalse(response.isSuccessful());
+
+        assertNotNull(response.getUnderwriting());
+        assertEquals("DECLINED", response.getUnderwriting().getDecision());
+        assertEquals("Age exceeds maximum allowed", response.getUnderwriting().getReason());
+
+        assertNull(response.getPricing());
+
+        // Должна быть ошибка в errors
+        assertFalse(response.getErrors().isEmpty());
+        assertTrue(response.getErrors().get(0).getMessage().contains("declined"));
+    }
+
+    @Test
+    @DisplayName("handles manual review required decision")
+    void shouldHandleManualReviewRequired() {
+        // Given
+        when(validator.validate(any())).thenReturn(Collections.emptyList());
+        when(underwritingService.evaluateApplication(any()))
+                .thenReturn(UnderwritingResult.requiresReview(
+                        Collections.emptyList(),
+                        "High coverage amount for age"
+                ));
+
+        var request = validRequest();
+
+        // When
+        var response = service.calculatePremium(request);
+
+        // Then
+        assertEquals(ResponseStatus.REQUIRES_REVIEW, response.getStatus());
+        assertFalse(response.isSuccessful());
+
+        assertNotNull(response.getUnderwriting());
+        assertEquals("REQUIRES_MANUAL_REVIEW", response.getUnderwriting().getDecision());
+        assertEquals("High coverage amount for age", response.getUnderwriting().getReason());
+
+        assertNull(response.getPricing());
+
+        // Должна быть информация в errors
+        assertFalse(response.getErrors().isEmpty());
+        assertTrue(response.getErrors().get(0).getMessage().contains("Manual review required"));
+    }
+
+    // ========================================
+    // EDGE CASE TESTS
+    // ========================================
 
     @Test
     @DisplayName("handles zero premium after discount")
@@ -290,7 +465,8 @@ class TravelCalculatePremiumServiceTest {
         var response = service.calculatePremium(request);
 
         // Then
-        assertEquals(BigDecimal.ZERO, response.getAgreementPrice());
+        assertEquals(ResponseStatus.SUCCESS, response.getStatus());
+        assertEquals(BigDecimal.ZERO, response.getPricing().getTotalPremium());
     }
 
     @Test
@@ -312,7 +488,7 @@ class TravelCalculatePremiumServiceTest {
         var response = service.calculatePremium(request);
 
         // Then
-        assertEquals("EUR", response.getCurrency());
+        assertEquals("EUR", response.getPricing().getCurrency());
     }
 
     @Test
@@ -334,7 +510,7 @@ class TravelCalculatePremiumServiceTest {
         var response = service.calculatePremium(request);
 
         // Then
-        assertEquals("USD", response.getCurrency());
+        assertEquals("USD", response.getPricing().getCurrency());
     }
 
     @Test
@@ -359,7 +535,9 @@ class TravelCalculatePremiumServiceTest {
         verify(discountService).calculateBestDiscount(any(), eq(1), anyBoolean(), any());
     }
 
-    // ========== HELPER METHODS ==========
+    // ========================================
+    // HELPER METHODS
+    // ========================================
 
     private TravelCalculatePremiumRequest validRequest() {
         return TravelCalculatePremiumRequest.builder()

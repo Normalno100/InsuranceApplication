@@ -7,7 +7,6 @@ import org.javaguru.travel.insurance.core.validation.structural.*;
 import org.javaguru.travel.insurance.core.validation.business.*;
 import org.javaguru.travel.insurance.core.validation.reference.*;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
-import org.javaguru.travel.insurance.dto.ValidationError;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -16,6 +15,10 @@ import java.util.stream.Collectors;
 /**
  * Главный валидатор для TravelCalculatePremiumRequest
  * Использует композитный подход с модульными валидаторами
+ *
+ * ОБНОВЛЕНО для API v2.0:
+ * - Возвращает список ValidationError из core.validation пакета
+ * - Конвертация в DTO ValidationError происходит в сервисе
  */
 @Component
 public class TravelCalculatePremiumRequestValidator {
@@ -38,22 +41,20 @@ public class TravelCalculatePremiumRequestValidator {
      * Валидация запроса
      *
      * @param request запрос на расчёт премии
-     * @return список ошибок валидации (пустой если валидация успешна)
+     * @return список ошибок валидации из core.validation пакета (пустой если валидация успешна)
      */
     public List<ValidationError> validate(TravelCalculatePremiumRequest request) {
         ValidationContext context = new ValidationContext();
 
-        org.javaguru.travel.insurance.core.validation.ValidationResult result =
-                compositeValidator.validate(request, context);
+        ValidationResult result = compositeValidator.validate(request, context);
 
         if (result.isValid()) {
             return List.of();
         }
 
-        // Конвертируем ValidationError из validation package в DTO
-        return result.getErrors().stream()
-                .map(this::convertToDto)
-                .collect(Collectors.toList());
+        // Возвращаем ValidationError из core.validation пакета
+        // Конвертация в DTO ValidationError будет в сервисе
+        return result.getErrors();
     }
 
     /**
@@ -145,21 +146,5 @@ public class TravelCalculatePremiumRequestValidator {
                 // Останавливаем валидацию на критичных ошибках
                 .stopOnCriticalError(true)
                 .build();
-    }
-
-    /**
-     * Конвертирует ValidationError из validation package в DTO
-     */
-    private ValidationError convertToDto(
-            org.javaguru.travel.insurance.core.validation.ValidationError error) {
-
-        ValidationError dto = new ValidationError();
-        dto.setField(error.getField());
-        dto.setMessage(error.getMessage());
-
-        // Можно добавить errorCode если нужен для i18n
-        // dto.setErrorCode(error.getErrorCode());
-
-        return dto;
     }
 }

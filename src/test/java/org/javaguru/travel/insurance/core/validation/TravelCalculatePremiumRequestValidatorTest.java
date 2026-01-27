@@ -7,7 +7,6 @@ import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
 import org.javaguru.travel.insurance.core.domain.entities.CountryEntity;
 import org.javaguru.travel.insurance.core.domain.entities.MedicalRiskLimitLevelEntity;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
-import org.javaguru.travel.insurance.dto.ValidationError;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
