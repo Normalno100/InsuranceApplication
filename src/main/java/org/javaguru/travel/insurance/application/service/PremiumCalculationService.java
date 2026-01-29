@@ -17,11 +17,6 @@ import java.math.BigDecimal;
  * 1. Делегирование расчета калькулятору
  * 2. Валидация результатов
  * 3. Применение минимальной премии
- *
- * МЕТРИКИ:
- * - Complexity: 3
- * - LOC: ~60
- * - Single Responsibility: только расчет премии
  */
 @Slf4j
 @Service

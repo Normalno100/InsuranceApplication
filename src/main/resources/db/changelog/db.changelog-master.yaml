@@ -19,3 +19,5 @@ databaseChangeLog:
       file: db/changelog/changes/009-create-advanced-pricing-tables.xml
   - include:
       file: db/changelog/changes/010-insert-advanced-pricing-data.xml
+  - include:
+      file: db/changelog/changes/011-promo-code-data-migration.xml

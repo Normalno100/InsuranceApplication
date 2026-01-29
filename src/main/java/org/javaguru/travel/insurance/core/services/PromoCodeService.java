@@ -1,23 +1,26 @@
 package org.javaguru.travel.insurance.core.services;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.javaguru.travel.insurance.core.domain.entities.PromoCodeEntity;
+import org.javaguru.travel.insurance.core.repositories.PromoCodeRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 /**
  * Сервис для работы с промо-кодами и скидками
- */
+ **/
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PromoCodeService {
 
-    private final Map<String, PromoCode> promoCodes = initPromoCodes();
+    private final PromoCodeRepository promoCodeRepository;
 
     /**
      * Валидирует и применяет промо-код
@@ -27,30 +30,49 @@ public class PromoCodeService {
      * @param premiumAmount сумма премии до скидки
      * @return результат применения промо-кода
      */
+    @Transactional
     public PromoCodeResult applyPromoCode(String code, LocalDate agreementDate, BigDecimal premiumAmount) {
         if (code == null || code.trim().isEmpty()) {
             return PromoCodeResult.invalid("Promo code is empty");
         }
 
-        PromoCode promoCode = promoCodes.get(code.toUpperCase());
-        if (promoCode == null) {
-            return PromoCodeResult.invalid("Promo code not found");
+        log.debug("Applying promo code: {} for date: {}, premium: {}", code, agreementDate, premiumAmount);
+
+        // Ищем промо-код в БД
+        Optional<PromoCodeEntity> promoCodeOpt = promoCodeRepository.findActiveByCode(
+                code.toUpperCase(),
+                agreementDate
+        );
+
+        if (promoCodeOpt.isEmpty()) {
+            log.warn("Promo code not found or not active: {}", code);
+            return PromoCodeResult.invalid("Promo code not found or expired");
         }
+
+        PromoCodeEntity promoCode = promoCodeOpt.get();
 
         // Валидация
         ValidationResult validation = validatePromoCode(promoCode, agreementDate, premiumAmount);
         if (!validation.isValid()) {
+            log.warn("Promo code validation failed: {} - {}", code, validation.errorMessage());
             return PromoCodeResult.invalid(validation.errorMessage());
         }
 
         // Расчет скидки
         BigDecimal discountAmount = calculateDiscount(promoCode, premiumAmount);
 
+        // ✅ КРИТИЧЕСКИ ВАЖНО: Инкрементируем счётчик использования в БД
+        promoCode.incrementUsageCount();
+        promoCodeRepository.save(promoCode);
+
+        log.info("Promo code '{}' applied successfully. Discount: {} EUR. Usage count: {}/{}",
+                code, discountAmount, promoCode.getCurrentUsageCount(), promoCode.getMaxUsageCount());
+
         return PromoCodeResult.success(
-                promoCode.code(),
-                promoCode.description(),
-                promoCode.discountType(),
-                promoCode.discountValue(),
+                promoCode.getCode(),
+                promoCode.getDescription(),
+                DiscountType.valueOf(promoCode.getDiscountType()),
+                promoCode.getDiscountValue(),
                 discountAmount
         );
     }
@@ -58,32 +80,36 @@ public class PromoCodeService {
     /**
      * Валидирует промо-код
      */
-    private ValidationResult validatePromoCode(PromoCode promoCode, LocalDate agreementDate, BigDecimal premiumAmount) {
+    private ValidationResult validatePromoCode(
+            PromoCodeEntity promoCode,
+            LocalDate agreementDate,
+            BigDecimal premiumAmount) {
+
         // Проверка активности
-        if (!promoCode.isActive()) {
+        if (!promoCode.getIsActive()) {
             return ValidationResult.invalid("Promo code is not active");
         }
 
         // Проверка периода действия
-        if (agreementDate.isBefore(promoCode.validFrom())) {
+        if (agreementDate.isBefore(promoCode.getValidFrom())) {
             return ValidationResult.invalid("Promo code is not yet valid");
         }
-        if (agreementDate.isAfter(promoCode.validTo())) {
+        if (agreementDate.isAfter(promoCode.getValidTo())) {
             return ValidationResult.invalid("Promo code has expired");
         }
 
         // Проверка минимальной суммы
-        if (promoCode.minPremiumAmount() != null
-                && premiumAmount.compareTo(promoCode.minPremiumAmount()) < 0) {
+        if (promoCode.getMinPremiumAmount() != null
+                && premiumAmount.compareTo(promoCode.getMinPremiumAmount()) < 0) {
             return ValidationResult.invalid(
-                    String.format("Minimum premium amount for this promo code is %.2f",
-                            promoCode.minPremiumAmount())
+                    String.format("Minimum premium amount for this promo code is %.2f EUR",
+                            promoCode.getMinPremiumAmount())
             );
         }
 
         // Проверка лимита использований
-        if (promoCode.maxUsageCount() != null
-                && promoCode.currentUsageCount() >= promoCode.maxUsageCount()) {
+        if (promoCode.getMaxUsageCount() != null
+                && promoCode.getCurrentUsageCount() >= promoCode.getMaxUsageCount()) {
             return ValidationResult.invalid("Promo code usage limit reached");
         }
 
@@ -93,23 +119,23 @@ public class PromoCodeService {
     /**
      * Рассчитывает размер скидки
      */
-    private BigDecimal calculateDiscount(PromoCode promoCode, BigDecimal premiumAmount) {
+    private BigDecimal calculateDiscount(PromoCodeEntity promoCode, BigDecimal premiumAmount) {
         BigDecimal discount;
 
-        if (promoCode.discountType() == DiscountType.PERCENTAGE) {
+        if ("PERCENTAGE".equals(promoCode.getDiscountType())) {
             // Процентная скидка
             discount = premiumAmount
-                    .multiply(promoCode.discountValue())
+                    .multiply(promoCode.getDiscountValue())
                     .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
         } else {
             // Фиксированная сумма
-            discount = promoCode.discountValue();
+            discount = promoCode.getDiscountValue();
         }
 
         // Применяем максимальную скидку если указана
-        if (promoCode.maxDiscountAmount() != null
-                && discount.compareTo(promoCode.maxDiscountAmount()) > 0) {
-            discount = promoCode.maxDiscountAmount();
+        if (promoCode.getMaxDiscountAmount() != null
+                && discount.compareTo(promoCode.getMaxDiscountAmount()) > 0) {
+            discount = promoCode.getMaxDiscountAmount();
         }
 
         // Скидка не может быть больше суммы премии
@@ -121,103 +147,20 @@ public class PromoCodeService {
     }
 
     /**
-     * Получает промо-код по коду
+     * Получает промо-код по коду (для просмотра, без применения)
      */
-    public Optional<PromoCode> getPromoCode(String code) {
-        return Optional.ofNullable(promoCodes.get(code.toUpperCase()));
+    public Optional<PromoCodeEntity> getPromoCode(String code) {
+        return promoCodeRepository.findActiveByCode(code.toUpperCase());
     }
 
     /**
      * Проверяет существование промо-кода
      */
     public boolean exists(String code) {
-        return promoCodes.containsKey(code.toUpperCase());
-    }
-
-    /**
-     * Инициализация тестовых промо-кодов
-     * В реальном приложении данные будут из БД
-     */
-    private static Map<String, PromoCode> initPromoCodes() {
-        Map<String, PromoCode> codes = new HashMap<>();
-
-        codes.put("SUMMER2025", new PromoCode(
-                "SUMMER2025",
-                "Summer discount 10%",
-                DiscountType.PERCENTAGE,
-                new BigDecimal("10"),
-                new BigDecimal("50"),  // минимальная сумма
-                new BigDecimal("100"), // максимальная скидка
-                LocalDate.of(2025, 6, 1),
-                LocalDate.of(2025, 8, 31),
-                1000,
-                0,
-                true
-        ));
-
-        codes.put("WINTER2025", new PromoCode(
-                "WINTER2025",
-                "Winter discount 15%",
-                DiscountType.PERCENTAGE,
-                new BigDecimal("15"),
-                new BigDecimal("100"),
-                new BigDecimal("200"),
-                LocalDate.of(2025, 12, 1),
-                LocalDate.of(2026, 2, 28),
-                500,
-                0,
-                true
-        ));
-
-        codes.put("WELCOME50", new PromoCode(
-                "WELCOME50",
-                "Welcome bonus 50 EUR",
-                DiscountType.FIXED_AMOUNT,
-                new BigDecimal("50"),
-                new BigDecimal("200"),
-                null,
-                LocalDate.of(2025, 1, 1),
-                LocalDate.of(2025, 12, 31),
-                100,
-                0,
-                true
-        ));
-
-        codes.put("FAMILY20", new PromoCode(
-                "FAMILY20",
-                "Family discount 20%",
-                DiscountType.PERCENTAGE,
-                new BigDecimal("20"),
-                new BigDecimal("150"),
-                new BigDecimal("300"),
-                LocalDate.of(2025, 1, 1),
-                LocalDate.of(2025, 12, 31),
-                null,
-                0,
-                true
-        ));
-
-        return codes;
+        return promoCodeRepository.existsByCode(code.toUpperCase());
     }
 
     // ========== ВЛОЖЕННЫЕ КЛАССЫ ==========
-
-    /**
-     * Модель промо-кода
-     */
-    public record PromoCode(
-            String code,
-            String description,
-            DiscountType discountType,
-            BigDecimal discountValue,
-            BigDecimal minPremiumAmount,
-            BigDecimal maxDiscountAmount,
-            LocalDate validFrom,
-            LocalDate validTo,
-            Integer maxUsageCount,
-            int currentUsageCount,
-            boolean isActive
-    ) {}
 
     /**
      * Тип скидки
