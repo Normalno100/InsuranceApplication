@@ -1,8 +1,8 @@
 package org.javaguru.travel.insurance.core.validation.reference;
 
-import org.javaguru.travel.insurance.core.domain.entities.MedicalRiskLimitLevelEntity;
-import org.javaguru.travel.insurance.core.repositories.MedicalRiskLimitLevelRepository;
 import org.javaguru.travel.insurance.core.validation.*;
+import org.javaguru.travel.insurance.domain.model.entity.MedicalRiskLimitLevel;
+import org.javaguru.travel.insurance.domain.port.ReferenceDataPort;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 
 import java.time.LocalDate;
@@ -14,12 +14,11 @@ import java.util.Optional;
 public class MedicalRiskLimitLevelExistenceValidator
         extends AbstractValidationRule<TravelCalculatePremiumRequest> {
 
-    private final MedicalRiskLimitLevelRepository medicalRiskLimitLevelRepository;
+    private final ReferenceDataPort referenceDataPort;
 
-    public MedicalRiskLimitLevelExistenceValidator(
-            MedicalRiskLimitLevelRepository medicalRiskLimitLevelRepository) {
+    public MedicalRiskLimitLevelExistenceValidator(ReferenceDataPort referenceDataPort) {
         super("MedicalRiskLimitLevelExistenceValidator", 220);
-        this.medicalRiskLimitLevelRepository = medicalRiskLimitLevelRepository;
+        this.referenceDataPort = referenceDataPort;
     }
 
     @Override
@@ -33,10 +32,9 @@ public class MedicalRiskLimitLevelExistenceValidator
             return success();
         }
 
-        Optional<MedicalRiskLimitLevelEntity> levelOpt =
-                medicalRiskLimitLevelRepository.findActiveByCode(
-                        medicalRiskLimitLevel, agreementDateFrom
-                );
+        // Используем Domain Port вместо Repository
+        Optional<MedicalRiskLimitLevel> levelOpt =
+                referenceDataPort.findMedicalLevel(medicalRiskLimitLevel, agreementDateFrom);
 
         if (levelOpt.isEmpty()) {
             return ValidationResult.failure(

@@ -1,8 +1,9 @@
 package org.javaguru.travel.insurance.core.validation.reference;
 
-import org.javaguru.travel.insurance.core.domain.entities.CountryEntity;
-import org.javaguru.travel.insurance.core.repositories.CountryRepository;
 import org.javaguru.travel.insurance.core.validation.*;
+import org.javaguru.travel.insurance.domain.model.entity.Country;
+import org.javaguru.travel.insurance.domain.model.valueobject.CountryCode;
+import org.javaguru.travel.insurance.domain.port.ReferenceDataPort;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 
 import java.time.LocalDate;
@@ -13,11 +14,11 @@ import java.util.Optional;
  */
 public class CountryExistenceValidator extends AbstractValidationRule<TravelCalculatePremiumRequest> {
 
-    private final CountryRepository countryRepository;
+    private final ReferenceDataPort referenceDataPort;
 
-    public CountryExistenceValidator(CountryRepository countryRepository) {
+    public CountryExistenceValidator(ReferenceDataPort referenceDataPort) {
         super("CountryExistenceValidator", 210); // Order = 210 (reference)
-        this.countryRepository = countryRepository;
+        this.referenceDataPort = referenceDataPort;
     }
 
     @Override
@@ -31,8 +32,9 @@ public class CountryExistenceValidator extends AbstractValidationRule<TravelCalc
             return success();
         }
 
-        Optional<CountryEntity> countryOpt =
-                countryRepository.findActiveByIsoCode(countryIsoCode, agreementDateFrom);
+        // Используем Domain Port вместо Repository
+        CountryCode code = new CountryCode(countryIsoCode);
+        Optional<Country> countryOpt = referenceDataPort.findCountry(code, agreementDateFrom);
 
         if (countryOpt.isEmpty()) {
             return ValidationResult.failure(

@@ -6,6 +6,7 @@ import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
 import org.javaguru.travel.insurance.core.validation.structural.*;
 import org.javaguru.travel.insurance.core.validation.business.*;
 import org.javaguru.travel.insurance.core.validation.reference.*;
+import org.javaguru.travel.insurance.domain.port.ReferenceDataPort;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 import org.springframework.stereotype.Component;
 
@@ -25,16 +26,20 @@ public class TravelCalculatePremiumRequestValidator {
 
     private final CompositeValidator<TravelCalculatePremiumRequest> compositeValidator;
 
+    private final ReferenceDataPort referenceDataPort;
+
     public TravelCalculatePremiumRequestValidator(
             CountryRepository countryRepository,
             MedicalRiskLimitLevelRepository medicalRiskLimitLevelRepository,
-            RiskTypeRepository riskRepository) {
+            RiskTypeRepository riskRepository,
+            ReferenceDataPort referenceDataPort) {
 
         this.compositeValidator = buildCompositeValidator(
                 countryRepository,
                 medicalRiskLimitLevelRepository,
                 riskRepository
         );
+        this.referenceDataPort = referenceDataPort;
     }
 
     /**
@@ -136,11 +141,10 @@ public class TravelCalculatePremiumRequestValidator {
                 // LEVEL 3: REFERENCE DATA (Order: 200-299)
                 // ==========================================
 
-                .addRule(new CountryExistenceValidator(countryRepository))                      // 210
-                .addRule(new MedicalRiskLimitLevelExistenceValidator(
-                        medicalRiskLimitLevelRepository))                                           // 220
-                .addRule(new RiskTypeExistenceValidator(riskRepository))                        // 230
-                .addRule(new RiskTypeNotMandatoryValidator(riskRepository))                     // 240
+                .addRule(new CountryExistenceValidator(referenceDataPort))                      // 210
+                .addRule(new MedicalRiskLimitLevelExistenceValidator(referenceDataPort))        // 220                                // 220
+                .addRule(new RiskTypeExistenceValidator(referenceDataPort))                     // 230
+                .addRule(new RiskTypeNotMandatoryValidator(referenceDataPort))                  // 240
                 .addRule(new CurrencySupportValidator())                                        // 250
 
                 // Останавливаем валидацию на критичных ошибках

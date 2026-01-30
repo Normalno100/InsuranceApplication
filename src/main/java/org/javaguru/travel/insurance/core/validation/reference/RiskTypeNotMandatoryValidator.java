@@ -1,26 +1,23 @@
 package org.javaguru.travel.insurance.core.validation.reference;
 
-import org.javaguru.travel.insurance.core.domain.entities.RiskTypeEntity;
-import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
 import org.javaguru.travel.insurance.core.validation.*;
+import org.javaguru.travel.insurance.domain.port.ReferenceDataPort;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Проверяет что выбранные риски НЕ являются обязательными
  * (обязательные риски добавляются автоматически)
- * ОБНОВЛЕНО: task_95 - теперь ИГНОРИРУЕМ обязательные риски вместо ошибки
  */
 public class RiskTypeNotMandatoryValidator extends AbstractValidationRule<TravelCalculatePremiumRequest> {
 
-    private final RiskTypeRepository riskRepository;
+    private final ReferenceDataPort referenceDataPort;
 
-    public RiskTypeNotMandatoryValidator(RiskTypeRepository riskRepository) {
+    public RiskTypeNotMandatoryValidator(ReferenceDataPort referenceDataPort) {
         super("RiskTypeNotMandatoryValidator", 240);
-        this.riskRepository = riskRepository;
+        this.referenceDataPort = referenceDataPort;
     }
 
     @Override
@@ -34,7 +31,7 @@ public class RiskTypeNotMandatoryValidator extends AbstractValidationRule<Travel
             return success();
         }
 
-        // ✅ ОБНОВЛЕНИЕ: ИГНОРИРУЕМ обязательные риски (не возвращаем ошибку)
+        // ✅ ОБНОВЛЕНИЕ (task_95): ИГНОРИРУЕМ обязательные риски (не возвращаем ошибку)
         // Старая логика закомментирована для истории:
 
         /*
@@ -45,10 +42,10 @@ public class RiskTypeNotMandatoryValidator extends AbstractValidationRule<Travel
                 continue;
             }
 
-            Optional<RiskTypeEntity> riskOpt =
-                    riskRepository.findActiveByCode(riskType, agreementDateFrom);
+            RiskCode code = new RiskCode(riskType);
+            var riskOpt = referenceDataPort.findRisk(code, agreementDateFrom);
 
-            if (riskOpt.isPresent() && riskOpt.get().getIsMandatory()) {
+            if (riskOpt.isPresent() && riskOpt.get().isMandatory()) {
                 resultBuilder.addError(
                         ValidationError.error(
                                         "selectedRisks",

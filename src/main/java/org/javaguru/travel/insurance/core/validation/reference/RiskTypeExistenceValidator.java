@@ -1,26 +1,26 @@
 package org.javaguru.travel.insurance.core.validation.reference;
 
-import org.javaguru.travel.insurance.core.domain.entities.RiskTypeEntity;
-import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
 import org.javaguru.travel.insurance.core.validation.*;
+import org.javaguru.travel.insurance.domain.model.entity.Risk;
+import org.javaguru.travel.insurance.domain.model.valueobject.RiskCode;
+import org.javaguru.travel.insurance.domain.port.ReferenceDataPort;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Проверяет что все выбранные риски существуют и активны
- * ОБНОВЛЕНО: task_95 - игнорируем null/пустые элементы, ошибки с индексами
  */
 public class RiskTypeExistenceValidator extends AbstractValidationRule<TravelCalculatePremiumRequest> {
 
-    private final RiskTypeRepository riskRepository;
+    private final ReferenceDataPort referenceDataPort;
 
-    public RiskTypeExistenceValidator(RiskTypeRepository riskRepository) {
+    public RiskTypeExistenceValidator(ReferenceDataPort referenceDataPort) {
         super("RiskTypeExistenceValidator", 230);
-        this.riskRepository = riskRepository;
+        this.referenceDataPort = referenceDataPort;
     }
 
     @Override
@@ -35,28 +35,29 @@ public class RiskTypeExistenceValidator extends AbstractValidationRule<TravelCal
         }
 
         ValidationResult.Builder resultBuilder = ValidationResult.builder();
-        List<RiskTypeEntity> foundRisks = new ArrayList<>();
+        List<Risk> foundRisks = new ArrayList<>();
 
         for (int i = 0; i < selectedRisks.size(); i++) {
-            String riskType = selectedRisks.get(i);
+            String riskTypeCode = selectedRisks.get(i);
 
-            // ✅ ОБНОВЛЕНИЕ: игнорируем null и пустые элементы
-            if (riskType == null || riskType.trim().isEmpty()) {
+            // Игнорируем null и пустые элементы
+            if (riskTypeCode == null || riskTypeCode.trim().isEmpty()) {
                 continue;
             }
 
-            Optional<RiskTypeEntity> riskOpt =
-                    riskRepository.findActiveByCode(riskType, agreementDateFrom);
+            // Используем Domain Port вместо Repository
+            RiskCode code = new RiskCode(riskTypeCode);
+            var riskOpt = referenceDataPort.findRisk(code, agreementDateFrom);
 
             if (riskOpt.isEmpty()) {
-                // ✅ ОБНОВЛЕНИЕ: ошибка с индексом элемента
+                // Ошибка с индексом элемента
                 resultBuilder.addError(
                         ValidationError.error(
                                         "selectedRisks[" + i + "]",
                                         String.format("Risk type '%s' not found or not active on %s!",
-                                                riskType, agreementDateFrom)
+                                                riskTypeCode, agreementDateFrom)
                                 )
-                                .withParameter("riskType", riskType)
+                                .withParameter("riskType", riskTypeCode)
                                 .withParameter("agreementDateFrom", agreementDateFrom)
                                 .withParameter("index", i)
                 );
