@@ -2,22 +2,23 @@
 <databaseChangeLog
         xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:schemaLocation="
-            http://www.liquibase.org/xml/ns/dbchangelog
-            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
 
-    <!-- ========================================================= -->
-    <!-- 011-01: Reset promo code usage counters                   -->
-    <!-- ========================================================= -->
+    <!-- ============================================ -->
+    <!-- ЭТАП 3 - Task 3.2: Data Migration -->
+    <!-- Обновление данных промо-кодов в БД -->
+    <!-- ============================================ -->
+
     <changeSet id="011-01-reset-promo-code-usage-counters" author="travel-insurance">
         <comment>
             Сбрасываем счётчики использования промо-кодов до 0.
-            Ранее счётчики хранились в памяти и могли быть неактуальными.
+            Это нужно, т.к. ранее счётчики хранились в памяти и могли быть неактуальными.
         </comment>
 
         <update tableName="promo_codes">
             <column name="current_usage_count" valueNumeric="0"/>
-            <where>current_usage_count IS NULL OR current_usage_count &gt; 0</where>
+            <where>current_usage_count IS NULL OR current_usage_count > 0</where>
         </update>
 
         <rollback>
@@ -25,53 +26,46 @@
         </rollback>
     </changeSet>
 
-    <!-- ========================================================= -->
-    <!-- 011-02: Ensure default values for promo codes             -->
-    <!-- ========================================================= -->
     <changeSet id="011-02-ensure-promo-codes-have-defaults" author="travel-insurance">
         <comment>
-            Гарантируем наличие дефолтных значений у промо-кодов
+            Проверяем, что у всех промо-кодов установлены дефолтные значения
         </comment>
 
+        <!-- Устанавливаем is_active = true для всех, где NULL -->
         <update tableName="promo_codes">
             <column name="is_active" valueBoolean="true"/>
             <where>is_active IS NULL</where>
         </update>
 
+        <!-- Устанавливаем current_usage_count = 0 для всех, где NULL -->
         <update tableName="promo_codes">
             <column name="current_usage_count" valueNumeric="0"/>
             <where>current_usage_count IS NULL</where>
         </update>
     </changeSet>
 
-    <!-- ========================================================= -->
-    <!-- 011-03: Add audit comments                                -->
-    <!-- ========================================================= -->
     <changeSet id="011-03-add-promo-code-audit-comment" author="travel-insurance">
         <comment>
-            Документируем изменения, связанные с хранением промо-кодов
+            Добавляем комментарий к таблице для документирования изменений
         </comment>
 
-        <sql><![CDATA[
+        <sql>
             COMMENT ON TABLE promo_codes IS
             'Promotional codes for discounts.
-             REFACTORED (Stage 3): Moved from in-memory storage to persistent DB storage.
-             current_usage_count is now tracked correctly and persists across restarts.';
-        ]]></sql>
+            REFACTORED (Stage 3): Moved from in-memory storage to persistent DB storage.
+            current_usage_count is now tracked correctly and persists across restarts.';
+        </sql>
 
-        <sql><![CDATA[
+        <sql>
             COMMENT ON COLUMN promo_codes.current_usage_count IS
             'Current number of times this promo code has been used.
-             IMPORTANT: This counter is now persistent and incremented transactionally.';
-        ]]></sql>
+            IMPORTANT: This counter is now persistent and incremented transactionally.';
+        </sql>
     </changeSet>
 
-    <!-- ========================================================= -->
-    <!-- 011-04: Create index for active promo code lookup         -->
-    <!-- ========================================================= -->
     <changeSet id="011-04-create-promo-code-usage-index" author="travel-insurance">
         <comment>
-            Индекс для быстрого поиска активных и валидных промо-кодов
+            Создаём индекс для быстрого поиска активных промо-кодов
         </comment>
 
         <createIndex tableName="promo_codes" indexName="idx_promo_code_active_lookup">
@@ -82,51 +76,44 @@
         </createIndex>
     </changeSet>
 
-    <!-- ========================================================= -->
-    <!-- 011-05: Verify promo code data integrity                  -->
-    <!-- ========================================================= -->
     <changeSet id="011-05-verify-promo-code-data-integrity" author="travel-insurance">
         <comment>
-            Проверка целостности данных промо-кодов
+            Проверяем целостность данных промо-кодов
         </comment>
 
-        <sql><![CDATA[
+        <sql splitStatements="false"><![CDATA[
+            -- Проверяем, что нет промо-кодов с невалидными датами
             DO $$
             BEGIN
                 IF EXISTS (
-                    SELECT 1
-                    FROM promo_codes
+                    SELECT 1 FROM promo_codes
                     WHERE valid_from > valid_to
                 ) THEN
-                    RAISE EXCEPTION
-                        'Data integrity error: Found promo codes with valid_from > valid_to';
+                    RAISE EXCEPTION 'Data integrity error: Found promo codes with valid_from > valid_to';
                 END IF;
             END $$;
         ]]></sql>
 
-        <sql><![CDATA[
+        <sql splitStatements="false"><![CDATA[
+            -- Проверяем, что нет промо-кодов с отрицательными значениями скидки
             DO $$
             BEGIN
                 IF EXISTS (
-                    SELECT 1
-                    FROM promo_codes
+                    SELECT 1 FROM promo_codes
                     WHERE discount_value < 0
                 ) THEN
-                    RAISE EXCEPTION
-                        'Data integrity error: Found promo codes with negative discount_value';
+                    RAISE EXCEPTION 'Data integrity error: Found promo codes with negative discount_value';
                 END IF;
             END $$;
         ]]></sql>
     </changeSet>
 
-    <!-- ========================================================= -->
-    <!-- 011-06: Add index for promo code usage logging            -->
-    <!-- ========================================================= -->
     <changeSet id="011-06-add-promo-code-usage-logging" author="travel-insurance">
         <comment>
-            Индекс для ускорения аналитики использования промо-кодов
+            Добавляем логирование для отслеживания использования промо-кодов в будущем
         </comment>
 
+        <!-- Это уже существующая таблица promo_code_usage, но добавим индекс -->
         <createIndex tableName="promo_code_usage" indexName="idx_promo_usage_timestamp">
             <column name="used_at"/>
         </createIndex>
