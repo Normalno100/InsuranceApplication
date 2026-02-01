@@ -155,9 +155,9 @@ public final class Premium {
     public int hashCode() {
         return Objects.hash(amount, currency);
     }
-    
+
     @Override
     public String toString() {
-        return String.format("%.2f %s", amount, currency);
+        return String.format(java.util.Locale.ROOT, "%.2f %s", amount, currency);
     }
 }

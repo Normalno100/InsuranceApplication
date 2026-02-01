@@ -6,6 +6,7 @@ import org.javaguru.travel.insurance.core.repositories.MedicalRiskLimitLevelRepo
 import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
 import org.javaguru.travel.insurance.core.domain.entities.CountryEntity;
 import org.javaguru.travel.insurance.core.domain.entities.MedicalRiskLimitLevelEntity;
+import org.javaguru.travel.insurance.domain.port.ReferenceDataPort;
 import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,9 @@ class TravelCalculatePremiumRequestValidatorTest {
     @Mock
     private RiskTypeRepository riskRepository;
 
+    @Mock
+    ReferenceDataPort referenceDataPort;
+
     private TravelCalculatePremiumRequestValidator validator;
 
     @BeforeEach
@@ -41,7 +45,8 @@ class TravelCalculatePremiumRequestValidatorTest {
         validator = new TravelCalculatePremiumRequestValidator(
                 countryRepository,
                 medicalRiskLimitLevelRepository,
-                riskRepository
+                riskRepository,
+                referenceDataPort
         );
     }
 
