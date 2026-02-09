@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -119,7 +120,6 @@ public class ResponseAssembler {
             DiscountApplicationService.DiscountApplicationResult discountResult,
             UnderwritingResult underwritingResult,
             boolean includeDetails) {
-
         String currency = request.getCurrency() != null && !request.getCurrency().trim().isEmpty()
                 ? request.getCurrency() : "EUR";
 

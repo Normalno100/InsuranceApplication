@@ -1,19 +1,12 @@
--- Тестовые данные для таблицы risk_types
-DELETE FROM risk_types;
-
--- Обязательный риск
-INSERT INTO risk_types (code, name_en, name_ru, coefficient, is_mandatory, description, valid_from)
-VALUES ('TRAVEL_MEDICAL', 'Medical Coverage', 'Медицинское покрытие', 0.00, TRUE, 'Base medical coverage', '2020-01-01');
-
--- Опциональные риски
-INSERT INTO risk_types (code, name_en, name_ru, coefficient, is_mandatory, description, valid_from)
-VALUES
-('SPORT_ACTIVITIES', 'Sport Activities', 'Активный спорт', 0.30, FALSE, 'Skiing, snowboarding, diving', '2020-01-01'),
-('EXTREME_SPORT', 'Extreme Sport', 'Экстремальный спорт', 0.60, FALSE, 'Mountaineering, parachuting', '2020-01-01'),
-('PREGNANCY', 'Pregnancy Coverage', 'Покрытие беременности', 0.20, FALSE, 'Up to 31 weeks', '2020-01-01'),
-('CHRONIC_DISEASES', 'Chronic Diseases', 'Хронические заболевания', 0.40, FALSE, 'Diabetes, asthma, etc.', '2020-01-01'),
-('ACCIDENT_COVERAGE', 'Accident Coverage', 'От несчастных случаев', 0.20, FALSE, 'Extended accident coverage', '2020-01-01'),
-('TRIP_CANCELLATION', 'Trip Cancellation', 'Отмена поездки', 0.15, FALSE, 'Trip cancellation insurance', '2020-01-01'),
-('LUGGAGE_LOSS', 'Luggage Loss', 'Потеря багажа', 0.10, FALSE, 'Lost luggage coverage', '2020-01-01'),
-('FLIGHT_DELAY', 'Flight Delay', 'Задержка рейса', 0.05, FALSE, 'Flight delay compensation', '2020-01-01'),
-('CIVIL_LIABILITY', 'Civil Liability', 'Гражданская ответственность', 0.10, FALSE, 'Third party liability', '2020-01-01');
+-- src/test/resources/test-data/risk-types.sql
+INSERT INTO risk_types (risk_code, name, description, base_premium, is_mandatory) VALUES
+('TRAVEL_MEDICAL', 'Travel Medical Insurance', 'Mandatory medical coverage', 0.00, TRUE),
+('SPORT_ACTIVITIES', 'Sport Activities', 'Coverage for sport activities', 15.00, FALSE),
+('EXTREME_SPORT', 'Extreme Sport', 'Coverage for extreme sports', 50.00, FALSE),
+('PREGNANCY', 'Pregnancy Coverage', 'Coverage for pregnancy-related risks', 25.00, FALSE),
+('CHRONIC_DISEASES', 'Chronic Diseases', 'Coverage for chronic diseases', 30.00, FALSE),
+('ACCIDENT_COVERAGE', 'Accident Coverage', 'Additional accident coverage', 20.00, FALSE),
+('TRIP_CANCELLATION', 'Trip Cancellation', 'Coverage for trip cancellation', 35.00, FALSE),
+('LUGGAGE_LOSS', 'Luggage Loss', 'Coverage for luggage loss', 10.00, FALSE),
+('FLIGHT_DELAY', 'Flight Delay', 'Coverage for flight delays', 8.00, FALSE),
+('CIVIL_LIABILITY', 'Civil Liability', 'Civil liability coverage', 12.00, FALSE);
