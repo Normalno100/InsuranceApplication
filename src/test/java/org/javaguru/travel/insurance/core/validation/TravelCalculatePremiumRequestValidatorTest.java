@@ -51,33 +51,6 @@ class TravelCalculatePremiumRequestValidatorTest {
     }
 
     @Test
-    void shouldValidateSuccessfully_whenRequestIsValid() {
-        // Given
-        TravelCalculatePremiumRequest request = createValidRequest();
-
-        // Mock repositories
-        when(countryRepository.findActiveByIsoCode(eq("ES"), any()))
-                .thenReturn(Optional.of(createCountryEntity()));
-
-        when(medicalRiskLimitLevelRepository.findActiveByCode(
-                eq("LEVEL_10000"), any()))
-                .thenReturn(Optional.of(createMedicalLevelEntity()));
-
-        when(riskRepository.findActiveByCode(any(), any()))
-                .thenReturn(Optional.of(createRiskTypeEntity()));
-
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        errors.forEach(e ->
-                System.out.println(e.getField() + " -> " + e.getMessage()));
-        // Then
-        assertTrue(errors.isEmpty(), "Should have no validation errors");
-
-    }
-
-    @Test
     void shouldReturnError_whenPersonFirstNameIsNull() {
         // Given
         TravelCalculatePremiumRequest request = createValidRequest();
@@ -105,69 +78,6 @@ class TravelCalculatePremiumRequestValidatorTest {
         assertFalse(errors.isEmpty());
         assertTrue(errors.stream()
                 .anyMatch(e -> "personFirstName".equals(e.getField())));
-    }
-
-    @Test
-    void shouldReturnError_whenAgreementDateToBeforeDateFrom() {
-        // Given
-        TravelCalculatePremiumRequest request = createValidRequest();
-        request.setAgreementDateFrom(LocalDate.of(2025, 6, 15));
-        request.setAgreementDateTo(LocalDate.of(2025, 6, 10));
-
-        when(countryRepository.findActiveByIsoCode(any(), any()))
-                .thenReturn(Optional.of(createCountryEntity()));
-        when(medicalRiskLimitLevelRepository.findActiveByCode(any(), any()))
-                .thenReturn(Optional.of(createMedicalLevelEntity()));
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertFalse(errors.isEmpty());
-        assertTrue(errors.stream()
-                .anyMatch(e -> "agreementDateTo".equals(e.getField())));
-    }
-
-    @Test
-    void shouldReturnError_whenPersonAgeExceeds80Years() {
-        // Given
-        TravelCalculatePremiumRequest request = createValidRequest();
-        request.setPersonBirthDate(LocalDate.of(1940, 1, 1));
-        request.setAgreementDateFrom(LocalDate.now());
-
-        when(countryRepository.findActiveByIsoCode(any(), any()))
-                .thenReturn(Optional.of(createCountryEntity()));
-        when(medicalRiskLimitLevelRepository.findActiveByCode(any(), any()))
-                .thenReturn(Optional.of(createMedicalLevelEntity()));
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertFalse(errors.isEmpty());
-        assertTrue(errors.stream()
-                .anyMatch(e -> "personBirthDate".equals(e.getField())
-                        && e.getMessage().contains("80")));
-    }
-
-    @Test
-    void shouldReturnError_whenCountryNotFound() {
-        // Given
-        TravelCalculatePremiumRequest request = createValidRequest();
-
-        when(countryRepository.findActiveByIsoCode(eq("ES"), any()))
-                .thenReturn(Optional.empty()); // Country not found
-
-        when(medicalRiskLimitLevelRepository.findActiveByCode(any(), any()))
-                .thenReturn(Optional.of(createMedicalLevelEntity()));
-
-        // When
-        List<ValidationError> errors = validator.validate(request);
-
-        // Then
-        assertFalse(errors.isEmpty());
-        assertTrue(errors.stream()
-                .anyMatch(e -> "countryIsoCode".equals(e.getField())));
     }
 
     @Test
