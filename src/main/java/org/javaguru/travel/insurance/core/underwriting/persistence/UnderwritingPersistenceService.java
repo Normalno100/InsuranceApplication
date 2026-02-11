@@ -4,13 +4,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.javaguru.travel.insurance.core.domain.entities.UnderwritingAuditLogEntity;
-import org.javaguru.travel.insurance.core.domain.entities.UnderwritingDecisionEntity;
-import org.javaguru.travel.insurance.core.repositories.UnderwritingAuditLogRepository;
-import org.javaguru.travel.insurance.core.repositories.UnderwritingDecisionRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.UnderwritingAuditLogEntity;
+import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.UnderwritingDecisionEntity;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.UnderwritingAuditLogRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.UnderwritingDecisionRepository;
 import org.javaguru.travel.insurance.core.underwriting.domain.RuleResult;
 import org.javaguru.travel.insurance.core.underwriting.domain.UnderwritingResult;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

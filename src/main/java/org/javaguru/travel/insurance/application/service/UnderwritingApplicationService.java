@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.javaguru.travel.insurance.core.underwriting.UnderwritingService;
 import org.javaguru.travel.insurance.core.underwriting.domain.UnderwritingResult;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 import org.springframework.stereotype.Service;
 
 /**

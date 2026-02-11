@@ -4,8 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.javaguru.travel.insurance.core.underwriting.domain.RuleResult;
 import org.javaguru.travel.insurance.core.underwriting.domain.UnderwritingResult;
-import org.javaguru.travel.insurance.core.underwriting.rules.UnderwritingRule;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.core.underwriting.rule.UnderwritingRule;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;

@@ -1,6 +1,6 @@
 package org.javaguru.travel.insurance.util;
 
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;

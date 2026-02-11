@@ -1,7 +1,7 @@
 package org.javaguru.travel.insurance.core.validation;
 
-import org.javaguru.travel.insurance.core.services.TravelCalculatePremiumService;
-import org.javaguru.travel.insurance.rest.GlobalExceptionHandler;
+import org.javaguru.travel.insurance.application.service.TravelCalculatePremiumService;
+import org.javaguru.travel.insurance.infrastructure.web.error.GlobalExceptionHandler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

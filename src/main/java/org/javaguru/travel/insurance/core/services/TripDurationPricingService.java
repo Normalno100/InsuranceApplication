@@ -2,8 +2,7 @@ package org.javaguru.travel.insurance.core.services;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.javaguru.travel.insurance.core.domain.entities.TripDurationCoefficientEntity;
-import org.javaguru.travel.insurance.core.repositories.TripDurationCoefficientRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.TripDurationCoefficientRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;

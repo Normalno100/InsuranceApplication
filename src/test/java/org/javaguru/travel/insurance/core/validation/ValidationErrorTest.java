@@ -1,5 +1,6 @@
 package org.javaguru.travel.insurance.core.validation;
 
+import org.javaguru.travel.insurance.application.validation.ValidationError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

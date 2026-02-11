@@ -1,8 +1,10 @@
 package org.javaguru.travel.insurance.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.javaguru.travel.insurance.core.services.TravelCalculatePremiumService;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumResponse;
+import org.javaguru.travel.insurance.application.service.TravelCalculatePremiumService;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumResponse;
+import org.javaguru.travel.insurance.infrastructure.web.controller.TravelCalculatePremiumController;
+import org.javaguru.travel.insurance.infrastructure.web.error.GlobalExceptionHandler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

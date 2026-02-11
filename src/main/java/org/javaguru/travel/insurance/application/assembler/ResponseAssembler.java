@@ -6,16 +6,13 @@ import org.javaguru.travel.insurance.application.service.DiscountApplicationServ
 import org.javaguru.travel.insurance.application.service.PremiumCalculationService;
 import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator;
 import org.javaguru.travel.insurance.core.underwriting.domain.UnderwritingResult;
-import org.javaguru.travel.insurance.core.validation.ValidationError;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumResponse;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumResponse.*;
+import org.javaguru.travel.insurance.application.validation.ValidationError;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumResponse;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -57,7 +54,7 @@ public class ResponseAssembler {
                 .collect(Collectors.toList());
 
         return TravelCalculatePremiumResponse.builder()
-                .status(ResponseStatus.VALIDATION_ERROR)
+                .status(TravelCalculatePremiumResponse.ResponseStatus.VALIDATION_ERROR)
                 .success(false)
                 .errors(validationErrors)
                 .build();
@@ -75,10 +72,10 @@ public class ResponseAssembler {
         error.setMessage("Application declined: " + underwritingResult.getDeclineReason());
 
         return TravelCalculatePremiumResponse.builder()
-                .status(ResponseStatus.DECLINED)
+                .status(TravelCalculatePremiumResponse.ResponseStatus.DECLINED)
                 .success(false)
                 .person(buildPersonSummary(request, null))
-                .underwriting(UnderwritingInfo.builder()
+                .underwriting(TravelCalculatePremiumResponse.UnderwritingInfo.builder()
                         .decision(underwritingResult.getDecision().name())
                         .reason(underwritingResult.getDeclineReason())
                         .evaluatedRules(buildRuleEvaluations(underwritingResult))
@@ -99,10 +96,10 @@ public class ResponseAssembler {
         error.setMessage("Manual review required: " + underwritingResult.getDeclineReason());
 
         return TravelCalculatePremiumResponse.builder()
-                .status(ResponseStatus.REQUIRES_REVIEW)
+                .status(TravelCalculatePremiumResponse.ResponseStatus.REQUIRES_REVIEW)
                 .success(false)
                 .person(buildPersonSummary(request, null))
-                .underwriting(UnderwritingInfo.builder()
+                .underwriting(TravelCalculatePremiumResponse.UnderwritingInfo.builder()
                         .decision(underwritingResult.getDecision().name())
                         .reason(underwritingResult.getDeclineReason())
                         .evaluatedRules(buildRuleEvaluations(underwritingResult))
@@ -124,12 +121,12 @@ public class ResponseAssembler {
                 ? request.getCurrency() : "EUR";
 
         var builder = TravelCalculatePremiumResponse.builder()
-                .status(ResponseStatus.SUCCESS)
+                .status(TravelCalculatePremiumResponse.ResponseStatus.SUCCESS)
                 .success(true)
                 .errors(List.of());
 
         // Pricing Summary
-        builder.pricing(PricingSummary.builder()
+        builder.pricing(TravelCalculatePremiumResponse.PricingSummary.builder()
                 .totalPremium(discountResult.finalPremium())
                 .baseAmount(discountResult.basePremium())
                 .totalDiscount(discountResult.totalDiscount())
@@ -148,7 +145,7 @@ public class ResponseAssembler {
         // Applied Discounts
         if (!discountResult.appliedDiscounts().isEmpty()) {
             var appliedDiscounts = discountResult.appliedDiscounts().stream()
-                    .map(d -> AppliedDiscount.builder()
+                    .map(d -> TravelCalculatePremiumResponse.AppliedDiscount.builder()
                             .type(d.type())
                             .code(d.code())
                             .description(d.description())
@@ -160,7 +157,7 @@ public class ResponseAssembler {
         }
 
         // Underwriting Info
-        builder.underwriting(UnderwritingInfo.builder()
+        builder.underwriting(TravelCalculatePremiumResponse.UnderwritingInfo.builder()
                 .decision(underwritingResult.getDecision().name())
                 .evaluatedRules(buildRuleEvaluations(underwritingResult))
                 .build());
@@ -182,7 +179,7 @@ public class ResponseAssembler {
         error.setMessage("Calculation error: " + errorMessage);
 
         return TravelCalculatePremiumResponse.builder()
-                .status(ResponseStatus.VALIDATION_ERROR)
+                .status(TravelCalculatePremiumResponse.ResponseStatus.VALIDATION_ERROR)
                 .success(false)
                 .errors(List.of(error))
                 .build();
@@ -191,14 +188,14 @@ public class ResponseAssembler {
     /**
      * Строит PersonSummary
      */
-    private PersonSummary buildPersonSummary(
+    private TravelCalculatePremiumResponse.PersonSummary buildPersonSummary(
             TravelCalculatePremiumRequest request,
             MedicalRiskPremiumCalculator.PremiumCalculationResult calculationResult) {
 
         Integer age = calculationResult != null ? calculationResult.age() : null;
         String ageGroup = calculationResult != null ? calculationResult.ageGroupDescription() : null;
 
-        return PersonSummary.builder()
+        return TravelCalculatePremiumResponse.PersonSummary.builder()
                 .firstName(request.getPersonFirstName())
                 .lastName(request.getPersonLastName())
                 .birthDate(request.getPersonBirthDate())
@@ -210,11 +207,11 @@ public class ResponseAssembler {
     /**
      * Строит TripSummary
      */
-    private TripSummary buildTripSummary(
+    private TravelCalculatePremiumResponse.TripSummary buildTripSummary(
             TravelCalculatePremiumRequest request,
             MedicalRiskPremiumCalculator.PremiumCalculationResult calculationResult) {
 
-        return TripSummary.builder()
+        return TravelCalculatePremiumResponse.TripSummary.builder()
                 .dateFrom(request.getAgreementDateFrom())
                 .dateTo(request.getAgreementDateTo())
                 .days(calculationResult != null ? calculationResult.days() : null)
@@ -228,10 +225,10 @@ public class ResponseAssembler {
     /**
      * Строит PricingDetails
      */
-    private PricingDetails buildPricingDetails(
+    private TravelCalculatePremiumResponse.PricingDetails buildPricingDetails(
             MedicalRiskPremiumCalculator.PremiumCalculationResult calculationResult) {
 
-        var builder = PricingDetails.builder()
+        var builder = TravelCalculatePremiumResponse.PricingDetails.builder()
                 .baseRate(calculationResult.baseRate())
                 .ageCoefficient(calculationResult.ageCoefficient())
                 .countryCoefficient(calculationResult.countryCoefficient())
@@ -240,7 +237,7 @@ public class ResponseAssembler {
 
         // Risk Breakdown
         var riskBreakdown = calculationResult.riskDetails().stream()
-                .map(r -> RiskBreakdown.builder()
+                .map(r -> TravelCalculatePremiumResponse.RiskBreakdown.builder()
                         .riskCode(r.riskCode())
                         .riskName(r.riskName())
                         .premium(r.premium())
@@ -254,7 +251,7 @@ public class ResponseAssembler {
         // Calculation Steps
         var steps = calculationResult.calculationSteps().stream()
                 .map(s -> {
-                    var step = new CalculationStep();
+                    var step = new TravelCalculatePremiumResponse.CalculationStep();
                     step.setStepNumber(calculationResult.calculationSteps().indexOf(s) + 1);
                     step.setDescription(s.description());
                     step.setFormula(s.formula());
@@ -270,9 +267,9 @@ public class ResponseAssembler {
     /**
      * Строит список оценок правил
      */
-    private List<RuleEvaluation> buildRuleEvaluations(UnderwritingResult underwritingResult) {
+    private List<TravelCalculatePremiumResponse.RuleEvaluation> buildRuleEvaluations(UnderwritingResult underwritingResult) {
         return underwritingResult.getRuleResults().stream()
-                .map(r -> new RuleEvaluation(
+                .map(r -> new TravelCalculatePremiumResponse.RuleEvaluation(
                         r.getRuleName(),
                         r.getSeverity().name(),
                         r.getMessage()

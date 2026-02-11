@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.javaguru.travel.insurance.core.services.DiscountService;
 import org.javaguru.travel.insurance.core.services.PromoCodeService;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;

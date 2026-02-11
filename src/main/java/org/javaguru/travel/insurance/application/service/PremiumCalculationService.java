@@ -3,7 +3,7 @@ package org.javaguru.travel.insurance.application.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;

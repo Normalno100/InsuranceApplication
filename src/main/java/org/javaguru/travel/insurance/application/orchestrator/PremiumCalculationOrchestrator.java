@@ -6,13 +6,12 @@ import org.javaguru.travel.insurance.application.service.DiscountApplicationServ
 import org.javaguru.travel.insurance.application.service.PremiumCalculationService;
 import org.javaguru.travel.insurance.application.service.UnderwritingApplicationService;
 import org.javaguru.travel.insurance.application.assembler.ResponseAssembler;
-import org.javaguru.travel.insurance.core.validation.TravelCalculatePremiumRequestValidator;
-import org.javaguru.travel.insurance.core.validation.ValidationError;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumResponse;
+import org.javaguru.travel.insurance.application.validation.TravelCalculatePremiumRequestValidator;
+import org.javaguru.travel.insurance.application.validation.ValidationError;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumResponse;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 /**

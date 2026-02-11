@@ -1,6 +1,6 @@
 package org.javaguru.travel.insurance;
 
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 import java.time.LocalDate;
 import java.util.List;
 

@@ -1,6 +1,6 @@
 package org.javaguru.travel.insurance.infrastructure.persistence.mapper;
 
-import org.javaguru.travel.insurance.core.domain.entities.RiskTypeEntity;
+import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.RiskTypeEntity;
 import org.javaguru.travel.insurance.domain.model.entity.Risk;
 import org.javaguru.travel.insurance.domain.model.valueobject.Coefficient;
 import org.javaguru.travel.insurance.domain.model.valueobject.RiskCode;

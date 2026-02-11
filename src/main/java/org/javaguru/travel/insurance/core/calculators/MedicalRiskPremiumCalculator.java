@@ -2,13 +2,13 @@ package org.javaguru.travel.insurance.core.calculators;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.javaguru.travel.insurance.core.repositories.CountryRepository;
-import org.javaguru.travel.insurance.core.repositories.MedicalRiskLimitLevelRepository;
-import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.CountryRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.MedicalRiskLimitLevelRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.RiskTypeRepository;
 import org.javaguru.travel.insurance.core.services.AgeRiskPricingService;
 import org.javaguru.travel.insurance.core.services.RiskBundleService;
 import org.javaguru.travel.insurance.core.services.TripDurationPricingService;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;

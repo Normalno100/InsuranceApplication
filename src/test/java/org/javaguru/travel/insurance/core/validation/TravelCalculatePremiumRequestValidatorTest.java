@@ -1,13 +1,15 @@
 package org.javaguru.travel.insurance.core.validation;
 
-import org.javaguru.travel.insurance.core.domain.entities.RiskTypeEntity;
-import org.javaguru.travel.insurance.core.repositories.CountryRepository;
-import org.javaguru.travel.insurance.core.repositories.MedicalRiskLimitLevelRepository;
-import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
-import org.javaguru.travel.insurance.core.domain.entities.CountryEntity;
-import org.javaguru.travel.insurance.core.domain.entities.MedicalRiskLimitLevelEntity;
+import org.javaguru.travel.insurance.application.validation.TravelCalculatePremiumRequestValidator;
+import org.javaguru.travel.insurance.application.validation.ValidationError;
+import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.RiskTypeEntity;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.CountryRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.MedicalRiskLimitLevelRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.RiskTypeRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.CountryEntity;
+import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.MedicalRiskLimitLevelEntity;
 import org.javaguru.travel.insurance.domain.port.ReferenceDataPort;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,12 +18,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class TravelCalculatePremiumRequestValidatorTest {

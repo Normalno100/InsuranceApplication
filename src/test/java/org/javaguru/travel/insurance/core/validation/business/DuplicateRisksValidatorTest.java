@@ -1,7 +1,8 @@
 package org.javaguru.travel.insurance.core.validation.business;
 
-import org.javaguru.travel.insurance.core.validation.ValidationContext;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.application.validation.ValidationContext;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.application.validation.rule.business.DuplicateRisksValidator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

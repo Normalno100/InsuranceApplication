@@ -1,7 +1,7 @@
 package org.javaguru.travel.insurance.core.underwriting.config;
 
-import org.javaguru.travel.insurance.core.domain.entities.UnderwritingRuleConfigEntity;
-import org.javaguru.travel.insurance.core.repositories.UnderwritingRuleConfigRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.UnderwritingRuleConfigEntity;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.UnderwritingRuleConfigRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

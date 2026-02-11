@@ -2,9 +2,9 @@ package org.javaguru.travel.insurance.infrastructure.persistence.adapter;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.javaguru.travel.insurance.core.repositories.CountryRepository;
-import org.javaguru.travel.insurance.core.repositories.MedicalRiskLimitLevelRepository;
-import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.CountryRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.MedicalRiskLimitLevelRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.RiskTypeRepository;
 import org.javaguru.travel.insurance.domain.model.entity.Country;
 import org.javaguru.travel.insurance.domain.model.entity.MedicalRiskLimitLevel;
 import org.javaguru.travel.insurance.domain.model.entity.Risk;

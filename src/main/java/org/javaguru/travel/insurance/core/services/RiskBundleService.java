@@ -4,14 +4,13 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.javaguru.travel.insurance.core.domain.entities.RiskBundleEntity;
-import org.javaguru.travel.insurance.core.repositories.RiskBundleRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.RiskBundleEntity;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.RiskBundleRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Сервис для работы с пакетами рисков

@@ -1,6 +1,6 @@
 package org.javaguru.travel.insurance.infrastructure.persistence.mapper;
 
-import org.javaguru.travel.insurance.core.domain.entities.CountryEntity;
+import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.CountryEntity;
 import org.javaguru.travel.insurance.domain.model.entity.Country;
 import org.javaguru.travel.insurance.domain.model.valueobject.Coefficient;
 import org.javaguru.travel.insurance.domain.model.valueobject.CountryCode;

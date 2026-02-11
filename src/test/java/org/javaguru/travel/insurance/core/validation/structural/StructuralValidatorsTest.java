@@ -1,6 +1,10 @@
 package org.javaguru.travel.insurance.core.validation.structural;
 
-import org.javaguru.travel.insurance.core.validation.ValidationContext;
+import org.javaguru.travel.insurance.application.validation.ValidationContext;
+import org.javaguru.travel.insurance.application.validation.rule.structural.IsoCodeValidator;
+import org.javaguru.travel.insurance.application.validation.rule.structural.NotBlankValidator;
+import org.javaguru.travel.insurance.application.validation.rule.structural.NotNullValidator;
+import org.javaguru.travel.insurance.application.validation.rule.structural.StringLengthValidator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

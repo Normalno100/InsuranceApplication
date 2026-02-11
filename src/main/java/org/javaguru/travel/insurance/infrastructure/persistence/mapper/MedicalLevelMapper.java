@@ -1,6 +1,6 @@
 package org.javaguru.travel.insurance.infrastructure.persistence.mapper;
 
-import org.javaguru.travel.insurance.core.domain.entities.MedicalRiskLimitLevelEntity;
+import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.MedicalRiskLimitLevelEntity;
 import org.javaguru.travel.insurance.domain.model.entity.MedicalRiskLimitLevel;
 import org.javaguru.travel.insurance.domain.model.valueobject.Currency;
 import org.springframework.stereotype.Component;

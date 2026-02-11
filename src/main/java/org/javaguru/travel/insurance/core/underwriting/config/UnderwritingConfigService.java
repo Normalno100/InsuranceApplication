@@ -2,7 +2,7 @@ package org.javaguru.travel.insurance.core.underwriting.config;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.javaguru.travel.insurance.core.repositories.UnderwritingRuleConfigRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.UnderwritingRuleConfigRepository;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 

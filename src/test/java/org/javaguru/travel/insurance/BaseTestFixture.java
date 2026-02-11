@@ -1,177 +1,291 @@
 package org.javaguru.travel.insurance;
 
 import org.javaguru.travel.insurance.core.calculators.AgeCalculator;
-import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator;
-import org.javaguru.travel.insurance.core.domain.entities.CountryEntity;
-import org.javaguru.travel.insurance.core.domain.entities.MedicalRiskLimitLevelEntity;
-import org.javaguru.travel.insurance.core.domain.entities.RiskTypeEntity;
-import org.javaguru.travel.insurance.core.services.PromoCodeService;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.CountryEntity;
+import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.MedicalRiskLimitLevelEntity;
+import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.RiskTypeEntity;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.Collections;
 import java.util.List;
 
 /**
- * Базовый класс для всех тестов с общими методами
- * Устраняет дублирование кода между тестовыми классами
+ * Улучшенный базовый класс для тестов.
+ *
+ * ПРИНЦИПЫ:
+ * 1. Только фабричные методы для создания тестовых данных
+ * 2. Никаких моков - моки настраиваются в самих тестах
+ * 3. Говорящие имена методов, которые объясняют ЗАЧЕМ нужны эти данные
+ * 4. Явные параметры вместо магических значений
  */
 public abstract class BaseTestFixture {
 
-    // ========== REQUEST BUILDERS ==========
+    // ========== REQUEST BUILDERS WITH CLEAR INTENT ==========
 
-    protected TravelCalculatePremiumRequest validRequest() {
+    /**
+     * Базовый запрос для взрослого человека 35 лет
+     * Используется как основа для большинства тестов
+     */
+    protected TravelCalculatePremiumRequest standardAdultRequest() {
         return TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
-                .personBirthDate(LocalDate.of(1990, 1, 1))
-                .agreementDateFrom(LocalDate.of(2025, 6, 1))
-                .agreementDateTo(LocalDate.of(2025, 6, 15))
+                .personBirthDate(LocalDate.now().minusYears(35))
+                .agreementDateFrom(LocalDate.now().plusDays(7))
+                .agreementDateTo(LocalDate.now().plusDays(21)) // 14 days
+                .countryIsoCode("ES") // Spain - low risk
+                .medicalRiskLimitLevel("50000")
+                .build();
+    }
+
+    /**
+     * Запрос для пожилого человека (75 лет) - используется для тестов age surcharge
+     */
+    protected TravelCalculatePremiumRequest elderlyPersonRequest() {
+        return TravelCalculatePremiumRequest.builder()
+                .personFirstName("John")
+                .personLastName("Doe")
+                .personBirthDate(LocalDate.now().minusYears(75))
+                .agreementDateFrom(LocalDate.now().plusDays(7))
+                .agreementDateTo(LocalDate.now().plusDays(21))
                 .countryIsoCode("ES")
                 .medicalRiskLimitLevel("50000")
                 .build();
     }
 
-    protected TravelCalculatePremiumRequest requestWithPeriod(int days) {
-        LocalDate from = LocalDate.of(2025, 6, 1);
+    /**
+     * Запрос для очень пожилого человека (80 лет) - граничное значение
+     */
+    protected TravelCalculatePremiumRequest maximumAgeRequest() {
         return TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
-                .personBirthDate(LocalDate.of(1990, 1, 1))
+                .personBirthDate(LocalDate.now().minusYears(80))
+                .agreementDateFrom(LocalDate.now().plusDays(7))
+                .agreementDateTo(LocalDate.now().plusDays(21))
+                .countryIsoCode("ES")
+                .medicalRiskLimitLevel("50000")
+                .build();
+    }
+
+    /**
+     * Запрос с выбранными дополнительными рисками
+     */
+    protected TravelCalculatePremiumRequest requestWithSelectedRisks(String... riskCodes) {
+        return TravelCalculatePremiumRequest.builder()
+                .personFirstName("John")
+                .personLastName("Doe")
+                .personBirthDate(LocalDate.now().minusYears(35))
+                .agreementDateFrom(LocalDate.now().plusDays(7))
+                .agreementDateTo(LocalDate.now().plusDays(21))
+                .countryIsoCode("ES")
+                .medicalRiskLimitLevel("50000")
+                .selectedRisks(List.of(riskCodes))
+                .build();
+    }
+
+    /**
+     * Запрос с промо-кодом
+     */
+    protected TravelCalculatePremiumRequest requestWithPromoCode(String promoCode) {
+        return TravelCalculatePremiumRequest.builder()
+                .personFirstName("John")
+                .personLastName("Doe")
+                .personBirthDate(LocalDate.now().minusYears(35))
+                .agreementDateFrom(LocalDate.now().plusDays(7))
+                .agreementDateTo(LocalDate.now().plusDays(21))
+                .countryIsoCode("ES")
+                .medicalRiskLimitLevel("50000")
+                .promoCode(promoCode)
+                .build();
+    }
+
+    /**
+     * Запрос с определенной длительностью поездки
+     */
+    protected TravelCalculatePremiumRequest requestWithDuration(int days) {
+        LocalDate from = LocalDate.now().plusDays(7);
+        return TravelCalculatePremiumRequest.builder()
+                .personFirstName("John")
+                .personLastName("Doe")
+                .personBirthDate(LocalDate.now().minusYears(35))
                 .agreementDateFrom(from)
-                .agreementDateTo(from.plusDays(days))
+                .agreementDateTo(from.plusDays(days - 1))
                 .countryIsoCode("ES")
                 .medicalRiskLimitLevel("50000")
                 .build();
     }
 
-    protected TravelCalculatePremiumRequest requestWithRisks(String... risks) {
-        var request = validRequest();
-        request.setSelectedRisks(List.of(risks));
-        return request;
-    }
+    // ========== ENTITY BUILDERS WITH REALISTIC DATA ==========
 
-    protected TravelCalculatePremiumRequest requestWithPromoCode(String code) {
-        var request = validRequest();
-        request.setPromoCode(code);
-        return request;
-    }
-
-    // ========== ENTITY BUILDERS ==========
-
-    protected CountryEntity createCountryEntity(String isoCode, String name, BigDecimal coefficient) {
+    /**
+     * Испания - страна с низким риском, коэффициент 1.0
+     */
+    protected CountryEntity spainLowRisk() {
         var country = new CountryEntity();
-        country.setIsoCode(isoCode);
-        country.setNameEn(name);
-        country.setRiskCoefficient(coefficient);
+        country.setId(1L);
+        country.setIsoCode("ES");
+        country.setNameEn("Spain");
+        country.setRiskCoefficient(new BigDecimal("1.0"));
         country.setRiskGroup("LOW");
         country.setValidFrom(LocalDate.of(2020, 1, 1));
         return country;
     }
 
-    protected CountryEntity defaultCountry() {
-        return createCountryEntity("ES", "Spain", new BigDecimal("1.0"));
+    /**
+     * Таиланд - страна со средним риском, коэффициент 1.3
+     */
+    protected CountryEntity thailandMediumRisk() {
+        var country = new CountryEntity();
+        country.setId(2L);
+        country.setIsoCode("TH");
+        country.setNameEn("Thailand");
+        country.setRiskCoefficient(new BigDecimal("1.3"));
+        country.setRiskGroup("MEDIUM");
+        country.setValidFrom(LocalDate.of(2020, 1, 1));
+        return country;
     }
 
-    protected MedicalRiskLimitLevelEntity createMedicalLevel(String code, BigDecimal rate, BigDecimal coverage) {
+    /**
+     * Афганистан - страна с очень высоким риском, коэффициент 3.0
+     */
+    protected CountryEntity afghanistanVeryHighRisk() {
+        var country = new CountryEntity();
+        country.setId(3L);
+        country.setIsoCode("AF");
+        country.setNameEn("Afghanistan");
+        country.setRiskCoefficient(new BigDecimal("3.0"));
+        country.setRiskGroup("VERY_HIGH");
+        country.setValidFrom(LocalDate.of(2020, 1, 1));
+        return country;
+    }
+
+    /**
+     * Медицинское покрытие 50,000 EUR - стандартный уровень
+     */
+    protected MedicalRiskLimitLevelEntity medicalLevel50k() {
         var level = new MedicalRiskLimitLevelEntity();
-        level.setCode(code);
-        level.setDailyRate(rate);
-        level.setCoverageAmount(coverage);
+        level.setId(1L);
+        level.setCode("50000");
+        level.setDailyRate(new BigDecimal("4.50"));
+        level.setCoverageAmount(new BigDecimal("50000"));
         level.setCurrency("EUR");
         level.setValidFrom(LocalDate.of(2020, 1, 1));
         return level;
     }
 
-    protected MedicalRiskLimitLevelEntity defaultMedicalLevel() {
-        return createMedicalLevel("50000", new BigDecimal("4.50"), new BigDecimal("50000"));
+    /**
+     * Медицинское покрытие 100,000 EUR - повышенный уровень
+     */
+    protected MedicalRiskLimitLevelEntity medicalLevel100k() {
+        var level = new MedicalRiskLimitLevelEntity();
+        level.setId(2L);
+        level.setCode("100000");
+        level.setDailyRate(new BigDecimal("7.50"));
+        level.setCoverageAmount(new BigDecimal("100000"));
+        level.setCurrency("EUR");
+        level.setValidFrom(LocalDate.of(2020, 1, 1));
+        return level;
     }
 
-    protected RiskTypeEntity createRiskType(String code, String name, BigDecimal coefficient, boolean mandatory) {
+    /**
+     * TRAVEL_MEDICAL - обязательный риск
+     */
+    protected RiskTypeEntity travelMedicalMandatoryRisk() {
         var risk = new RiskTypeEntity();
-        risk.setCode(code);
-        risk.setNameEn(name);
-        risk.setCoefficient(coefficient);
-        risk.setIsMandatory(mandatory);
+        risk.setId(1L);
+        risk.setCode("TRAVEL_MEDICAL");
+        risk.setNameEn("Medical Coverage");
+        risk.setCoefficient(BigDecimal.ZERO); // Базовый риск, без коэффициента
+        risk.setIsMandatory(true);
         risk.setValidFrom(LocalDate.of(2020, 1, 1));
         return risk;
     }
 
-    protected RiskTypeEntity mandatoryRisk() {
-        return createRiskType("TRAVEL_MEDICAL", "Medical Coverage", BigDecimal.ZERO, true);
+    /**
+     * TRAVEL_BAGGAGE - опциональный риск, коэффициент 0.1
+     */
+    protected RiskTypeEntity travelBaggageOptionalRisk() {
+        var risk = new RiskTypeEntity();
+        risk.setId(2L);
+        risk.setCode("TRAVEL_BAGGAGE");
+        risk.setNameEn("Baggage Coverage");
+        risk.setCoefficient(new BigDecimal("0.1"));
+        risk.setIsMandatory(false);
+        risk.setValidFrom(LocalDate.of(2020, 1, 1));
+        return risk;
     }
 
-    protected RiskTypeEntity optionalRisk(String code, BigDecimal coefficient) {
-        return createRiskType(code, code, coefficient, false);
+    /**
+     * EXTREME_SPORT - экстремальный спорт, коэффициент 0.5
+     */
+    protected RiskTypeEntity extremeSportOptionalRisk() {
+        var risk = new RiskTypeEntity();
+        risk.setId(3L);
+        risk.setCode("EXTREME_SPORT");
+        risk.setNameEn("Extreme Sport Coverage");
+        risk.setCoefficient(new BigDecimal("0.5"));
+        risk.setIsMandatory(false);
+        risk.setValidFrom(LocalDate.of(2020, 1, 1));
+        return risk;
     }
 
-    // ========== CALCULATION RESULT BUILDERS ==========
+    // ========== AGE CALCULATION RESULTS ==========
 
-    protected MedicalRiskPremiumCalculator.PremiumCalculationResult createCalculationResult(
-            BigDecimal premium) {
-
-        return new MedicalRiskPremiumCalculator.PremiumCalculationResult(
-                premium,                    // premium
-                new BigDecimal("4.5"),       // baseRate
-                35,                          // age
-                BigDecimal.ONE,              // ageCoefficient
-                "Adults",                    // ageGroupDescription
-                BigDecimal.ONE,              // countryCoefficient
-                "Spain",                     // countryName
-                BigDecimal.ONE,              // durationCoefficient
-                BigDecimal.ZERO,             // additionalRisksCoefficient
-                BigDecimal.ONE,              // totalCoefficient
-                14,                          // days
-                new BigDecimal("50000"),     // coverageAmount
-                Collections.emptyList(),     // riskDetails
-                null,                        // bundleDiscount
-                Collections.emptyList()      // calculationSteps
+    /**
+     * Результат расчета возраста для взрослого человека (35 лет)
+     * Коэффициент 1.1 согласно бизнес-правилам
+     */
+    protected AgeCalculator.AgeCalculationResult ageResult35Years() {
+        return new AgeCalculator.AgeCalculationResult(
+                35,
+                new BigDecimal("1.1"),
+                "Adults"
         );
     }
 
-
-    protected AgeCalculator.AgeCalculationResult createAgeResult(int age, BigDecimal coefficient) {
-        return new AgeCalculator.AgeCalculationResult(age, coefficient, "Test Group");
-    }
-
-    // ========== PROMO CODE RESULT BUILDERS ==========
-
-    protected PromoCodeService.PromoCodeResult validPromoCodeResult(
-            String code, BigDecimal discount) {
-        return new PromoCodeService.PromoCodeResult(
-                true,
-                null,
-                code,
-                "Test promo",
-                PromoCodeService.DiscountType.PERCENTAGE,
-                new BigDecimal("10"),
-                discount
+    /**
+     * Результат расчета возраста для пожилого человека (75 лет)
+     * Коэффициент 2.5 согласно бизнес-правилам
+     */
+    protected AgeCalculator.AgeCalculationResult ageResult75Years() {
+        return new AgeCalculator.AgeCalculationResult(
+                75,
+                new BigDecimal("2.5"),
+                "Very elderly"
         );
     }
 
-    protected PromoCodeService.PromoCodeResult invalidPromoCodeResult(String message) {
-        return new PromoCodeService.PromoCodeResult(
-                false,
-                message,
-                null,
-                null,
-                null,
-                null,
-                null
+    /**
+     * Результат расчета возраста для молодого взрослого (25 лет)
+     * Коэффициент 1.0 (базовый) согласно бизнес-правилам
+     */
+    protected AgeCalculator.AgeCalculationResult ageResult25Years() {
+        return new AgeCalculator.AgeCalculationResult(
+                25,
+                new BigDecimal("1.0"),
+                "Young adults"
         );
     }
 
     // ========== ASSERTION HELPERS ==========
 
-    protected boolean isPremiumValid(BigDecimal premium) {
+    /**
+     * Проверяет что премия находится в разумных пределах
+     * Используется для smoke-тестов, когда точное значение не критично
+     */
+    protected boolean isReasonablePremiumAmount(BigDecimal premium) {
         return premium != null
-                && premium.compareTo(BigDecimal.ZERO) >= 0
+                && premium.compareTo(BigDecimal.ZERO) > 0
+                && premium.compareTo(new BigDecimal("10000")) < 0
                 && premium.scale() == 2;
     }
 
-    protected boolean isInRange(BigDecimal value, String min, String max) {
-        return value.compareTo(new BigDecimal(min)) >= 0
-                && value.compareTo(new BigDecimal(max)) <= 0;
+    /**
+     * Проверяет что значение находится в диапазоне (включительно)
+     */
+    protected boolean isInRange(BigDecimal value, BigDecimal min, BigDecimal max) {
+        return value.compareTo(min) >= 0 && value.compareTo(max) <= 0;
     }
 }

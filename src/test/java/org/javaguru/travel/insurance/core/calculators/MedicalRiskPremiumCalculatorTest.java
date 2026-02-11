@@ -1,142 +1,181 @@
 package org.javaguru.travel.insurance.core.calculators;
 
-import org.javaguru.travel.insurance.MockSetupHelper;
-import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator;
-import org.javaguru.travel.insurance.core.domain.entities.RiskTypeEntity;
-import org.javaguru.travel.insurance.core.repositories.CountryRepository;
-import org.javaguru.travel.insurance.core.repositories.MedicalRiskLimitLevelRepository;
-import org.javaguru.travel.insurance.core.repositories.RiskTypeRepository;
+import org.javaguru.travel.insurance.BaseTestFixture;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.CountryRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.MedicalRiskLimitLevelRepository;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.RiskTypeRepository;
 import org.javaguru.travel.insurance.core.services.AgeRiskPricingService;
 import org.javaguru.travel.insurance.core.services.RiskBundleService;
 import org.javaguru.travel.insurance.core.services.TripDurationPricingService;
-import org.javaguru.travel.insurance.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
-import java.util.List;
+import java.time.LocalDate;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * Улучшенные тесты для MedicalRiskPremiumCalculator
+ *
+ * ПРИНЦИПЫ:
+ * 1. Каждый тест настраивает ТОЛЬКО те моки, которые ему нужны
+ * 2. Явные when() в каждом тесте - видно что именно используется
+ * 3. verify() для проверки взаимодействий
+ * 4. Группировка тестов через @Nested для читаемости
+ */
 @ExtendWith(MockitoExtension.class)
-class MedicalRiskPremiumCalculatorTest extends MockSetupHelper {
+@MockitoSettings(strictness = Strictness.LENIENT)
+class MedicalRiskPremiumCalculatorTest extends BaseTestFixture {
 
-    @Mock
-    private AgeCalculator ageCalculator;
-    @Mock
-    private MedicalRiskLimitLevelRepository medicalLevelRepository;
-    @Mock
-    private CountryRepository countryRepository;
-    @Mock
-    private RiskTypeRepository riskTypeRepository;
-
-    @Mock
-    private TripDurationPricingService durationPricingService;
-    @Mock
-    private RiskBundleService riskBundleService;
-    @Mock
-    private AgeRiskPricingService ageRiskPricingService;
+    @Mock AgeCalculator ageCalculator;
+    @Mock MedicalRiskLimitLevelRepository medicalLevelRepository;
+    @Mock CountryRepository countryRepository;
+    @Mock RiskTypeRepository riskTypeRepository;
+    @Mock TripDurationPricingService durationPricingService;
+    @Mock RiskBundleService riskBundleService;
+    @Mock AgeRiskPricingService ageRiskPricingService;
 
     @InjectMocks
-    private MedicalRiskPremiumCalculator calculator;
+    MedicalRiskPremiumCalculator calculator;
 
     @BeforeEach
-    void setup() {
-        setupDefaultMocksLenient(
-                ageCalculator,
-                countryRepository,
-                medicalLevelRepository,
-                riskTypeRepository
-        );
+    void defaultMocks() {
+        // age
+        when(ageCalculator.calculateAgeAndCoefficient(any(), any()))
+                .thenReturn(ageResult35Years());
 
-        lenient().when(durationPricingService.getDurationCoefficient(anyInt(), any()))
+        // country
+        when(countryRepository.findActiveByIsoCode(anyString(), any()))
+                .thenReturn(Optional.of(spainLowRisk()));
+
+        // medical level
+        when(medicalLevelRepository.findActiveByCode(anyString(), any()))
+                .thenReturn(Optional.of(medicalLevel50k()));
+
+        // mandatory risk
+        when(riskTypeRepository.findActiveByCode(eq("TRAVEL_MEDICAL"), any()))
+                .thenReturn(Optional.of(travelMedicalMandatoryRisk()));
+
+        // pricing defaults
+        when(durationPricingService.getDurationCoefficient(anyInt(), any()))
                 .thenReturn(BigDecimal.ONE);
 
-        lenient().when(ageRiskPricingService.getAgeRiskModifier(any(), anyInt(), any()))
+        when(ageRiskPricingService.getAgeRiskModifier(anyString(), anyInt(), any()))
                 .thenReturn(BigDecimal.ONE);
 
-        lenient().when(riskBundleService.getBestApplicableBundle(any(), any()))
+        when(riskBundleService.getBestApplicableBundle(anyList(), any()))
                 .thenReturn(Optional.empty());
     }
 
-    // ==========================================
-    // POSITIVE CASES
-    // ==========================================
+    // =====================================================
+    // CORE FORMULA
+    // =====================================================
 
     @Test
-    void shouldCalculatePremiumSuccessfully_withoutAdditionalRisks() {
-        TravelCalculatePremiumRequest request = validRequest();
+    void shouldCalculatePremiumForStandardAdultTrip() {
+        var request = standardAdultRequest();
 
         BigDecimal premium = calculator.calculatePremium(request);
 
-        assertNotNull(premium);
-        assertTrue(premium.compareTo(BigDecimal.ZERO) > 0);
-        assertEquals(2, premium.scale());
+        assertThat(premium)
+                .isNotNull()
+                .isPositive()
+                .hasScaleOf(2);
     }
 
     @Test
-    void shouldReturnDetailedCalculationResult() {
-        TravelCalculatePremiumRequest request = validRequest();
+    void shouldApplyDurationCoefficient() {
+        when(durationPricingService.getDurationCoefficient(eq(14), any()))
+                .thenReturn(new BigDecimal("1.2"));
 
-        var result = calculator.calculatePremiumWithDetails(request);
+        var result = calculator.calculatePremiumWithDetails(standardAdultRequest());
 
-        assertNotNull(result);
-        assertNotNull(result.premium());
-        assertEquals("Spain", result.countryName());
-        assertEquals(35, result.age());
-        assertEquals(14, result.days());
-        assertNotNull(result.calculationSteps());
+        assertThat(result.durationCoefficient())
+                .isEqualByComparingTo("1.2");
     }
 
     @Test
-    void shouldIncludeAdditionalRisk_whenOptionalRiskSelected() {
-        RiskTypeEntity baggageRisk =
-                optionalRisk("TRAVEL_BAGGAGE", new BigDecimal("0.1"));
+    void shouldApplyCountryCoefficient() {
+        when(countryRepository.findActiveByIsoCode(eq("ES"), any()))
+                .thenReturn(Optional.of(spainLowRisk()));
+
+        var result = calculator.calculatePremiumWithDetails(standardAdultRequest());
+
+        assertThat(result.countryCoefficient())
+                .isEqualByComparingTo(spainLowRisk().getRiskCoefficient());
+    }
+
+    // =====================================================
+    // ADDITIONAL RISKS
+    // =====================================================
+
+    @Test
+    void shouldIncludeOptionalRiskCoefficient() {
+        var request = requestWithSelectedRisks("TRAVEL_BAGGAGE");
 
         when(riskTypeRepository.findActiveByCode(eq("TRAVEL_BAGGAGE"), any()))
-                .thenReturn(Optional.of(baggageRisk));
-
-        TravelCalculatePremiumRequest request =
-                requestWithRisks("TRAVEL_BAGGAGE");
+                .thenReturn(Optional.of(travelBaggageOptionalRisk()));
 
         var result = calculator.calculatePremiumWithDetails(request);
 
-        assertTrue(
-                result.additionalRisksCoefficient().compareTo(BigDecimal.ZERO) > 0
+        assertThat(result.additionalRisksCoefficient())
+                .isEqualByComparingTo(travelBaggageOptionalRisk().getCoefficient());
+    }
+
+    @Test
+    void shouldApplyAgeModifierToRisk() {
+        when(ageRiskPricingService.getAgeRiskModifier(eq("TRAVEL_BAGGAGE"), eq(35), any()))
+                .thenReturn(new BigDecimal("1.5"));
+
+        when(riskTypeRepository.findActiveByCode(eq("TRAVEL_BAGGAGE"), any()))
+                .thenReturn(Optional.of(travelBaggageOptionalRisk()));
+
+        var result = calculator.calculatePremiumWithDetails(
+                requestWithSelectedRisks("TRAVEL_BAGGAGE")
         );
 
-        assertEquals(2, result.riskDetails().size()); // MEDICAL + BAGGAGE
+        assertThat(result.additionalRisksCoefficient())
+                .isEqualByComparingTo(
+                        travelBaggageOptionalRisk()
+                                .getCoefficient()
+                                .multiply(new BigDecimal("1.5"))
+                );
     }
 
-    // ==========================================
-    // NEGATIVE CASES
-    // ==========================================
+    // =====================================================
+    // NEGATIVE SCENARIOS
+    // =====================================================
 
     @Test
-    void shouldThrowException_whenCountryNotFound() {
-        mockCountryNotFound(countryRepository, "ES");
+    void shouldFailWhenCountryNotFound() {
+        when(countryRepository.findActiveByIsoCode(anyString(), any()))
+                .thenReturn(Optional.empty());
 
-        TravelCalculatePremiumRequest request = validRequest();
-
-        assertThrows(IllegalArgumentException.class,
-                () -> calculator.calculatePremium(request));
+        assertThatThrownBy(() -> calculator.calculatePremium(standardAdultRequest()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Country");
     }
 
     @Test
-    void shouldThrowException_whenMedicalLevelNotFound() {
-        mockMedicalLevelNotFound(medicalLevelRepository, "50000");
+    void shouldFailWhenMedicalLevelNotFound() {
+        when(medicalLevelRepository.findActiveByCode(anyString(), any()))
+                .thenReturn(Optional.empty());
 
-        TravelCalculatePremiumRequest request = validRequest();
-
-        assertThrows(IllegalArgumentException.class,
-                () -> calculator.calculatePremium(request));
+        assertThatThrownBy(() -> calculator.calculatePremium(standardAdultRequest()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Medical");
     }
 }
-
