@@ -1,28 +1,85 @@
-# src/test/resources/application-test.yml
+# ============================================
+# Spring Boot Test Configuration (JPA DDL)
+# Profile: test
+# ============================================
+# Uses JPA to auto-generate schema from entities
+# No Liquibase dependency
+
 spring:
+  application:
+    name: travel-insurance-test
+
+  # ============================================
+  # H2 In-Memory Database
+  # ============================================
   datasource:
-    url: jdbc:h2:mem:testdb;MODE=MYSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
     driver-class-name: org.h2.Driver
     username: sa
     password:
 
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  # ============================================
+  # JPA / Hibernate - Auto DDL Generation
+  # ============================================
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
-      ddl-auto: none
-    show-sql: true
+      ddl-auto: create-drop  # Auto-generate schema from entities
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
+        use_sql_comments: false
+        jdbc:
+          batch_size: 20
+    defer-datasource-initialization: true  # ← CRITICAL: Run SQL after schema creation
 
+  # ============================================
+  # Liquibase - DISABLED
+  # ============================================
+  liquibase:
+    enabled: false
+
+  # ============================================
+  # SQL Initialization - DISABLED (load manually in tests)
+  # ============================================
   sql:
     init:
-      mode: never
+      mode: never  # Data loaded manually via @BeforeEach
 
+  # ============================================
+  # Jackson
+  # ============================================
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+      indent-output: true
+    deserialization:
+      fail-on-unknown-properties: false
+    default-property-inclusion: non_null
+
+# ============================================
+# Logging
+# ============================================
 logging:
   level:
+    root: WARN
+    org.javaguru.travel.insurance: DEBUG
+    org.springframework.web: INFO
+    org.springframework.test: INFO
     org.hibernate.SQL: DEBUG
-    org.springframework.jdbc: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 
-liquibase:
-    enabled: false
+# ============================================
+# Management
+# ============================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

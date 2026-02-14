@@ -3,7 +3,9 @@ package org.javaguru.travel.insurance.infrastructure.persistence.repositories;
 import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.CountryEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.RepositoryDefinition;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.Optional;
@@ -11,6 +13,7 @@ import java.util.Optional;
 /**
  * Репозиторий для работы со странами
  */
+@Repository
 public interface CountryRepository extends JpaRepository<CountryEntity, Long> {
 
     /**

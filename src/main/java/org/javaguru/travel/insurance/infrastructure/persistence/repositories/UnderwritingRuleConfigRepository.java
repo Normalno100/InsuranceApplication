@@ -4,6 +4,7 @@ import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.Optional;
 /**
  * Репозиторий для конфигурации правил андеррайтинга
  */
+@Repository
 public interface UnderwritingRuleConfigRepository extends JpaRepository<UnderwritingRuleConfigEntity, Long> {
 
     /**

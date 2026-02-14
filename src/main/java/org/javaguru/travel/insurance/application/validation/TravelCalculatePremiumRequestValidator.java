@@ -6,7 +6,6 @@ import org.javaguru.travel.insurance.application.validation.rule.structural.*;
 import org.javaguru.travel.insurance.infrastructure.persistence.repositories.CountryRepository;
 import org.javaguru.travel.insurance.infrastructure.persistence.repositories.MedicalRiskLimitLevelRepository;
 import org.javaguru.travel.insurance.infrastructure.persistence.repositories.RiskTypeRepository;
-import org.javaguru.travel.insurance.application.validation.rule.structural.*;
 import org.javaguru.travel.insurance.domain.port.ReferenceDataPort;
 import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 import org.springframework.stereotype.Component;
@@ -20,12 +19,13 @@ import java.util.List;
  * ОБНОВЛЕНО для API v2.0:
  * - Возвращает список ValidationError из core.validation пакета
  * - Конвертация в DTO ValidationError происходит в сервисе
+ *
+ * ИСПРАВЛЕНО: Передаём referenceDataPort в buildCompositeValidator
  */
 @Component
 public class TravelCalculatePremiumRequestValidator {
 
     private final CompositeValidator<TravelCalculatePremiumRequest> compositeValidator;
-
     private final ReferenceDataPort referenceDataPort;
 
     public TravelCalculatePremiumRequestValidator(
@@ -34,12 +34,15 @@ public class TravelCalculatePremiumRequestValidator {
             RiskTypeRepository riskRepository,
             ReferenceDataPort referenceDataPort) {
 
+        this.referenceDataPort = referenceDataPort;
+
+        // ✅ ИСПРАВЛЕНИЕ: Передаём referenceDataPort в метод
         this.compositeValidator = buildCompositeValidator(
                 countryRepository,
                 medicalRiskLimitLevelRepository,
-                riskRepository
+                riskRepository,
+                referenceDataPort  // ← ДОБАВЛЕНО!
         );
-        this.referenceDataPort = referenceDataPort;
     }
 
     /**
@@ -57,18 +60,19 @@ public class TravelCalculatePremiumRequestValidator {
             return List.of();
         }
 
-        // Возвращаем ValidationError из core.validation пакета
-        // Конвертация в DTO ValidationError будет в сервисе
         return result.getErrors();
     }
 
     /**
      * Построение композитного валидатора со всеми правилами
+     *
+     * ✅ ИСПРАВЛЕНО: Добавлен параметр referenceDataPort
      */
     private CompositeValidator<TravelCalculatePremiumRequest> buildCompositeValidator(
             CountryRepository countryRepository,
             MedicalRiskLimitLevelRepository medicalRiskLimitLevelRepository,
-            RiskTypeRepository riskRepository) {
+            RiskTypeRepository riskRepository,
+            ReferenceDataPort referenceDataPort) {  // ← ДОБАВЛЕНО!
 
         return CompositeValidator.<TravelCalculatePremiumRequest>builder(
                         "TravelCalculatePremiumRequestValidator"
@@ -142,7 +146,7 @@ public class TravelCalculatePremiumRequestValidator {
                 // ==========================================
 
                 .addRule(new CountryExistenceValidator(referenceDataPort))                      // 210
-                .addRule(new MedicalRiskLimitLevelExistenceValidator(referenceDataPort))        // 220                                // 220
+                .addRule(new MedicalRiskLimitLevelExistenceValidator(referenceDataPort))        // 220
                 .addRule(new RiskTypeExistenceValidator(referenceDataPort))                     // 230
                 .addRule(new RiskTypeNotMandatoryValidator(referenceDataPort))                  // 240
                 .addRule(new CurrencySupportValidator())                                        // 250
