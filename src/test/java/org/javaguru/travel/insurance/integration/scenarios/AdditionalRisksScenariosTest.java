@@ -267,8 +267,8 @@ class AdditionalRisksScenariosTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("Попытка включить обязательный риск TRAVEL_MEDICAL (игнорируется)")
-    void shouldIgnore_mandatoryRiskInSelectedRisks() throws Exception {
+    @DisplayName("Попытка включить обязательный риск TRAVEL_MEDICAL должна вернуть ошибку")
+    void shouldReject_mandatoryRiskInSelectedRisks() throws Exception {
         // Given
         TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
                 .personFirstName("User")
@@ -278,15 +278,14 @@ class AdditionalRisksScenariosTest extends BaseIntegrationTest {
                 .agreementDateTo(LocalDate.now().plusDays(12))
                 .countryIsoCode("ES")
                 .medicalRiskLimitLevel("50000")
-                .selectedRisks(List.of("TRAVEL_MEDICAL", "LUGGAGE_LOSS")) // включён обязательный
+                .selectedRisks(List.of("TRAVEL_MEDICAL", "LUGGAGE_LOSS"))
                 .build();
 
         // When & Then
         performCalculatePremium(request)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("SUCCESS"))
-                .andExpect(jsonPath("$.pricing.includedRisks", hasSize(1))) // только LUGGAGE_LOSS
-                .andExpect(jsonPath("$.pricing.includedRisks[0]").value("LUGGAGE_LOSS"))
-                .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.errors[0].field").value("selectedRisks"))
+                .andExpect(jsonPath("$.errors[0].message", containsString("mandatory")));
     }
 }

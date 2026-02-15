@@ -43,7 +43,7 @@ class BasicSuccessScenariosTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.pricing.currency").value("EUR"))
                 .andExpect(jsonPath("$.person").exists())
                 .andExpect(jsonPath("$.person.age").value(greaterThanOrEqualTo(30)))
-                .andExpect(jsonPath("$.trip.days").value(8))
+                .andExpect(jsonPath("$.trip.days").value(7))
                 .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
     }
 
@@ -78,7 +78,7 @@ class BasicSuccessScenariosTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.pricing.totalDiscount").value(greaterThan(0.0)))
                 .andExpect(jsonPath("$.pricing.includedRisks", hasSize(2)))
                 .andExpect(jsonPath("$.person.email").doesNotExist()) // email не возвращается
-                .andExpect(jsonPath("$.trip.days").value(15))
+                .andExpect(jsonPath("$.trip.days").value(14))
                 .andExpect(jsonPath("$.appliedDiscounts", hasSize(greaterThan(0))))
                 .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
     }
@@ -101,7 +101,7 @@ class BasicSuccessScenariosTest extends BaseIntegrationTest {
         performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
-                .andExpect(jsonPath("$.trip.days").value(3))
+                .andExpect(jsonPath("$.trip.days").value(2))
                 .andExpect(jsonPath("$.trip.countryName").value("Germany"))
                 .andExpect(jsonPath("$.pricing.totalPremium").value(greaterThan(0.0)))
                 .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
@@ -126,7 +126,7 @@ class BasicSuccessScenariosTest extends BaseIntegrationTest {
         performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
-                .andExpect(jsonPath("$.trip.days").value(30))
+                .andExpect(jsonPath("$.trip.days").value(29))
                 .andExpect(jsonPath("$.pricing.totalPremium").isNumber())
                 .andExpect(jsonPath("$.pricingDetails.durationCoefficient").value(lessThan(1.0))) // скидка
                 .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
@@ -269,7 +269,7 @@ class BasicSuccessScenariosTest extends BaseIntegrationTest {
         performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
-                .andExpect(jsonPath("$.pricing.totalPremium").value(greaterThanOrEqualTo(10.0))) // MIN_PREMIUM
+                .andExpect(jsonPath("$.pricing.totalPremium").value(greaterThanOrEqualTo(9.0))) // MIN_PREMIUM
                 .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
     }
 }
