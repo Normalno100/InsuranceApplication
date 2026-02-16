@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- ============================================ -->
+    <!-- Country Default Day Premium Table            -->
+    <!-- ============================================ -->
+
+    <!--
+        НАЗНАЧЕНИЕ:
+        Таблица для хранения дефолтных дневных премий по странам.
+        Эти значения используются как базовая ставка для расчета страховой премии,
+        если не указан конкретный уровень медицинского покрытия.
+
+        БИЗНЕС-ЛОГИКА:
+        - Каждая страна имеет свою базовую дневную ставку
+        - Ставка зависит от риска страны (LOW, MEDIUM, HIGH, VERY_HIGH)
+        - Поддержка версионирования через valid_from/valid_to
+        - Исторические данные сохраняются для аудита
+
+        ФОРМУЛА ИСПОЛЬЗОВАНИЯ:
+        Premium = CountryDefaultDayPremium × Days × AgeCoefficient × RiskCoefficients
+    -->
+
+    <changeSet id="012-01-create-country-default-day-premiums" author="travel-insurance">
+        <comment>
+            Creating table for storing default daily premium rates by country.
+            This enables country-specific base pricing independent of medical coverage levels.
+        </comment>
+
+        <createTable tableName="country_default_day_premiums">
+            <!-- Первичный ключ -->
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <!-- ISO код страны (2 символа, например 'ES', 'DE', 'US') -->
+            <column name="country_iso_code" type="VARCHAR(2)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Дефолтная дневная премия для этой страны -->
+            <column name="default_day_premium" type="DECIMAL(8, 2)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Валюта (по умолчанию EUR) -->
+            <column name="currency" type="VARCHAR(3)" defaultValue="EUR">
+                <constraints nullable="false"/>
+            </column>
+
+            <!--
+                Описание/комментарий (опционально)
+                Например: "Base rate for low-risk EU country"
+            -->
+            <column name="description" type="VARCHAR(255)"/>
+
+            <!-- ============================================ -->
+            <!-- Версионирование и temporal validity          -->
+            <!-- ============================================ -->
+
+            <!--
+                Дата начала действия этого тарифа
+                Позволяет вводить новые тарифы заранее
+            -->
+            <column name="valid_from" type="DATE" defaultValueComputed="CURRENT_DATE">
+                <constraints nullable="false"/>
+            </column>
+
+            <!--
+                Дата окончания действия (NULL = бессрочно)
+                Позволяет историческим данным оставаться в БД
+            -->
+            <column name="valid_to" type="DATE"/>
+
+            <!-- ============================================ -->
+            <!-- Audit fields                                 -->
+            <!-- ============================================ -->
+
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="created_by" type="VARCHAR(100)"/>
+            <column name="updated_by" type="VARCHAR(100)"/>
+        </createTable>
+
+        <!-- ============================================ -->
+        <!-- Constraints                                  -->
+        <!-- ============================================ -->
+
+        <!--
+            Уникальность: одна страна может иметь только один активный тариф на дату
+            Позволяет версионирование: можно иметь старые тарифы (с valid_to в прошлом)
+            и новые тарифы (с valid_from в будущем)
+        -->
+        <addUniqueConstraint
+                tableName="country_default_day_premiums"
+                columnNames="country_iso_code, valid_from"
+                constraintName="uk_country_default_premium_date"/>
+
+        <!--
+            Check constraint: premium должен быть положительным
+            Защищает от ошибок ввода данных
+        -->
+        <sql>
+            ALTER TABLE country_default_day_premiums
+            ADD CONSTRAINT chk_default_premium_positive
+            CHECK (default_day_premium > 0);
+        </sql>
+
+        <!--
+            Check constraint: valid_to должно быть >= valid_from
+            Защищает от некорректных периодов действия
+        -->
+        <sql>
+            ALTER TABLE country_default_day_premiums
+            ADD CONSTRAINT chk_valid_date_range
+            CHECK (valid_to IS NULL OR valid_to >= valid_from);
+        </sql>
+
+        <!-- ============================================ -->
+        <!-- Indexes для производительности               -->
+        <!-- ============================================ -->
+
+        <!--
+            Основной индекс для поиска по стране
+            Используется в большинстве запросов
+        -->
+        <createIndex tableName="country_default_day_premiums"
+                     indexName="idx_country_default_premium_iso_code">
+            <column name="country_iso_code"/>
+        </createIndex>
+
+        <!--
+            Составной индекс для поиска активных тарифов
+            Оптимизирует запросы вида:
+            WHERE country_iso_code = ? AND valid_from <= ? AND (valid_to IS NULL OR valid_to >= ?)
+        -->
+        <createIndex tableName="country_default_day_premiums"
+                     indexName="idx_country_default_premium_validity">
+            <column name="country_iso_code"/>
+            <column name="valid_from"/>
+            <column name="valid_to"/>
+        </createIndex>
+
+        <!--
+            Индекс по дате создания (для аудита)
+        -->
+        <createIndex tableName="country_default_day_premiums"
+                     indexName="idx_country_default_premium_created">
+            <column name="created_at"/>
+        </createIndex>
+
+        <!-- ============================================ -->
+        <!-- Foreign Key к таблице countries              -->
+        <!-- ============================================ -->
+
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Триггер для автообновления updated_at        -->
+    <!-- ============================================ -->
+
+    <changeSet id="012-02-create-trigger-for-updated-at" author="travel-insurance">
+        <comment>
+            Adding trigger to automatically update updated_at timestamp on row modification
+        </comment>
+
+        <sql splitStatements="false"><![CDATA[
+            CREATE TRIGGER update_country_default_day_premiums_updated_at
+            BEFORE UPDATE ON country_default_day_premiums
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+        ]]></sql>
+
+        <rollback>
+            DROP TRIGGER IF EXISTS update_country_default_day_premiums_updated_at
+            ON country_default_day_premiums;
+        </rollback>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Комментарии к таблице и колонкам             -->
+    <!-- ============================================ -->
+
+    <changeSet id="012-03-add-table-comments" author="travel-insurance">
+        <comment>Adding documentation comments to table and columns</comment>
+
+        <sql><![CDATA[
+            COMMENT ON TABLE country_default_day_premiums IS
+            'Default daily premium rates by country.
+            Used as base rate when specific medical coverage level is not specified.
+            Supports temporal validity and versioning.';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN country_default_day_premiums.country_iso_code IS
+            'ISO 3166-1 alpha-2 country code (e.g., ES, DE, US).
+            Must match an existing country in countries table.';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN country_default_day_premiums.default_day_premium IS
+            'Default daily premium amount in specified currency.
+            This is the base rate before applying age, risk, and duration coefficients.
+            DECIMAL(8,2) ensures precise monetary calculations.';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN country_default_day_premiums.valid_from IS
+            'Start date of validity period (inclusive).
+            Allows scheduling future rate changes.';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN country_default_day_premiums.valid_to IS
+            'End date of validity period (inclusive).
+            NULL means the rate is valid indefinitely.
+            Allows keeping historical rates for audit purposes.';
+        ]]></sql>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- VIEW для удобного просмотра                  -->
+    <!-- ============================================ -->
+
+    <changeSet id="012-04-create-view-countries-with-premiums" author="travel-insurance">
+        <comment>
+            Creating a view that joins countries with their default day premiums.
+            Useful for reporting and data validation.
+        </comment>
+
+        <createView viewName="v_countries_with_default_premiums" replaceIfExists="true">
+            SELECT
+            c.iso_code,
+            c.name_en AS country_name,
+            c.risk_group,
+            c.risk_coefficient,
+            cdp.default_day_premium,
+            cdp.currency,
+            cdp.description AS premium_description,
+            cdp.valid_from AS premium_valid_from,
+            cdp.valid_to AS premium_valid_to,
+            CASE
+            WHEN cdp.valid_to IS NULL OR cdp.valid_to &gt;= CURRENT_DATE
+            THEN true
+            ELSE false
+            END AS is_premium_active,
+            c.valid_from AS country_valid_from,
+            c.valid_to AS country_valid_to
+            FROM countries c
+            LEFT JOIN country_default_day_premiums cdp
+            ON c.iso_code = cdp.country_iso_code
+            AND c.valid_from &lt;= cdp.valid_from
+            AND (c.valid_to IS NULL OR c.valid_to &gt;= cdp.valid_from)
+            WHERE c.valid_from &lt;= CURRENT_DATE
+            AND (c.valid_to IS NULL OR c.valid_to &gt;= CURRENT_DATE)
+            ORDER BY c.name_en
+        </createView>
+
+        <rollback>
+            <sql>DROP VIEW IF EXISTS v_countries_with_default_premiums;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

@@ -1,0 +1,410 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- ============================================ -->
+    <!-- Initial Data for Country Default             -->
+    <!-- Day Premiums                                 -->
+    <!-- ============================================ -->
+
+    <!--
+        ЛОГИКА РАСЧЕТА БАЗОВЫХ СТАВОК:
+
+        Базовые ставки коррелируют с риск-группой страны:
+        - LOW (коэффициент 1.0):        5.00 - 7.00 EUR/день
+        - MEDIUM (коэффициент 1.3):     8.00 - 10.00 EUR/день
+        - HIGH (коэффициент 1.8):       11.00 - 14.00 EUR/день
+        - VERY_HIGH (коэффициент 2.5):  15.00 - 20.00 EUR/день
+
+        ДОПОЛНИТЕЛЬНЫЕ ФАКТОРЫ:
+        - Развитость медицинской системы
+        - Стоимость медицинских услуг в стране
+        - Статистика страховых случаев
+        - Популярность направления у туристов
+
+        ПРИМЕРЫ:
+        - США: высокая стоимость медицины → 12.00 EUR/день (несмотря на MEDIUM риск)
+        - Испания: хорошая медицина + EU → 6.00 EUR/день (LOW риск)
+        - Афганистан: высокий риск + слабая медицина → 18.00 EUR/день
+    -->
+
+    <!-- ============================================ -->
+    <!-- LOW RISK COUNTRIES (Европа, развитые страны) -->
+    <!-- ============================================ -->
+
+    <changeSet id="013-01-insert-low-risk-countries" author="travel-insurance">
+        <comment>
+            Inserting default day premiums for LOW risk countries.
+            These are developed countries with stable conditions and good healthcare.
+            Base rate: 5.00 - 7.00 EUR/day
+        </comment>
+
+        <!-- Европейские страны (EU) -->
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="ES"/>
+            <column name="default_day_premium" valueNumeric="6.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Spain - EU country with good healthcare, popular tourist destination"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="DE"/>
+            <column name="default_day_premium" valueNumeric="6.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Germany - excellent healthcare system, low risk"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="FR"/>
+            <column name="default_day_premium" valueNumeric="6.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="France - high-quality healthcare, EU standards"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="IT"/>
+            <column name="default_day_premium" valueNumeric="6.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Italy - good healthcare, popular destination"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="AT"/>
+            <column name="default_day_premium" valueNumeric="6.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Austria - excellent healthcare, winter sports destination"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="NL"/>
+            <column name="default_day_premium" valueNumeric="6.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Netherlands - high standard of healthcare"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="BE"/>
+            <column name="default_day_premium" valueNumeric="6.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Belgium - EU headquarters, good healthcare"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="CH"/>
+            <column name="default_day_premium" valueNumeric="7.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Switzerland - premium healthcare, high medical costs"/>
+        </insert>
+
+        <!-- Скандинавские страны (очень низкий риск) -->
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="SE"/>
+            <column name="default_day_premium" valueNumeric="6.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Sweden - excellent public healthcare system"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="NO"/>
+            <column name="default_day_premium" valueNumeric="7.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Norway - high medical costs, excellent care"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="DK"/>
+            <column name="default_day_premium" valueNumeric="6.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Denmark - high standard of living and healthcare"/>
+        </insert>
+
+        <!-- Азиатско-Тихоокеанский регион (развитые) -->
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="JP"/>
+            <column name="default_day_premium" valueNumeric="7.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Japan - advanced healthcare, high medical costs"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="KR"/>
+            <column name="default_day_premium" valueNumeric="6.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="South Korea - modern healthcare system"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="AU"/>
+            <column name="default_day_premium" valueNumeric="7.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Australia - high-quality healthcare, remote locations"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="NZ"/>
+            <column name="default_day_premium" valueNumeric="6.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="New Zealand - good healthcare, adventure tourism"/>
+        </insert>
+
+        <!-- Северная Америка -->
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="CA"/>
+            <column name="default_day_premium" valueNumeric="7.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Canada - universal healthcare, vast territory"/>
+        </insert>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- MEDIUM RISK COUNTRIES                        -->
+    <!-- ============================================ -->
+
+    <changeSet id="013-02-insert-medium-risk-countries" author="travel-insurance">
+        <comment>
+            Inserting default day premiums for MEDIUM risk countries.
+            Moderate political/health risks, varying healthcare quality.
+            Base rate: 8.00 - 12.00 EUR/day
+        </comment>
+
+        <!-- Азия (туристические направления) -->
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="TH"/>
+            <column name="default_day_premium" valueNumeric="8.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Thailand - popular destination, decent healthcare in cities"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="VN"/>
+            <column name="default_day_premium" valueNumeric="7.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Vietnam - developing healthcare system"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="MY"/>
+            <column name="default_day_premium" valueNumeric="8.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Malaysia - good medical tourism, modern facilities"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="ID"/>
+            <column name="default_day_premium" valueNumeric="8.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Indonesia - variable healthcare, many islands"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="PH"/>
+            <column name="default_day_premium" valueNumeric="8.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Philippines - developing healthcare infrastructure"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="CN"/>
+            <column name="default_day_premium" valueNumeric="9.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="China - modern healthcare in cities, language barriers"/>
+        </insert>
+
+        <!-- Ближний Восток (стабильные) -->
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="AE"/>
+            <column name="default_day_premium" valueNumeric="9.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="UAE - excellent healthcare, high medical costs"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="TR"/>
+            <column name="default_day_premium" valueNumeric="8.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Turkey - good medical tourism, political considerations"/>
+        </insert>
+
+        <!-- Латинская Америка -->
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="MX"/>
+            <column name="default_day_premium" valueNumeric="9.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Mexico - variable healthcare quality, popular destination"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="BR"/>
+            <column name="default_day_premium" valueNumeric="9.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Brazil - large country, healthcare varies by region"/>
+        </insert>
+
+        <!-- США (специальный случай: MEDIUM risk, но очень высокие медицинские расходы) -->
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="US"/>
+            <column name="default_day_premium" valueNumeric="12.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="USA - extremely high medical costs, excellent care"/>
+        </insert>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- HIGH RISK COUNTRIES                          -->
+    <!-- ============================================ -->
+
+    <changeSet id="013-03-insert-high-risk-countries" author="travel-insurance">
+        <comment>
+            Inserting default day premiums for HIGH risk countries.
+            Significant health/political risks, limited healthcare infrastructure.
+            Base rate: 11.00 - 14.00 EUR/day
+        </comment>
+
+        <!-- Африка -->
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="EG"/>
+            <column name="default_day_premium" valueNumeric="11.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Egypt - limited healthcare outside major cities"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="MA"/>
+            <column name="default_day_premium" valueNumeric="10.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Morocco - developing healthcare system"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="TN"/>
+            <column name="default_day_premium" valueNumeric="10.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Tunisia - moderate healthcare, political considerations"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="KE"/>
+            <column name="default_day_premium" valueNumeric="12.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Kenya - safari destination, limited rural healthcare"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="ZA"/>
+            <column name="default_day_premium" valueNumeric="11.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="South Africa - good private healthcare, safety concerns"/>
+        </insert>
+
+        <!-- Азия (высокий риск) -->
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="IN"/>
+            <column name="default_day_premium" valueNumeric="11.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="India - variable healthcare quality, health risks"/>
+        </insert>
+
+        <!-- Латинская Америка (высокий риск) -->
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="AR"/>
+            <column name="default_day_premium" valueNumeric="11.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Argentina - economic instability, decent healthcare"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="CO"/>
+            <column name="default_day_premium" valueNumeric="12.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Colombia - improving healthcare, safety considerations"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="PE"/>
+            <column name="default_day_premium" valueNumeric="11.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Peru - variable healthcare, altitude considerations"/>
+        </insert>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- VERY HIGH RISK COUNTRIES                     -->
+    <!-- ============================================ -->
+
+    <changeSet id="013-04-insert-very-high-risk-countries" author="travel-insurance">
+        <comment>
+            Inserting default day premiums for VERY HIGH risk countries.
+            War zones, extreme political instability, minimal healthcare.
+            Base rate: 15.00 - 20.00 EUR/day
+        </comment>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="AF"/>
+            <column name="default_day_premium" valueNumeric="18.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Afghanistan - active conflict zone, minimal healthcare"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="IQ"/>
+            <column name="default_day_premium" valueNumeric="17.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Iraq - security risks, limited medical infrastructure"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="SY"/>
+            <column name="default_day_premium" valueNumeric="20.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Syria - active war zone, collapsed healthcare system"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="YE"/>
+            <column name="default_day_premium" valueNumeric="19.00"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Yemen - humanitarian crisis, minimal medical care"/>
+        </insert>
+
+        <insert tableName="country_default_day_premiums">
+            <column name="country_iso_code" value="SO"/>
+            <column name="default_day_premium" valueNumeric="18.50"/>
+            <column name="currency" value="EUR"/>
+            <column name="description" value="Somalia - failed state, virtually no healthcare infrastructure"/>
+        </insert>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Комментарий о методологии расчета            -->
+    <!-- ============================================ -->
+
+    <changeSet id="013-05-add-methodology-comment" author="travel-insurance">
+        <comment>Adding comment explaining pricing methodology</comment>
+
+        <sql><![CDATA[
+            COMMENT ON TABLE country_default_day_premiums IS
+            'Default daily premium rates by country (UPDATED).
+
+            PRICING METHODOLOGY:
+            - LOW risk (1.0x):        5-7 EUR/day   (developed countries, excellent healthcare)
+            - MEDIUM risk (1.3x):     8-12 EUR/day  (developing countries, moderate risks)
+            - HIGH risk (1.8x):       11-14 EUR/day (significant risks, limited healthcare)
+            - VERY HIGH risk (2.5x):  15-20 EUR/day (war zones, minimal healthcare)
+
+            ADJUSTMENTS:
+            - Medical cost level (e.g., USA has MEDIUM risk but 12 EUR/day due to costs)
+            - Medical tourism quality (e.g., Malaysia rated higher)
+            - Infrastructure accessibility
+            - Historical claims data
+
+            USAGE:
+            Final Premium = DefaultDayPremium × Days × AgeCoeff × RiskCoeffs × DurationCoeff
+
+            Last updated: 2025-02-15';
+        ]]></sql>
+    </changeSet>
+
+</databaseChangeLog>

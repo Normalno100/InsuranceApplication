@@ -21,3 +21,7 @@ databaseChangeLog:
       file: db/changelog/changes/010-insert-advanced-pricing-data.xml
   - include:
       file: db/changelog/changes/011-promo-code-data-migration.xml
+  - include:
+      file: db/changelog/changes/012-create-country-default-day-premium.xml
+  - include:
+      file: db/changelog/changes/013-insert-country-default-day-premium-data.xml
