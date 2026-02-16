@@ -549,7 +549,7 @@
             <column name="min_premium_amount" valueNumeric="100"/>
             <column name="max_discount_amount" valueNumeric="200"/>
             <column name="valid_from" valueDate="2025-12-01"/>
-            <column name="valid_to" valueDate="2026-12-31"/>
+            <column name="valid_to" valueDate="2026-02-28"/>
             <column name="max_usage_count" valueNumeric="500"/>
         </insert>
         <insert tableName="promo_codes">

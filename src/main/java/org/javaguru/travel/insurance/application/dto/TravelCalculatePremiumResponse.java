@@ -97,9 +97,17 @@ public class TravelCalculatePremiumResponse {
     @AllArgsConstructor
     @Builder
     public static class PricingSummary {
+
+        @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
         private BigDecimal totalPremium;  // Итоговая премия
+
+        @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
         private BigDecimal baseAmount;    // Базовая сумма до скидок
+
+        @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
         private BigDecimal totalDiscount; // Общая скидка
+
+        @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
         private String currency;
 
         @Builder.Default
@@ -159,9 +167,17 @@ public class TravelCalculatePremiumResponse {
     @Builder
     public static class PricingDetails {
         // Коэффициенты
+
+        @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
         private BigDecimal baseRate;
+
+        @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.0000")
         private BigDecimal ageCoefficient;
+
+        @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.0000")
         private BigDecimal countryCoefficient;
+
+        @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.0000")
         private BigDecimal durationCoefficient;
 
         // Разбивка по рискам
@@ -185,11 +201,20 @@ public class TravelCalculatePremiumResponse {
     @AllArgsConstructor
     @Builder
     public static class RiskBreakdown {
+
         private String riskCode;
+
         private String riskName;
+
+        @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
         private BigDecimal premium;
+
+        @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.0000")
         private BigDecimal baseCoefficient;
+
+        @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.0000")
         private BigDecimal ageModifier;  // Возрастной модификатор
+
         private Boolean isMandatory;
     }
 
@@ -248,7 +273,11 @@ public class TravelCalculatePremiumResponse {
         private String type;        // PROMO_CODE, BUNDLE, GROUP, CORPORATE, etc.
         private String code;        // Код промо/пакета
         private String description;
+
+        @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
         private BigDecimal amount;
+
+        @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
         private BigDecimal percentage;
     }
 
