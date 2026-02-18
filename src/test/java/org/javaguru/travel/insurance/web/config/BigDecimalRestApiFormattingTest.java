@@ -19,7 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Убедиться, что BigDecimal значения корректно форматируются
  * в реальных HTTP response от REST контроллера.
  */
-@SpringBootTest
+@SpringBootTest(properties = "spring.liquibase.enabled=false")
 @AutoConfigureMockMvc
 @DisplayName("REST API BigDecimal Formatting Integration Tests")
 class BigDecimalRestApiFormattingTest {
