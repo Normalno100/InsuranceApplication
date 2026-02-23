@@ -1,6 +1,7 @@
 package org.javaguru.travel.insurance.core.calculators;
 
 import org.javaguru.travel.insurance.BaseTestFixture;
+import org.javaguru.travel.insurance.core.services.CountryDefaultDayPremiumService;
 import org.javaguru.travel.insurance.infrastructure.persistence.repositories.CountryRepository;
 import org.javaguru.travel.insurance.infrastructure.persistence.repositories.MedicalRiskLimitLevelRepository;
 import org.javaguru.travel.insurance.infrastructure.persistence.repositories.RiskTypeRepository;
@@ -9,8 +10,6 @@ import org.javaguru.travel.insurance.core.services.RiskBundleService;
 import org.javaguru.travel.insurance.core.services.TripDurationPricingService;
 import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -20,22 +19,12 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-/**
- * Улучшенные тесты для MedicalRiskPremiumCalculator
- *
- * ПРИНЦИПЫ:
- * 1. Каждый тест настраивает ТОЛЬКО те моки, которые ему нужны
- * 2. Явные when() в каждом тесте - видно что именно используется
- * 3. verify() для проверки взаимодействий
- * 4. Группировка тестов через @Nested для читаемости
- */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class MedicalRiskPremiumCalculatorTest extends BaseTestFixture {
@@ -47,6 +36,7 @@ class MedicalRiskPremiumCalculatorTest extends BaseTestFixture {
     @Mock TripDurationPricingService durationPricingService;
     @Mock RiskBundleService riskBundleService;
     @Mock AgeRiskPricingService ageRiskPricingService;
+    @Mock CountryDefaultDayPremiumService countryDefaultDayPremiumService;
 
     @InjectMocks
     MedicalRiskPremiumCalculator calculator;
@@ -78,6 +68,15 @@ class MedicalRiskPremiumCalculatorTest extends BaseTestFixture {
 
         when(riskBundleService.getBestApplicableBundle(anyList(), any()))
                 .thenReturn(Optional.empty());
+
+        // useCountryDefaultPremium не установлен → MEDICAL_LEVEL режим всегда
+        // findDefaultDayPremium вызывается для информации в MEDICAL_LEVEL — возвращаем empty
+        when(countryDefaultDayPremiumService.findDefaultDayPremium(anyString(), any()))
+                .thenReturn(Optional.empty());
+
+        // hasDefaultDayPremium — false, чтобы shouldUseCountryDefaultMode() → false
+        when(countryDefaultDayPremiumService.hasDefaultDayPremium(anyString(), any()))
+                .thenReturn(false);
     }
 
     // =====================================================
@@ -177,5 +176,58 @@ class MedicalRiskPremiumCalculatorTest extends BaseTestFixture {
         assertThatThrownBy(() -> calculator.calculatePremium(standardAdultRequest()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Medical");
+    }
+
+    // =====================================================
+    // CALCULATION MODE
+    // =====================================================
+
+    @Test
+    void shouldUseMedicalLevelModeByDefault() {
+        var request = standardAdultRequest(); // useCountryDefaultPremium = null
+
+        var result = calculator.calculatePremiumWithDetails(request);
+
+        assertThat(result.calculationMode())
+                .isEqualTo(MedicalRiskPremiumCalculator.CalculationMode.MEDICAL_LEVEL);
+    }
+
+    @Test
+    void shouldFallbackToMedicalLevelWhenNoDefaultPremiumExists() {
+        var request = standardAdultRequest();
+        request.setUseCountryDefaultPremium(true);
+
+        // Нет записи в country_default_day_premiums → fallback
+        when(countryDefaultDayPremiumService.hasDefaultDayPremium(anyString(), any()))
+                .thenReturn(false);
+
+        var result = calculator.calculatePremiumWithDetails(request);
+
+        assertThat(result.calculationMode())
+                .isEqualTo(MedicalRiskPremiumCalculator.CalculationMode.MEDICAL_LEVEL);
+    }
+
+    @Test
+    void shouldUseCountryDefaultModeWhenFlagSetAndPremiumExists() {
+        var request = standardAdultRequest();
+        request.setUseCountryDefaultPremium(true);
+
+        BigDecimal defaultRate = new BigDecimal("2.50");
+
+        when(countryDefaultDayPremiumService.hasDefaultDayPremium(anyString(), any()))
+                .thenReturn(true);
+        when(countryDefaultDayPremiumService.findDefaultDayPremium(anyString(), any()))
+                .thenReturn(Optional.of(new CountryDefaultDayPremiumService.DefaultPremiumResult(
+                        "ES", defaultRate, "EUR", "Spain default rate")));
+        when(countryDefaultDayPremiumService.calculateBasePremium(
+                any(), any(), any(), anyInt()))
+                .thenReturn(new BigDecimal("35.00"));
+
+        var result = calculator.calculatePremiumWithDetails(request);
+
+        assertThat(result.calculationMode())
+                .isEqualTo(MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT);
+        assertThat(result.countryDefaultDayPremium())
+                .isEqualByComparingTo(defaultRate);
     }
 }
