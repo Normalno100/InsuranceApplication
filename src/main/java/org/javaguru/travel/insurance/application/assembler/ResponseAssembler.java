@@ -9,6 +9,7 @@ import org.javaguru.travel.insurance.core.underwriting.domain.UnderwritingResult
 import org.javaguru.travel.insurance.application.validation.ValidationError;
 import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumResponse;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.CountryRepository;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -16,30 +17,24 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Assembler для сборки Response DTO
+ * Assembler для сборки Response DTO.
  *
- * ЦЕЛЬ: Централизованная сборка всех типов ответов
- *
- * ОБЯЗАННОСТИ:
- * 1. Сборка успешных ответов
- * 2. Сборка ответов с ошибками валидации
- * 3. Сборка ответов об отклонении
- * 4. Сборка ответов о необходимости проверки
- * 5. Маппинг domain → DTO
- *
- * МЕТРИКИ:
- * - Complexity: 2
- * - LOC: ~270
- * - Single Responsibility: только сборка ответов
+ * ИЗМЕНЕНИЯ v2.1 (этап 4–5):
+ * - buildSuccessResponse теперь заполняет CountryInfo в PricingDetails
+ * - TripSummary дополнен полями countryDefaultDayPremium и calculationMode
+ * - buildPricingDetails учитывает режим расчёта (MEDICAL_LEVEL / COUNTRY_DEFAULT)
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class ResponseAssembler {
 
-    /**
-     * Собирает ответ с ошибками валидации
-     */
+    private final CountryRepository countryRepository;
+
+    // ========================================
+    // ПУБЛИЧНЫЕ МЕТОДЫ
+    // ========================================
+
     public TravelCalculatePremiumResponse buildValidationErrorResponse(
             List<ValidationError> errors) {
 
@@ -60,9 +55,6 @@ public class ResponseAssembler {
                 .build();
     }
 
-    /**
-     * Собирает ответ для отклоненной заявки
-     */
     public TravelCalculatePremiumResponse buildDeclinedResponse(
             TravelCalculatePremiumRequest request,
             UnderwritingResult underwritingResult) {
@@ -84,9 +76,6 @@ public class ResponseAssembler {
                 .build();
     }
 
-    /**
-     * Собирает ответ для заявки, требующей проверки
-     */
     public TravelCalculatePremiumResponse buildReviewRequiredResponse(
             TravelCalculatePremiumRequest request,
             UnderwritingResult underwritingResult) {
@@ -109,7 +98,9 @@ public class ResponseAssembler {
     }
 
     /**
-     * Собирает успешный ответ
+     * Собирает успешный ответ.
+     *
+     * ИЗМЕНЕНИЯ v2.1: передаёт информацию о режиме расчёта и дефолтной ставке страны.
      */
     public TravelCalculatePremiumResponse buildSuccessResponse(
             TravelCalculatePremiumRequest request,
@@ -117,8 +108,9 @@ public class ResponseAssembler {
             DiscountApplicationService.DiscountApplicationResult discountResult,
             UnderwritingResult underwritingResult,
             boolean includeDetails) {
-        String currency = request.getCurrency() != null && !request.getCurrency().trim().isEmpty()
-                ? request.getCurrency() : "EUR";
+
+        String currency = resolveCurrency(request);
+        MedicalRiskPremiumCalculator.PremiumCalculationResult details = calculationResult.details();
 
         var builder = TravelCalculatePremiumResponse.builder()
                 .status(TravelCalculatePremiumResponse.ResponseStatus.SUCCESS)
@@ -137,10 +129,10 @@ public class ResponseAssembler {
                 .build());
 
         // Person Summary
-        builder.person(buildPersonSummary(request, calculationResult.details()));
+        builder.person(buildPersonSummary(request, details));
 
-        // Trip Summary
-        builder.trip(buildTripSummary(request, calculationResult.details()));
+        // Trip Summary — теперь с режимом расчёта и дефолтной ставкой
+        builder.trip(buildTripSummary(request, details));
 
         // Applied Discounts
         if (!discountResult.appliedDiscounts().isEmpty()) {
@@ -164,15 +156,12 @@ public class ResponseAssembler {
 
         // Pricing Details (если запрошено)
         if (includeDetails) {
-            builder.pricingDetails(buildPricingDetails(calculationResult.details()));
+            builder.pricingDetails(buildPricingDetails(details));
         }
 
         return builder.build();
     }
 
-    /**
-     * Собирает ответ с системной ошибкой
-     */
     public TravelCalculatePremiumResponse buildSystemErrorResponse(String errorMessage) {
         var error = new TravelCalculatePremiumResponse.ValidationError();
         error.setField("system");
@@ -185,15 +174,16 @@ public class ResponseAssembler {
                 .build();
     }
 
-    /**
-     * Строит PersonSummary
-     */
+    // ========================================
+    // ПРИВАТНЫЕ МЕТОДЫ
+    // ========================================
+
     private TravelCalculatePremiumResponse.PersonSummary buildPersonSummary(
             TravelCalculatePremiumRequest request,
-            MedicalRiskPremiumCalculator.PremiumCalculationResult calculationResult) {
+            MedicalRiskPremiumCalculator.PremiumCalculationResult details) {
 
-        Integer age = calculationResult != null ? calculationResult.age() : null;
-        String ageGroup = calculationResult != null ? calculationResult.ageGroupDescription() : null;
+        Integer age = details != null ? details.age() : null;
+        String ageGroup = details != null ? details.ageGroupDescription() : null;
 
         return TravelCalculatePremiumResponse.PersonSummary.builder()
                 .firstName(request.getPersonFirstName())
@@ -205,38 +195,63 @@ public class ResponseAssembler {
     }
 
     /**
-     * Строит TripSummary
+     * Строит TripSummary с поддержкой двух режимов расчёта.
+     *
+     * ИЗМЕНЕНИЯ v2.1:
+     * - calculationMode отражает, какой режим был использован
+     * - countryDefaultDayPremium заполняется в COUNTRY_DEFAULT режиме
+     * - medicalCoverageLevel и coverageAmount — в MEDICAL_LEVEL режиме
      */
     private TravelCalculatePremiumResponse.TripSummary buildTripSummary(
             TravelCalculatePremiumRequest request,
-            MedicalRiskPremiumCalculator.PremiumCalculationResult calculationResult) {
+            MedicalRiskPremiumCalculator.PremiumCalculationResult details) {
+
+        boolean isCountryDefaultMode = details != null
+                && details.calculationMode() == MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT;
 
         return TravelCalculatePremiumResponse.TripSummary.builder()
                 .dateFrom(request.getAgreementDateFrom())
                 .dateTo(request.getAgreementDateTo())
-                .days(calculationResult != null ? calculationResult.days() : null)
+                .days(details != null ? details.days() : null)
                 .countryCode(request.getCountryIsoCode())
-                .countryName(calculationResult != null ? calculationResult.countryName() : null)
-                .medicalCoverageLevel(request.getMedicalRiskLimitLevel())
-                .coverageAmount(calculationResult != null ? calculationResult.coverageAmount() : null)
+                .countryName(details != null ? details.countryName() : null)
+                // Поля зависят от режима расчёта
+                .medicalCoverageLevel(isCountryDefaultMode ? null : request.getMedicalRiskLimitLevel())
+                .coverageAmount(isCountryDefaultMode ? null
+                        : (details != null ? details.coverageAmount() : null))
+                .countryDefaultDayPremium(isCountryDefaultMode && details != null
+                        ? details.countryDefaultDayPremium()
+                        : null)
+                .calculationMode(details != null ? details.calculationMode().name() : null)
                 .build();
     }
 
     /**
-     * Строит PricingDetails
+     * Строит PricingDetails с поддержкой двух режимов.
+     *
+     * ИЗМЕНЕНИЯ v2.1:
+     * - countryDefaultDayPremium заполняется в COUNTRY_DEFAULT режиме
+     * - countryInfo содержит информацию о стране (в обоих режимах)
      */
     private TravelCalculatePremiumResponse.PricingDetails buildPricingDetails(
-            MedicalRiskPremiumCalculator.PremiumCalculationResult calculationResult) {
+            MedicalRiskPremiumCalculator.PremiumCalculationResult details) {
+
+        boolean isCountryDefault = details.calculationMode()
+                == MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT;
 
         var builder = TravelCalculatePremiumResponse.PricingDetails.builder()
-                .baseRate(calculationResult.baseRate())
-                .ageCoefficient(calculationResult.ageCoefficient())
-                .countryCoefficient(calculationResult.countryCoefficient())
-                .durationCoefficient(calculationResult.durationCoefficient())
-                .calculationFormula(buildFormula(calculationResult));
+                .baseRate(details.baseRate())
+                .ageCoefficient(details.ageCoefficient())
+                .countryCoefficient(details.countryCoefficient())
+                .durationCoefficient(details.durationCoefficient())
+                .countryDefaultDayPremium(isCountryDefault ? details.countryDefaultDayPremium() : null)
+                .calculationFormula(buildFormula(details));
+
+        // CountryInfo — всегда присутствует в деталях при успешном ответе
+        builder.countryInfo(buildCountryInfo(details));
 
         // Risk Breakdown
-        var riskBreakdown = calculationResult.riskDetails().stream()
+        var riskBreakdown = details.riskDetails().stream()
                 .map(r -> TravelCalculatePremiumResponse.RiskBreakdown.builder()
                         .riskCode(r.riskCode())
                         .riskName(r.riskName())
@@ -249,10 +264,10 @@ public class ResponseAssembler {
         builder.riskBreakdown(riskBreakdown);
 
         // Calculation Steps
-        var steps = calculationResult.calculationSteps().stream()
+        var steps = details.calculationSteps().stream()
                 .map(s -> {
                     var step = new TravelCalculatePremiumResponse.CalculationStep();
-                    step.setStepNumber(calculationResult.calculationSteps().indexOf(s) + 1);
+                    step.setStepNumber(details.calculationSteps().indexOf(s) + 1);
                     step.setDescription(s.description());
                     step.setFormula(s.formula());
                     step.setResult(s.result());
@@ -265,35 +280,64 @@ public class ResponseAssembler {
     }
 
     /**
-     * Строит список оценок правил
+     * Строит CountryInfo — детальная информация о стране.
      */
-    private List<TravelCalculatePremiumResponse.RuleEvaluation> buildRuleEvaluations(UnderwritingResult underwritingResult) {
+    private TravelCalculatePremiumResponse.CountryInfo buildCountryInfo(
+            MedicalRiskPremiumCalculator.PremiumCalculationResult details) {
+
+        boolean hasDefaultPremium = details.countryDefaultDayPremiumForInfo() != null;
+
+        return TravelCalculatePremiumResponse.CountryInfo.builder()
+                .name(details.countryName())
+                .riskCoefficient(details.countryCoefficient())
+                .defaultDayPremium(details.countryDefaultDayPremiumForInfo())
+                .defaultDayPremiumCurrency(details.countryDefaultCurrency())
+                .hasDefaultDayPremium(hasDefaultPremium)
+                .build();
+    }
+
+    private List<TravelCalculatePremiumResponse.RuleEvaluation> buildRuleEvaluations(
+            UnderwritingResult underwritingResult) {
+
         return underwritingResult.getRuleResults().stream()
                 .map(r -> new TravelCalculatePremiumResponse.RuleEvaluation(
                         r.getRuleName(),
                         r.getSeverity().name(),
-                        r.getMessage()
-                ))
+                        r.getMessage()))
                 .collect(Collectors.toList());
     }
 
     /**
-     * Строит формулу расчета
+     * Строит формулу расчёта в зависимости от режима.
      */
     private String buildFormula(MedicalRiskPremiumCalculator.PremiumCalculationResult result) {
+        boolean isCountryDefault = result.calculationMode()
+                == MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT;
+
         var formula = new StringBuilder("Premium = ")
-                .append(String.format("%.2f", result.baseRate()))
-                .append(" × ")
-                .append(String.format("%.2f", result.ageCoefficient()))
-                .append(" × ")
-                .append(String.format("%.2f", result.countryCoefficient()))
-                .append(" × ")
-                .append(String.format("%.2f", result.durationCoefficient()));
+                .append(String.format("%.2f", result.baseRate()));
+
+        if (isCountryDefault) {
+            formula.append(" (country default rate)");
+        } else {
+            formula.append(" (daily rate)");
+        }
+
+        formula.append(" × ").append(String.format("%.4f", result.ageCoefficient())).append(" (age)");
+
+        // Коэффициент страны применяется только в MEDICAL_LEVEL
+        if (!isCountryDefault) {
+            formula.append(" × ").append(String.format("%.4f", result.countryCoefficient()))
+                    .append(" (country)");
+        }
+
+        formula.append(" × ").append(String.format("%.4f", result.durationCoefficient()))
+                .append(" (duration)");
 
         if (result.additionalRisksCoefficient().compareTo(BigDecimal.ZERO) > 0) {
             formula.append(" × (1 + ")
-                    .append(String.format("%.2f", result.additionalRisksCoefficient()))
-                    .append(")");
+                    .append(String.format("%.4f", result.additionalRisksCoefficient()))
+                    .append(") (risks)");
         }
 
         formula.append(" × ").append(result.days()).append(" days");
@@ -306,5 +350,11 @@ public class ResponseAssembler {
         }
 
         return formula.toString();
+    }
+
+    private String resolveCurrency(TravelCalculatePremiumRequest request) {
+        return request.getCurrency() != null && !request.getCurrency().trim().isEmpty()
+                ? request.getCurrency()
+                : "EUR";
     }
 }
