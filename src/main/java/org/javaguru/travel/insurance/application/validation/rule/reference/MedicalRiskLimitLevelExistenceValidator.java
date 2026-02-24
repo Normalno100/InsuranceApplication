@@ -13,7 +13,7 @@ import java.time.LocalDate;
 import java.util.Optional;
 
 /**
- * Проверяет что уровень медицинского покрытия существует и активен
+ * Проверяет что уровень медицинского покрытия существует и активен.
  */
 public class MedicalRiskLimitLevelExistenceValidator
         extends AbstractValidationRule<TravelCalculatePremiumRequest> {
@@ -28,15 +28,19 @@ public class MedicalRiskLimitLevelExistenceValidator
     @Override
     protected ValidationResult doValidate(TravelCalculatePremiumRequest request,
                                           ValidationContext context) {
+        // В режиме COUNTRY_DEFAULT медицинский уровень необязателен — пропускаем
+        if (Boolean.TRUE.equals(request.getUseCountryDefaultPremium())) {
+            return success();
+        }
+
         String medicalRiskLimitLevel = request.getMedicalRiskLimitLevel();
         LocalDate agreementDateFrom = request.getAgreementDateFrom();
 
-        // Если поля null, пропускаем
+        // Если поля null, пропускаем (будет поймано ConditionalMedicalRiskLimitLevelValidator)
         if (medicalRiskLimitLevel == null || agreementDateFrom == null) {
             return success();
         }
 
-        // Используем Domain Port вместо Repository
         Optional<MedicalRiskLimitLevel> levelOpt =
                 referenceDataPort.findMedicalLevel(medicalRiskLimitLevel, agreementDateFrom);
 

@@ -13,15 +13,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Главный валидатор для TravelCalculatePremiumRequest
- * Использует композитный подход с модульными валидаторами
- *
- * ОБНОВЛЕНО для API v2.0:
- * - Возвращает список ValidationError из core.validation пакета
- * - Конвертация в DTO ValidationError происходит в сервисе
- *
- * ИСПРАВЛЕНО: Передаём referenceDataPort в buildCompositeValidator
- */
+ * Главный валидатор для TravelCalculatePremiumRequest.*/
 @Component
 public class TravelCalculatePremiumRequestValidator {
 
@@ -36,24 +28,16 @@ public class TravelCalculatePremiumRequestValidator {
 
         this.referenceDataPort = referenceDataPort;
 
-        // ✅ ИСПРАВЛЕНИЕ: Передаём referenceDataPort в метод
         this.compositeValidator = buildCompositeValidator(
                 countryRepository,
                 medicalRiskLimitLevelRepository,
                 riskRepository,
-                referenceDataPort  // ← ДОБАВЛЕНО!
+                referenceDataPort
         );
     }
 
-    /**
-     * Валидация запроса
-     *
-     * @param request запрос на расчёт премии
-     * @return список ошибок валидации из core.validation пакета (пустой если валидация успешна)
-     */
     public List<ValidationError> validate(TravelCalculatePremiumRequest request) {
         ValidationContext context = new ValidationContext();
-
         ValidationResult result = compositeValidator.validate(request, context);
 
         if (result.isValid()) {
@@ -63,16 +47,11 @@ public class TravelCalculatePremiumRequestValidator {
         return result.getErrors();
     }
 
-    /**
-     * Построение композитного валидатора со всеми правилами
-     *
-     * ✅ ИСПРАВЛЕНО: Добавлен параметр referenceDataPort
-     */
     private CompositeValidator<TravelCalculatePremiumRequest> buildCompositeValidator(
             CountryRepository countryRepository,
             MedicalRiskLimitLevelRepository medicalRiskLimitLevelRepository,
             RiskTypeRepository riskRepository,
-            ReferenceDataPort referenceDataPort) {  // ← ДОБАВЛЕНО!
+            ReferenceDataPort referenceDataPort) {
 
         return CompositeValidator.<TravelCalculatePremiumRequest>builder(
                         "TravelCalculatePremiumRequestValidator"
@@ -116,12 +95,9 @@ public class TravelCalculatePremiumRequestValidator {
                         TravelCalculatePremiumRequest::getCountryIsoCode))
                 .addRule(new IsoCodeValidator<>("countryIsoCode", 2,
                         TravelCalculatePremiumRequest::getCountryIsoCode))
-
-                // medicalRiskLimitLevel
-                .addRule(new NotNullValidator<>("medicalRiskLimitLevel",
-                        TravelCalculatePremiumRequest::getMedicalRiskLimitLevel))
-                .addRule(new NotBlankValidator<>("medicalRiskLimitLevel",
-                        TravelCalculatePremiumRequest::getMedicalRiskLimitLevel))
+                // Обязателен только в режиме MEDICAL_LEVEL (useCountryDefaultPremium = false/null).
+                // В режиме COUNTRY_DEFAULT (useCountryDefaultPremium = true) — необязателен.
+                .addRule(new ConditionalMedicalRiskLimitLevelValidator())
 
                 // selectedRisks (опциональное поле, но если есть - элементы не пустые)
                 .addRule(new CollectionElementsNotBlankValidator<>("selectedRisks",
@@ -151,7 +127,6 @@ public class TravelCalculatePremiumRequestValidator {
                 .addRule(new RiskTypeNotMandatoryValidator(referenceDataPort))                  // 240
                 .addRule(new CurrencySupportValidator())                                        // 250
 
-                // Останавливаем валидацию на критичных ошибках
                 .stopOnCriticalError(true)
                 .build();
     }

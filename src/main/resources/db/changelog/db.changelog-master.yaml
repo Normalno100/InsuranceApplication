@@ -25,3 +25,11 @@ databaseChangeLog:
       file: db/changelog/changes/012-create-country-default-day-premium.xml
   - include:
       file: db/changelog/changes/013-insert-country-default-day-premium-data.xml
+  - include:
+      file: db/changelog/changes/014-age-coefficients.xml
+
+
+
+
+
+

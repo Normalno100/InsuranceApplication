@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!--
+        НАЗНАЧЕНИЕ:
+        Таблица age_coefficients уже создана в 001-create-reference-tables.xml.
+        Начальные данные вставлены в 006-insert-initial-data.xml (changeSet 006-01).
+
+        Этот файл:
+        1. Добавляет недостающий CHECK constraint (age_to >= age_from, coefficient > 0)
+        2. Добавляет триггер updated_at для таблицы age_coefficients
+        3. Добавляет документирующие комментарии к таблице и колонкам
+        4. Создаёт вспомогательную VIEW для удобного просмотра активных коэффициентов
+    -->
+
+    <!-- ============================================ -->
+    <!-- CHECK constraints для data integrity         -->
+    <!-- ============================================ -->
+
+    <changeSet id="014-01-add-age-coefficients-constraints" author="travel-insurance">
+        <comment>
+            Adding CHECK constraints to age_coefficients for data integrity.
+            Protects against invalid age ranges and negative coefficients.
+        </comment>
+
+        <sql>
+            ALTER TABLE age_coefficients
+            ADD CONSTRAINT chk_age_range_valid
+            CHECK (age_to >= age_from);
+        </sql>
+
+        <sql>
+            ALTER TABLE age_coefficients
+            ADD CONSTRAINT chk_coefficient_positive
+            CHECK (coefficient > 0);
+        </sql>
+
+        <rollback>
+            <sql>ALTER TABLE age_coefficients DROP CONSTRAINT IF EXISTS chk_age_range_valid;</sql>
+            <sql>ALTER TABLE age_coefficients DROP CONSTRAINT IF EXISTS chk_coefficient_positive;</sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Триггер для auto-update updated_at           -->
+    <!-- ============================================ -->
+
+    <changeSet id="014-02-add-age-coefficients-trigger" author="travel-insurance">
+        <comment>
+            Adding trigger to automatically update updated_at on row modification.
+            Consistent with other tables (persons, agreements, countries, etc.)
+        </comment>
+
+        <sql splitStatements="false"><![CDATA[
+            CREATE TRIGGER update_age_coefficients_updated_at
+            BEFORE UPDATE ON age_coefficients
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+        ]]></sql>
+
+        <rollback>
+            DROP TRIGGER IF EXISTS update_age_coefficients_updated_at ON age_coefficients;
+        </rollback>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Документирующие комментарии                  -->
+    <!-- ============================================ -->
+
+    <changeSet id="014-03-add-age-coefficients-comments" author="travel-insurance">
+        <comment>Adding documentation comments to age_coefficients table and columns</comment>
+
+        <sql><![CDATA[
+            COMMENT ON TABLE age_coefficients IS
+            'Age-based premium coefficients applied to the base premium calculation.
+
+            PURPOSE:
+            Provides age-based risk adjustment factor for insurance premium calculation.
+            Formula: Premium = BasePremium × Days × AgeCoefficient × OtherCoefficients
+
+            USAGE:
+            AgeCalculator reads the coefficient for the insured person''s age on the
+            agreement start date (temporal query by valid_from/valid_to).
+
+            AGE RANGES (initial data):
+              0-5:   1.10 (Infants and toddlers — higher risk, special care needed)
+              6-17:  0.90 (Children and teenagers — lower medical risk)
+             18-30:  1.00 (Young adults — baseline)
+             31-40:  1.10 (Adults — slight increase)
+             41-50:  1.30 (Middle-aged — moderate increase)
+             51-60:  1.60 (Senior — significant increase)
+             61-70:  2.00 (Elderly — high risk)
+             71-80:  2.50 (Very elderly — very high risk)
+
+            VERSIONING:
+            Supports temporal validity via valid_from/valid_to.
+            New rate schedules can be inserted with a future valid_from date.
+            Historical rates are preserved for audit and recalculation purposes.';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN age_coefficients.age_from IS
+            'Start of age range (inclusive), in full years.';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN age_coefficients.age_to IS
+            'End of age range (inclusive), in full years.
+            Must be >= age_from (enforced by chk_age_range_valid).';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN age_coefficients.coefficient IS
+            'Multiplier applied to base premium for this age range.
+            Must be > 0 (enforced by chk_coefficient_positive).
+            Example: 1.60 means the premium is increased by 60%.';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN age_coefficients.valid_from IS
+            'Start of validity period (inclusive).
+            Used for temporal queries: find coefficient valid on a specific date.
+            Allows scheduling future rate changes.';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN age_coefficients.valid_to IS
+            'End of validity period (inclusive). NULL = valid indefinitely.
+            Historical rates are preserved with a specific valid_to date.';
+        ]]></sql>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- VIEW для просмотра активных коэффициентов    -->
+    <!-- ============================================ -->
+
+    <changeSet id="014-04-create-view-active-age-coefficients" author="travel-insurance">
+        <comment>
+            Creating view for convenient access to currently active age coefficients.
+            Useful for reporting, admin UI, and data validation.
+        </comment>
+
+        <createView viewName="v_active_age_coefficients" replaceIfExists="true">
+            SELECT
+            id,
+            age_from,
+            age_to,
+            coefficient,
+            description,
+            valid_from,
+            valid_to,
+            CASE
+            WHEN valid_to IS NULL OR valid_to >= CURRENT_DATE
+            THEN true
+            ELSE false
+            END AS is_active,
+            created_at,
+            updated_at
+            FROM age_coefficients
+            WHERE valid_from &lt;= CURRENT_DATE
+            AND (valid_to IS NULL OR valid_to >= CURRENT_DATE)
+            ORDER BY age_from
+        </createView>
+
+        <rollback>
+            <sql>DROP VIEW IF EXISTS v_active_age_coefficients;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
