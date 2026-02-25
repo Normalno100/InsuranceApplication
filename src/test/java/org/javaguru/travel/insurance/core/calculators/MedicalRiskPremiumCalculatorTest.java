@@ -1,14 +1,9 @@
 package org.javaguru.travel.insurance.core.calculators;
 
 import org.javaguru.travel.insurance.BaseTestFixture;
+import org.javaguru.travel.insurance.core.calculators.strategy.CountryDefaultPremiumStrategy;
+import org.javaguru.travel.insurance.core.calculators.strategy.MedicalLevelPremiumStrategy;
 import org.javaguru.travel.insurance.core.services.CountryDefaultDayPremiumService;
-import org.javaguru.travel.insurance.infrastructure.persistence.repositories.CountryRepository;
-import org.javaguru.travel.insurance.infrastructure.persistence.repositories.MedicalRiskLimitLevelRepository;
-import org.javaguru.travel.insurance.infrastructure.persistence.repositories.RiskTypeRepository;
-import org.javaguru.travel.insurance.core.services.AgeRiskPricingService;
-import org.javaguru.travel.insurance.core.services.RiskBundleService;
-import org.javaguru.travel.insurance.core.services.TripDurationPricingService;
-import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,215 +14,192 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
-import java.util.Optional;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * Тесты MedicalRiskPremiumCalculator — фасада паттерна Strategy (task_115).
+ *
+ * Ответственность фасада: выбрать правильную стратегию и делегировать вызов.
+ * Детальная логика расчёта формулы проверяется в:
+ *   - MedicalLevelPremiumStrategyTest
+ *   - CountryDefaultPremiumStrategyTest
+ *
+ * ВАЖНО: фасад зависит только от трёх бинов:
+ *   MedicalLevelPremiumStrategy, CountryDefaultPremiumStrategy, CountryDefaultDayPremiumService.
+ * Прямых зависимостей от репозиториев нет — они скрыты внутри стратегий.
+ */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class MedicalRiskPremiumCalculatorTest extends BaseTestFixture {
 
-    @Mock AgeCalculator ageCalculator;
-    @Mock MedicalRiskLimitLevelRepository medicalLevelRepository;
-    @Mock CountryRepository countryRepository;
-    @Mock RiskTypeRepository riskTypeRepository;
-    @Mock TripDurationPricingService durationPricingService;
-    @Mock RiskBundleService riskBundleService;
-    @Mock AgeRiskPricingService ageRiskPricingService;
-    @Mock CountryDefaultDayPremiumService countryDefaultDayPremiumService;
+    @Mock private MedicalLevelPremiumStrategy medicalLevelStrategy;
+    @Mock private CountryDefaultPremiumStrategy countryDefaultStrategy;
+    @Mock private CountryDefaultDayPremiumService countryDefaultDayPremiumService;
 
     @InjectMocks
-    MedicalRiskPremiumCalculator calculator;
+    private MedicalRiskPremiumCalculator calculator;
+
+    private MedicalRiskPremiumCalculator.PremiumCalculationResult medicalLevelResult;
+    private MedicalRiskPremiumCalculator.PremiumCalculationResult countryDefaultResult;
 
     @BeforeEach
-    void defaultMocks() {
-        // age
-        when(ageCalculator.calculateAgeAndCoefficient(any(), any()))
-                .thenReturn(ageResult35Years());
+    void setUp() {
+        medicalLevelResult   = stubResult(new BigDecimal("52.50"),
+                MedicalRiskPremiumCalculator.CalculationMode.MEDICAL_LEVEL);
+        countryDefaultResult = stubResult(new BigDecimal("35.00"),
+                MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT);
 
-        // country
-        when(countryRepository.findActiveByIsoCode(anyString(), any()))
-                .thenReturn(Optional.of(spainLowRisk()));
+        when(medicalLevelStrategy.calculate(any())).thenReturn(medicalLevelResult);
+        when(countryDefaultStrategy.calculate(any())).thenReturn(countryDefaultResult);
 
-        // medical level
-        when(medicalLevelRepository.findActiveByCode(anyString(), any()))
-                .thenReturn(Optional.of(medicalLevel50k()));
-
-        // mandatory risk
-        when(riskTypeRepository.findActiveByCode(eq("TRAVEL_MEDICAL"), any()))
-                .thenReturn(Optional.of(travelMedicalMandatoryRisk()));
-
-        // pricing defaults
-        when(durationPricingService.getDurationCoefficient(anyInt(), any()))
-                .thenReturn(BigDecimal.ONE);
-
-        when(ageRiskPricingService.getAgeRiskModifier(anyString(), anyInt(), any()))
-                .thenReturn(BigDecimal.ONE);
-
-        when(riskBundleService.getBestApplicableBundle(anyList(), any()))
-                .thenReturn(Optional.empty());
-
-        // useCountryDefaultPremium не установлен → MEDICAL_LEVEL режим всегда
-        // findDefaultDayPremium вызывается для информации в MEDICAL_LEVEL — возвращаем empty
-        when(countryDefaultDayPremiumService.findDefaultDayPremium(anyString(), any()))
-                .thenReturn(Optional.empty());
-
-        // hasDefaultDayPremium — false, чтобы shouldUseCountryDefaultMode() → false
+        // дефолт: дефолтной ставки нет → всегда MEDICAL_LEVEL
         when(countryDefaultDayPremiumService.hasDefaultDayPremium(anyString(), any()))
                 .thenReturn(false);
     }
 
     // =====================================================
-    // CORE FORMULA
+    // ВЫБОР СТРАТЕГИИ
     // =====================================================
 
     @Test
-    void shouldCalculatePremiumForStandardAdultTrip() {
-        var request = standardAdultRequest();
-
-        BigDecimal premium = calculator.calculatePremium(request);
-
-        assertThat(premium)
-                .isNotNull()
-                .isPositive()
-                .hasScaleOf(2);
-    }
-
-    @Test
-    void shouldApplyDurationCoefficient() {
-        when(durationPricingService.getDurationCoefficient(eq(14), any()))
-                .thenReturn(new BigDecimal("1.2"));
-
+    void shouldUseMedicalLevelStrategyByDefault() {
         var result = calculator.calculatePremiumWithDetails(standardAdultRequest());
 
-        assertThat(result.durationCoefficient())
-                .isEqualByComparingTo("1.2");
-    }
-
-    @Test
-    void shouldApplyCountryCoefficient() {
-        when(countryRepository.findActiveByIsoCode(eq("ES"), any()))
-                .thenReturn(Optional.of(spainLowRisk()));
-
-        var result = calculator.calculatePremiumWithDetails(standardAdultRequest());
-
-        assertThat(result.countryCoefficient())
-                .isEqualByComparingTo(spainLowRisk().getRiskCoefficient());
-    }
-
-    // =====================================================
-    // ADDITIONAL RISKS
-    // =====================================================
-
-    @Test
-    void shouldIncludeOptionalRiskCoefficient() {
-        var request = requestWithSelectedRisks("TRAVEL_BAGGAGE");
-
-        when(riskTypeRepository.findActiveByCode(eq("TRAVEL_BAGGAGE"), any()))
-                .thenReturn(Optional.of(travelBaggageOptionalRisk()));
-
-        var result = calculator.calculatePremiumWithDetails(request);
-
-        assertThat(result.additionalRisksCoefficient())
-                .isEqualByComparingTo(travelBaggageOptionalRisk().getCoefficient());
-    }
-
-    @Test
-    void shouldApplyAgeModifierToRisk() {
-        when(ageRiskPricingService.getAgeRiskModifier(eq("TRAVEL_BAGGAGE"), eq(35), any()))
-                .thenReturn(new BigDecimal("1.5"));
-
-        when(riskTypeRepository.findActiveByCode(eq("TRAVEL_BAGGAGE"), any()))
-                .thenReturn(Optional.of(travelBaggageOptionalRisk()));
-
-        var result = calculator.calculatePremiumWithDetails(
-                requestWithSelectedRisks("TRAVEL_BAGGAGE")
-        );
-
-        assertThat(result.additionalRisksCoefficient())
-                .isEqualByComparingTo(
-                        travelBaggageOptionalRisk()
-                                .getCoefficient()
-                                .multiply(new BigDecimal("1.5"))
-                );
-    }
-
-    // =====================================================
-    // NEGATIVE SCENARIOS
-    // =====================================================
-
-    @Test
-    void shouldFailWhenCountryNotFound() {
-        when(countryRepository.findActiveByIsoCode(anyString(), any()))
-                .thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> calculator.calculatePremium(standardAdultRequest()))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Country");
-    }
-
-    @Test
-    void shouldFailWhenMedicalLevelNotFound() {
-        when(medicalLevelRepository.findActiveByCode(anyString(), any()))
-                .thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> calculator.calculatePremium(standardAdultRequest()))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Medical");
-    }
-
-    // =====================================================
-    // CALCULATION MODE
-    // =====================================================
-
-    @Test
-    void shouldUseMedicalLevelModeByDefault() {
-        var request = standardAdultRequest(); // useCountryDefaultPremium = null
-
-        var result = calculator.calculatePremiumWithDetails(request);
-
+        verify(medicalLevelStrategy).calculate(any());
+        verify(countryDefaultStrategy, never()).calculate(any());
         assertThat(result.calculationMode())
                 .isEqualTo(MedicalRiskPremiumCalculator.CalculationMode.MEDICAL_LEVEL);
+    }
+
+    @Test
+    void shouldUseMedicalLevelStrategyWhenFlagExplicitlyFalse() {
+        var request = standardAdultRequest();
+        request.setUseCountryDefaultPremium(false);
+
+        calculator.calculatePremiumWithDetails(request);
+
+        verify(medicalLevelStrategy).calculate(any());
+        verify(countryDefaultStrategy, never()).calculate(any());
+    }
+
+    @Test
+    void shouldUseCountryDefaultStrategyWhenFlagTrueAndPremiumExists() {
+        var request = standardAdultRequest();
+        request.setUseCountryDefaultPremium(true);
+        when(countryDefaultDayPremiumService.hasDefaultDayPremium(anyString(), any()))
+                .thenReturn(true);
+
+        var result = calculator.calculatePremiumWithDetails(request);
+
+        verify(countryDefaultStrategy).calculate(any());
+        verify(medicalLevelStrategy, never()).calculate(any());
+        assertThat(result.calculationMode())
+                .isEqualTo(MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT);
     }
 
     @Test
     void shouldFallbackToMedicalLevelWhenNoDefaultPremiumExists() {
         var request = standardAdultRequest();
         request.setUseCountryDefaultPremium(true);
-
-        // Нет записи в country_default_day_premiums → fallback
-        when(countryDefaultDayPremiumService.hasDefaultDayPremium(anyString(), any()))
-                .thenReturn(false);
+        // hasDefaultDayPremium замокан как false в @BeforeEach -> fallback
 
         var result = calculator.calculatePremiumWithDetails(request);
 
+        verify(medicalLevelStrategy).calculate(any());
+        verify(countryDefaultStrategy, never()).calculate(any());
         assertThat(result.calculationMode())
                 .isEqualTo(MedicalRiskPremiumCalculator.CalculationMode.MEDICAL_LEVEL);
     }
 
+    // =====================================================
+    // ВОЗВРАТ ЗНАЧЕНИЯ ИЗ СТРАТЕГИИ
+    // =====================================================
+
     @Test
-    void shouldUseCountryDefaultModeWhenFlagSetAndPremiumExists() {
+    void calculatePremiumShouldReturnPremiumFromMedicalLevelStrategy() {
+        BigDecimal premium = calculator.calculatePremium(standardAdultRequest());
+
+        assertThat(premium).isEqualByComparingTo("52.50");
+    }
+
+    @Test
+    void calculatePremiumShouldReturnPremiumFromCountryDefaultStrategy() {
+        var request = standardAdultRequest();
+        request.setUseCountryDefaultPremium(true);
+        when(countryDefaultDayPremiumService.hasDefaultDayPremium(anyString(), any()))
+                .thenReturn(true);
+
+        BigDecimal premium = calculator.calculatePremium(request);
+
+        assertThat(premium).isEqualByComparingTo("35.00");
+    }
+
+    // =====================================================
+    // ПРОВЕРКА ВЫЗОВА hasDefaultDayPremium
+    // =====================================================
+
+    @Test
+    void shouldNotCallHasDefaultPremiumWhenFlagIsNull() {
+        calculator.calculatePremiumWithDetails(standardAdultRequest());
+
+        verify(countryDefaultDayPremiumService, never()).hasDefaultDayPremium(anyString(), any());
+    }
+
+    @Test
+    void shouldNotCallHasDefaultPremiumWhenFlagIsFalse() {
+        var request = standardAdultRequest();
+        request.setUseCountryDefaultPremium(false);
+
+        calculator.calculatePremiumWithDetails(request);
+
+        verify(countryDefaultDayPremiumService, never()).hasDefaultDayPremium(anyString(), any());
+    }
+
+    @Test
+    void shouldCallHasDefaultPremiumWithCorrectArgs() {
         var request = standardAdultRequest();
         request.setUseCountryDefaultPremium(true);
 
-        BigDecimal defaultRate = new BigDecimal("2.50");
+        calculator.calculatePremiumWithDetails(request);
 
-        when(countryDefaultDayPremiumService.hasDefaultDayPremium(anyString(), any()))
-                .thenReturn(true);
-        when(countryDefaultDayPremiumService.findDefaultDayPremium(anyString(), any()))
-                .thenReturn(Optional.of(new CountryDefaultDayPremiumService.DefaultPremiumResult(
-                        "ES", defaultRate, "EUR", "Spain default rate")));
-        when(countryDefaultDayPremiumService.calculateBasePremium(
-                any(), any(), any(), anyInt()))
-                .thenReturn(new BigDecimal("35.00"));
+        verify(countryDefaultDayPremiumService)
+                .hasDefaultDayPremium(request.getCountryIsoCode(), request.getAgreementDateFrom());
+    }
 
-        var result = calculator.calculatePremiumWithDetails(request);
+    // =====================================================
+    // ВСПОМОГАТЕЛЬНЫЙ МЕТОД
+    // =====================================================
 
-        assertThat(result.calculationMode())
-                .isEqualTo(MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT);
-        assertThat(result.countryDefaultDayPremium())
-                .isEqualByComparingTo(defaultRate);
+    /** Минимальный stub PremiumCalculationResult для тестов фасада */
+    private MedicalRiskPremiumCalculator.PremiumCalculationResult stubResult(
+            BigDecimal premium,
+            MedicalRiskPremiumCalculator.CalculationMode mode) {
+
+        return new MedicalRiskPremiumCalculator.PremiumCalculationResult(
+                premium,
+                new BigDecimal("2.50"),
+                35,
+                new BigDecimal("1.10"),
+                "Adults",
+                new BigDecimal("1.20"),
+                "Spain",
+                BigDecimal.ONE,
+                BigDecimal.ZERO,
+                new BigDecimal("1.32"),
+                14,
+                new BigDecimal("50000"),
+                List.of(),
+                new MedicalRiskPremiumCalculator.BundleDiscountResult(null, BigDecimal.ZERO),
+                List.of(),
+                mode,
+                mode == MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT
+                        ? new BigDecimal("2.50") : null,
+                null,
+                "EUR"
+        );
     }
 }
