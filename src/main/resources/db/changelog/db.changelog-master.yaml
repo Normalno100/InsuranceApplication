@@ -27,6 +27,8 @@ databaseChangeLog:
       file: db/changelog/changes/013-insert-country-default-day-premium-data.xml
   - include:
       file: db/changelog/changes/014-age-coefficients.xml
+  - include:
+      file: db/changelog/changes/015-create-calculation-config.xml
 
 
 

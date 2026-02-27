@@ -56,21 +56,11 @@ public class TravelCalculatePremiumRequest {
     /**
      * Дата рождения застрахованного.
      *
-     * БИЗНЕС-ПРАВИЛА (задокументированы в task_111):
+     * БИЗНЕС-ПРАВИЛА:
      * 1. Обязательное поле — не может быть null.
      * 2. Должна быть в прошлом (не сегодня, не будущее).
      * 3. Возраст на дату начала поездки: от 0 до 80 лет включительно.
-     *    - Менее 0 лет: ошибка валидации.
-     *    - Более 80 лет: ошибка валидации (страхование недоступно).
-     *    - 75–80 лет: расчёт возможен, но андеррайтинг может потребовать
-     *      ручной проверки (REQUIRES_REVIEW).
-     * 4. Используется для:
-     *    - Расчёта возрастного коэффициента (AgeCoefficient) в формуле премии.
-     *    - Расчёта возрастных модификаторов дополнительных рисков.
-     *    - Проверки правил андеррайтинга (AgeRule, AdditionalRisksRule).
-     *    - Сохранения в БД (UnderwritingDecisionEntity.personBirthDate).
-     *
-     * ФОРМАТ: yyyy-MM-dd (ISO 8601), например "1990-05-15".
+     * 4. Используется для расчёта AgeCoefficient (если не отключён через applyAgeCoefficient).
      */
     @Schema(
             description = """
@@ -115,12 +105,6 @@ public class TravelCalculatePremiumRequest {
             description = """
                     Дата начала действия страхового соглашения (начало поездки).
                     Формат: yyyy-MM-dd.
-                    
-                    Бизнес-правила:
-                    • Обязательное поле.
-                    • Должна быть не позже чем через 365 дней от сегодня.
-                    • Должна быть ≤ agreementDateTo.
-                    • Если дата в прошлом — предупреждение (WARNING), но расчёт выполняется.
                     """,
             example = "2025-06-01",
             requiredMode = Schema.RequiredMode.REQUIRED,
@@ -133,11 +117,6 @@ public class TravelCalculatePremiumRequest {
             description = """
                     Дата окончания действия страхового соглашения (конец поездки).
                     Формат: yyyy-MM-dd.
-                    
-                    Бизнес-правила:
-                    • Обязательное поле.
-                    • Должна быть ≥ agreementDateFrom.
-                    • Максимальная длительность поездки: 365 дней.
                     """,
             example = "2025-06-15",
             requiredMode = Schema.RequiredMode.REQUIRED,
@@ -151,10 +130,7 @@ public class TravelCalculatePremiumRequest {
     // =========================================================
 
     @Schema(
-            description = """
-                    ISO 3166-1 alpha-2 код страны назначения (2 заглавные латинские буквы).
-                    Страна должна быть активна в справочнике на дату начала поездки.
-                    """,
+            description = "ISO 3166-1 alpha-2 код страны назначения (2 заглавные латинские буквы).",
             example = "ES",
             requiredMode = Schema.RequiredMode.REQUIRED,
             minLength = 2,
@@ -163,22 +139,6 @@ public class TravelCalculatePremiumRequest {
     )
     private String countryIsoCode;
 
-    /**
-     * Уровень медицинского покрытия.
-     *
-     * ОБЯЗАТЕЛЬНОСТЬ ЗАВИСИТ ОТ РЕЖИМА РАСЧЁТА (задокументировано в task_111):
-     *
-     * Режим MEDICAL_LEVEL (useCountryDefaultPremium = false или null):
-     *   → medicalRiskLimitLevel ОБЯЗАТЕЛЕН.
-     *   → Определяет сумму покрытия (coverageAmount) и дневную ставку (dailyRate).
-     *
-     * Режим COUNTRY_DEFAULT (useCountryDefaultPremium = true):
-     *   → medicalRiskLimitLevel НЕОБЯЗАТЕЛЕН (но если передан — игнорируется).
-     *   → Базовая ставка берётся из country_default_day_premiums.
-     *
-     * Известные значения (из справочника):
-     *   LEVEL_10000, LEVEL_30000, LEVEL_50000, LEVEL_100000, LEVEL_200000
-     */
     @Schema(
             description = """
                     Уровень медицинского покрытия (код из справочника medical_risk_limit_levels).
@@ -195,23 +155,6 @@ public class TravelCalculatePremiumRequest {
     )
     private String medicalRiskLimitLevel;
 
-    /**
-     * Флаг использования дефолтной дневной премии страны.
-     *
-     * РЕЖИМ РАСЧЁТА (задокументировано в task_111):
-     *
-     * false / null → MEDICAL_LEVEL (стандартный):
-     *   ПРЕМИЯ = DailyRate × AgeCoeff × CountryCoeff × DurationCoeff × Days − BundleDiscount
-     *   Источник базовой ставки: medical_risk_limit_levels.daily_rate
-     *
-     * true → COUNTRY_DEFAULT:
-     *   ПРЕМИЯ = DefaultDayPremium × AgeCoeff × DurationCoeff × Days − BundleDiscount
-     *   Источник базовой ставки: country_default_day_premiums.default_day_premium
-     *   CountryCoeff НЕ применяется (уже включён в DefaultDayPremium)
-     *
-     * FALLBACK: Если для страны нет записи в country_default_day_premiums,
-     * автоматически используется MEDICAL_LEVEL (с предупреждением в логах).
-     */
     @Schema(
             description = """
                     Режим расчёта премии.
@@ -223,7 +166,6 @@ public class TravelCalculatePremiumRequest {
                     true → COUNTRY_DEFAULT:
                       Формула: DefaultDayPremium × AgeCoeff × DurationCoeff × Days
                       medicalRiskLimitLevel необязателен.
-                      Если для страны нет дефолтной ставки — fallback на MEDICAL_LEVEL.
                     """,
             example = "false",
             requiredMode = Schema.RequiredMode.NOT_REQUIRED,
@@ -232,22 +174,53 @@ public class TravelCalculatePremiumRequest {
     private Boolean useCountryDefaultPremium;
 
     // =========================================================
+    // УПРАВЛЕНИЕ ВОЗРАСТНЫМ КОЭФФИЦИЕНТОМ (task_116)
+    // =========================================================
+
+    /**
+     * Switch on/off для возрастного коэффициента (AgeCoefficient).
+     *
+     * ПРИОРИТЕТ (Вариант D — комбинированный):
+     *   null → использовать глобальную настройку из calculation_config
+     *           (ключ AGE_COEFFICIENT_ENABLED, по умолчанию true).
+     *   true → принудительно применить коэффициент для этого запроса.
+     *   false → принудительно отключить коэффициент (AgeCoeff = 1.0).
+     *
+     * ВЛИЯНИЕ НА РАСЧЁТ:
+     *   enabled=true  → ПРЕМИЯ = BaseRate × AgeCoeff × ...
+     *   enabled=false → ПРЕМИЯ = BaseRate × 1.0 × ...  (возрастная надбавка не применяется)
+     *
+     * ТИПИЧНЫЕ СЛУЧАИ ИСПОЛЬЗОВАНИЯ:
+     *   - Специальные корпоративные тарифы без возрастной дифференциации.
+     *   - Тестирование расчётов без возрастного коэффициента.
+     *   - Временное отключение через глобальную настройку в БД (не передавать поле).
+     */
+    @Schema(
+            description = """
+                    Switch on/off для возрастного коэффициента (AgeCoefficient).
+                    
+                    null (не передавать) → используется глобальная настройка из БД
+                      (calculation_config: AGE_COEFFICIENT_ENABLED, по умолчанию true).
+                    true  → коэффициент применяется для этого запроса (override).
+                    false → коэффициент = 1.0 для этого запроса (override, отключён).
+                    
+                    При отключении:
+                      PREMIUM = BaseRate × 1.0 × OtherCoefficients × Days
+                    """,
+            example = "null",
+            requiredMode = Schema.RequiredMode.NOT_REQUIRED,
+            nullable = true
+    )
+    private Boolean applyAgeCoefficient;
+
+    // =========================================================
     // ДОПОЛНИТЕЛЬНЫЕ РИСКИ
     // =========================================================
 
     @Schema(
             description = """
                     Список кодов дополнительных рисков (из справочника risk_types).
-                    
-                    Правила:
-                    • Необязательное поле.
-                    • Обязательный риск TRAVEL_MEDICAL добавляется автоматически — не включайте его.
-                    • Если включён TRAVEL_MEDICAL — будет ошибка валидации.
-                    • Дубликаты в списке — ошибка валидации.
-                    
-                    Примеры доступных кодов: SPORT_ACTIVITIES, EXTREME_SPORT,
-                    PREGNANCY, CHRONIC_DISEASES, ACCIDENT_COVERAGE,
-                    TRIP_CANCELLATION, LUGGAGE_LOSS, FLIGHT_DELAY, CIVIL_LIABILITY.
+                    Обязательный риск TRAVEL_MEDICAL добавляется автоматически.
                     """,
             example = "[\"SPORT_ACTIVITIES\", \"LUGGAGE_LOSS\"]",
             requiredMode = Schema.RequiredMode.NOT_REQUIRED
@@ -259,10 +232,7 @@ public class TravelCalculatePremiumRequest {
     // =========================================================
 
     @Schema(
-            description = """
-                    Валюта расчёта. Если не указана — используется EUR.
-                    Поддерживаемые валюты: EUR, USD, GBP, CHF, JPY.
-                    """,
+            description = "Валюта расчёта. Если не указана — используется EUR.",
             example = "EUR",
             requiredMode = Schema.RequiredMode.NOT_REQUIRED,
             allowableValues = {"EUR", "USD", "GBP", "CHF", "JPY"},
@@ -271,10 +241,7 @@ public class TravelCalculatePremiumRequest {
     private String currency;
 
     @Schema(
-            description = """
-                    Промо-код для получения скидки. Необязательное поле.
-                    Промо-коды проверяются по таблице promo_codes (активность, период, лимит).
-                    """,
+            description = "Промо-код для получения скидки. Необязательное поле.",
             example = "SUMMER2025",
             requiredMode = Schema.RequiredMode.NOT_REQUIRED
     )
@@ -288,11 +255,6 @@ public class TravelCalculatePremiumRequest {
             description = """
                     Количество застрахованных лиц. Используется для расчёта групповых скидок.
                     Если не указано или ≤ 0 — считается как 1 (одно лицо).
-                    
-                    Групповые скидки:
-                      5–9 человек:  −10%
-                      10–19 человек: −15%
-                      20+ человек:   −20%
                     """,
             example = "1",
             requiredMode = Schema.RequiredMode.NOT_REQUIRED,
@@ -302,9 +264,7 @@ public class TravelCalculatePremiumRequest {
 
     @Schema(
             description = """
-                    Признак корпоративного клиента. Если true — применяется корпоративная скидка −20%
-                    (при сумме премии от 100 EUR).
-                    Групповые и корпоративные скидки не суммируются — берётся наибольшая.
+                    Признак корпоративного клиента. Если true — применяется корпоративная скидка −20%.
                     """,
             example = "false",
             requiredMode = Schema.RequiredMode.NOT_REQUIRED,

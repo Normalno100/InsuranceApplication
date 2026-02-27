@@ -12,22 +12,15 @@ import java.time.Period;
 /**
  * Калькулятор возраста и возрастных коэффициентов.
  *
- * ИЗМЕНЕНИЯ task_113:
- * - getAgeCoefficient(int age) теперь использует AgeCoefficientRepository для
- *   чтения коэффициентов из таблицы age_coefficients (вместо хардкода).
- * - При отсутствии данных в БД — fallback на захардкоженные значения с предупреждением в логах.
- * - calculateAgeAndCoefficient() добавлен overload с передачей referenceDate для
- *   выбора правильной версии коэффициента.
- *
  * ТАБЛИЦА КОЭФФИЦИЕНТОВ (хранится в age_coefficients):
- *   0–5 лет:   1.1 (Infants and toddlers)
- *   6–17 лет:  0.9 (Children and teenagers)
- *   18–30 лет: 1.0 (Young adults)
- *   31–40 лет: 1.1 (Adults)
- *   41–50 лет: 1.3 (Middle-aged)
- *   51–60 лет: 1.6 (Senior)
- *   61–70 лет: 2.0 (Elderly)
- *   71–80 лет: 2.5 (Very elderly)
+ *   0–5 лет:   1.1  (Infants and toddlers)
+ *   6–17 лет:  0.9  (Children and teenagers)
+ *   18–30 лет: 1.0  (Young adults)
+ *   31–40 лет: 1.1  (Adults)
+ *   41–50 лет: 1.3  (Middle-aged)
+ *   51–60 лет: 1.6  (Senior)
+ *   61–70 лет: 2.0  (Elderly)
+ *   71–80 лет: 2.5  (Very elderly)
  */
 @Slf4j
 @Component
@@ -77,11 +70,30 @@ public class AgeCalculator {
      * @return коэффициент
      */
     public BigDecimal getAgeCoefficient(int age, LocalDate date) {
+        return getAgeCoefficient(age, date, true);
+    }
+
+    /**
+     * Получает коэффициент для указанного возраста.
+     *
+     * task_116: если enabled=false, возвращает BigDecimal.ONE (коэффициент отключён).
+     *
+     * @param age     возраст в годах
+     * @param date    дата, на которую нужен коэффициент
+     * @param enabled true = применять коэффициент, false = вернуть 1.0
+     * @return коэффициент (или 1.0 если отключён)
+     */
+    public BigDecimal getAgeCoefficient(int age, LocalDate date, boolean enabled) {
         if (age < 0) {
             throw new IllegalArgumentException("Age cannot be negative");
         }
         if (age > 80) {
             throw new IllegalArgumentException("Insurance not available for persons over 80 years old");
+        }
+
+        if (!enabled) {
+            log.debug("Age coefficient is DISABLED (enabled=false). Returning 1.0 for age {}", age);
+            return BigDecimal.ONE;
         }
 
         // Сначала пробуем прочитать из БД
@@ -93,7 +105,7 @@ public class AgeCalculator {
             return coefficient;
         }
 
-        // Fallback на хардкод (на случай если БД не заполнена или миграция не применена)
+        // Fallback на хардкод
         log.warn("No age coefficient found in DB for age {} on {}. Using hardcoded fallback.", age, date);
         return getAgeCoefficientFallback(age);
     }
@@ -102,23 +114,14 @@ public class AgeCalculator {
      * Получает описание возрастной группы.
      */
     public String getAgeGroupDescription(int age) {
-        if (age <= 5) {
-            return "Infants and toddlers";
-        } else if (age <= 17) {
-            return "Children and teenagers";
-        } else if (age <= 30) {
-            return "Young adults";
-        } else if (age <= 40) {
-            return "Adults";
-        } else if (age <= 50) {
-            return "Middle-aged";
-        } else if (age <= 60) {
-            return "Senior";
-        } else if (age <= 70) {
-            return "Elderly";
-        } else {
-            return "Very elderly";
-        }
+        if (age <= 5)  return "Infants and toddlers";
+        if (age <= 17) return "Children and teenagers";
+        if (age <= 30) return "Young adults";
+        if (age <= 40) return "Adults";
+        if (age <= 50) return "Middle-aged";
+        if (age <= 60) return "Senior";
+        if (age <= 70) return "Elderly";
+        return "Very elderly";
     }
 
     /**
@@ -130,18 +133,31 @@ public class AgeCalculator {
 
     /**
      * Рассчитывает возраст и коэффициент на дату agreementDateFrom.
-     * Передаёт referenceDate в getAgeCoefficient для выбора правильной версии
-     * коэффициента из таблицы age_coefficients.
+     * Коэффициент всегда активен (стандартный вызов).
      *
      * @param birthDate     дата рождения
-     * @param referenceDate дата, на которую рассчитывается возраст (agreementDateFrom)
+     * @param referenceDate дата начала поездки
      * @return объект с возрастом, коэффициентом и описанием группы
      */
     public AgeCalculationResult calculateAgeAndCoefficient(LocalDate birthDate, LocalDate referenceDate) {
+        return calculateAgeAndCoefficient(birthDate, referenceDate, true);
+    }
+
+    /**
+     * Рассчитывает возраст и коэффициент на дату agreementDateFrom.
+     *
+     * @param birthDate     дата рождения
+     * @param referenceDate дата начала поездки
+     * @param enabled       применять ли коэффициент
+     * @return объект с возрастом, коэффициентом и описанием группы
+     */
+    public AgeCalculationResult calculateAgeAndCoefficient(
+            LocalDate birthDate,
+            LocalDate referenceDate,
+            boolean enabled) {
+
         int age = calculateAge(birthDate, referenceDate);
-        // task_113: передаём referenceDate в getAgeCoefficient, чтобы использовать
-        // актуальную версию коэффициента из БД на дату начала поездки
-        BigDecimal coefficient = getAgeCoefficient(age, referenceDate);
+        BigDecimal coefficient = getAgeCoefficient(age, referenceDate, enabled);
         String description = getAgeGroupDescription(age);
 
         return new AgeCalculationResult(age, coefficient, description);
@@ -153,28 +169,19 @@ public class AgeCalculator {
 
     /**
      * Fallback-метод: возвращает захардкоженный коэффициент.
-     * Используется если в БД нет данных для запрошенного возраста/даты.
+     * Используется если в БД нет данных.
      *
-     * ВАЖНО: поддерживать синхронизацию с данными в миграции V_113__create_age_coefficients.sql
+     * ВАЖНО: поддерживать синхронизацию с данными миграции V_113__create_age_coefficients.sql
      */
     private BigDecimal getAgeCoefficientFallback(int age) {
-        if (age <= 5) {
-            return new BigDecimal("1.1");
-        } else if (age <= 17) {
-            return new BigDecimal("0.9");
-        } else if (age <= 30) {
-            return new BigDecimal("1.0");
-        } else if (age <= 40) {
-            return new BigDecimal("1.1");
-        } else if (age <= 50) {
-            return new BigDecimal("1.3");
-        } else if (age <= 60) {
-            return new BigDecimal("1.6");
-        } else if (age <= 70) {
-            return new BigDecimal("2.0");
-        } else {
-            return new BigDecimal("2.5");
-        }
+        if (age <= 5)  return new BigDecimal("1.1");
+        if (age <= 17) return new BigDecimal("0.9");
+        if (age <= 30) return new BigDecimal("1.0");
+        if (age <= 40) return new BigDecimal("1.1");
+        if (age <= 50) return new BigDecimal("1.3");
+        if (age <= 60) return new BigDecimal("1.6");
+        if (age <= 70) return new BigDecimal("2.0");
+        return new BigDecimal("2.5");
     }
 
     // ========================================

@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- ============================================ -->
+    <!-- Таблица конфигурации расчёта                 -->
+    <!-- Task 116: Switch on/off для AgeCoefficient   -->
+    <!-- ============================================ -->
+
+    <changeSet id="015-01-create-calculation-config" author="travel-insurance">
+        <comment>
+            Creating calculation_config table for storing global calculation settings.
+            Used to enable/disable specific calculation components (e.g. AgeCoefficient).
+            Supports temporal validity and versioning.
+        </comment>
+
+        <createTable tableName="calculation_config">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <!-- Ключ конфигурации (например, AGE_COEFFICIENT_ENABLED) -->
+            <column name="config_key" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Значение (хранится как строка: 'true'/'false', числа, и т.д.) -->
+            <column name="config_value" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Человекочитаемое описание -->
+            <column name="description" type="TEXT"/>
+
+            <!-- Период действия -->
+            <column name="valid_from" type="DATE" defaultValueComputed="CURRENT_DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="valid_to" type="DATE"/>
+
+            <!-- Флаг активности записи -->
+            <column name="is_active" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Метаданные -->
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <!-- Уникальный ключ конфигурации -->
+        <addUniqueConstraint
+                tableName="calculation_config"
+                columnNames="config_key"
+                constraintName="uk_calculation_config_key"/>
+
+        <!-- Индекс для поиска по ключу -->
+        <createIndex tableName="calculation_config" indexName="idx_calculation_config_key">
+            <column name="config_key"/>
+        </createIndex>
+
+        <!-- Составной индекс для temporal-запросов -->
+        <createIndex tableName="calculation_config" indexName="idx_calculation_config_validity">
+            <column name="config_key"/>
+            <column name="is_active"/>
+            <column name="valid_from"/>
+            <column name="valid_to"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Добавление колонки updated_by               -->
+    <!-- ============================================ -->
+
+    <changeSet id="015-01a-add-updated-by-column" author="travel-insurance">
+        <comment>Adding updated_by column required by CalculationConfigEntity</comment>
+
+        <addColumn tableName="calculation_config">
+            <column name="updated_by" type="VARCHAR(100)"/>
+        </addColumn>
+
+        <rollback>
+            <dropColumn tableName="calculation_config" columnName="updated_by"/>
+        </rollback>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Триггер для автообновления updated_at        -->
+    <!-- ============================================ -->
+
+    <changeSet id="015-02-create-trigger-for-updated-at" author="travel-insurance">
+        <comment>Adding trigger to automatically update updated_at on row modification</comment>
+
+        <sql splitStatements="false"><![CDATA[
+            CREATE TRIGGER update_calculation_config_updated_at
+            BEFORE UPDATE ON calculation_config
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+        ]]></sql>
+
+        <rollback>
+            DROP TRIGGER IF EXISTS update_calculation_config_updated_at ON calculation_config;
+        </rollback>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Начальные данные                             -->
+    <!-- ============================================ -->
+
+    <changeSet id="015-03-insert-initial-config" author="travel-insurance">
+        <comment>
+            Inserting initial configuration values.
+            AGE_COEFFICIENT_ENABLED = true — age-based coefficient is applied by default.
+        </comment>
+
+        <insert tableName="calculation_config">
+            <column name="config_key" value="AGE_COEFFICIENT_ENABLED"/>
+            <column name="config_value" value="true"/>
+            <column name="description"
+                    value="Enable or disable age-based premium coefficient. When false, AgeCoefficient = 1.0 (no age adjustment)."/>
+            <column name="is_active" valueBoolean="true"/>
+        </insert>
+    </changeSet>
+
+    <!-- ============================================ -->
+    <!-- Комментарии к таблице и колонкам             -->
+    <!-- ============================================ -->
+
+    <changeSet id="015-04-add-table-comments" author="travel-insurance">
+        <comment>Adding documentation comments to calculation_config table and columns</comment>
+
+        <sql><![CDATA[
+            COMMENT ON TABLE calculation_config IS
+            'Global configuration for premium calculation behaviour.
+            Supports enabling/disabling individual calculation components at runtime.
+
+            USAGE:
+            - Read by CalculationConfigService (with caching)
+            - Per-request override possible via TravelCalculatePremiumRequest.applyAgeCoefficient
+
+            KEYS:
+            AGE_COEFFICIENT_ENABLED — controls age-based coefficient (true/false).
+              true  → coefficient from age_coefficients table is applied
+              false → AgeCoefficient = 1.0 (no age adjustment)';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN calculation_config.config_key IS
+            'Unique identifier for the configuration parameter.
+            Example: AGE_COEFFICIENT_ENABLED';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN calculation_config.config_value IS
+            'String representation of the value.
+            Parsed by the service layer to the required type (Boolean, Integer, etc.).
+            Example: ''true'', ''false'', ''100''';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN calculation_config.valid_from IS
+            'Start of validity period (inclusive).
+            Allows scheduling future configuration changes.';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN calculation_config.valid_to IS
+            'End of validity period (inclusive). NULL = valid indefinitely.';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN calculation_config.is_active IS
+            'Quick on/off switch for this config entry without deleting the record.
+            Only active records are read by CalculationConfigService.';
+        ]]></sql>
+    </changeSet>
+
+</databaseChangeLog>

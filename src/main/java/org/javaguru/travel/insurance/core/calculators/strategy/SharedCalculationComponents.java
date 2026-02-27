@@ -21,15 +21,7 @@ import java.util.List;
  * Общие компоненты расчёта, используемые обеими стратегиями.
  *
  * ОТВЕТСТВЕННОСТЬ:
- * Устраняет дублирование между {@link MedicalLevelPremiumStrategy}
- * и {@link CountryDefaultPremiumStrategy}.
- *
- * Содержит:
- *   - Расчёт возраста и коэффициента
- *   - Расчёт длительности
- *   - Расчёт дополнительных рисков с возрастными модификаторами
- *   - Расчёт пакетных скидок
- *   - Построение деталей по рискам
+ * Устраняет дублирование между MedicalLevelPremiumStrategy и CountryDefaultPremiumStrategy.
  */
 @Slf4j
 @Component
@@ -48,23 +40,38 @@ public class SharedCalculationComponents {
 
     /**
      * Рассчитывает возраст и возрастной коэффициент.
+     * Коэффициент всегда применяется (стандартный вызов, обратная совместимость).
      *
-     * referenceDate (agreementDateFrom) передаётся в AgeCalculator
-     * для выбора актуальной версии коэффициента из БД (age_coefficients).
+     * @param birthDate     дата рождения
+     * @param referenceDate дата начала поездки (agreementDateFrom)
      */
     public AgeCalculator.AgeCalculationResult calculateAge(
             LocalDate birthDate,
             LocalDate referenceDate) {
-        return ageCalculator.calculateAgeAndCoefficient(birthDate, referenceDate);
+        return calculateAge(birthDate, referenceDate, true);
+    }
+
+    /**
+     * Рассчитывает возраст и возрастной коэффициент с учётом флага включения.
+     *
+     * если ageCoefficientEnabled=false, коэффициент будет равен 1.0.
+     *
+     * @param birthDate               дата рождения
+     * @param referenceDate           дата начала поездки
+     * @param ageCoefficientEnabled   true = применять коэффициент, false = 1.0
+     */
+    public AgeCalculator.AgeCalculationResult calculateAge(
+            LocalDate birthDate,
+            LocalDate referenceDate,
+            boolean ageCoefficientEnabled) {
+
+        return ageCalculator.calculateAgeAndCoefficient(birthDate, referenceDate, ageCoefficientEnabled);
     }
 
     // ========================================
     // ДЛИТЕЛЬНОСТЬ
     // ========================================
 
-    /**
-     * Рассчитывает количество дней и коэффициент длительности.
-     */
     public long calculateDays(LocalDate dateFrom, LocalDate dateTo) {
         return java.time.temporal.ChronoUnit.DAYS.between(dateFrom, dateTo);
     }
@@ -80,8 +87,6 @@ public class SharedCalculationComponents {
     /**
      * Рассчитывает суммарный коэффициент дополнительных рисков
      * с учётом возрастных модификаторов.
-     *
-     * Результат используется как addend: (1 + additionalRisksCoeff)
      */
     public AdditionalRisksResult calculateAdditionalRisks(
             List<String> selectedRiskCodes,
@@ -167,7 +172,6 @@ public class SharedCalculationComponents {
 
         List<RiskPremiumDetail> details = new ArrayList<>();
 
-        // Базовая премия по TRAVEL_MEDICAL
         BigDecimal basePremium = baseRate
                 .multiply(ageCoefficient)
                 .multiply(countryCoefficient)

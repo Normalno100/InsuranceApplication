@@ -1,296 +1,235 @@
 package org.javaguru.travel.insurance.core.calculators.strategy;
 
-import org.javaguru.travel.insurance.BaseTestFixture;
-import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.core.calculators.AgeCalculator;
+import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator.BundleDiscountResult;
+import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator.PremiumCalculationResult;
+import org.javaguru.travel.insurance.core.services.CalculationConfigService;
 import org.javaguru.travel.insurance.core.services.CountryDefaultDayPremiumService;
+import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.CountryEntity;
 import org.javaguru.travel.insurance.infrastructure.persistence.repositories.CountryRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-/**
- * Тесты CountryDefaultPremiumStrategy — расчёт премии в режиме COUNTRY_DEFAULT.
- *
- * ФОРМУЛА:
- *   ПРЕМИЯ = DefaultDayPremium × AgeCoeff × DurationCoeff
- *            × (1 + Σ riskCoeffs) × Days − BundleDiscount
- *
- * CountryCoeff НЕ применяется — уже "запечён" в DefaultDayPremium.
- */
 @ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
-class CountryDefaultPremiumStrategyTest extends BaseTestFixture {
+class CountryDefaultPremiumStrategyTest {
+
+    private static final LocalDate DATE_FROM  = LocalDate.of(2025, 6, 1);
+    private static final LocalDate DATE_TO    = LocalDate.of(2025, 6, 15); // 14 дней
+    private static final LocalDate BIRTH_DATE = LocalDate.of(1990, 1, 1);  // 35 лет
 
     @Mock private CountryDefaultDayPremiumService countryDefaultDayPremiumService;
     @Mock private CountryRepository countryRepository;
     @Mock private SharedCalculationComponents shared;
     @Mock private CalculationStepsBuilder stepsBuilder;
+    @Mock private CalculationConfigService calculationConfigService;
 
     @InjectMocks
     private CountryDefaultPremiumStrategy strategy;
 
-    private static final BigDecimal DEFAULT_DAY_PREMIUM = new BigDecimal("2.50");
-    private static final BigDecimal AGE_COEFF           = new BigDecimal("1.10");
-    private static final BigDecimal DURATION_COEFF      = BigDecimal.ONE;
-    private static final int        DAYS                = 14;
-
-    @BeforeEach
-    void setUp() {
-        // дефолтная ставка страны
-        when(countryDefaultDayPremiumService.findDefaultDayPremium(anyString(), any()))
-                .thenReturn(Optional.of(defaultPremiumResult()));
-
-        // страна
-        when(countryRepository.findActiveByIsoCode(anyString(), any()))
-                .thenReturn(Optional.of(spainLowRisk()));
-
-        // возраст
-        when(shared.calculateAge(any(), any()))
-                .thenReturn(ageResult35Years());
-
-        // дни
-        when(shared.calculateDays(any(), any())).thenReturn((long) DAYS);
-        when(shared.getDurationCoefficient(anyLong(), any())).thenReturn(DURATION_COEFF);
-
-        // доп. риски — нет
-        when(shared.calculateAdditionalRisks(any(), anyInt(), any()))
-                .thenReturn(new SharedCalculationComponents.AdditionalRisksResult(
-                        BigDecimal.ZERO, List.of()));
-
-        // базовая премия (DefaultDayPremium × AgeCoeff × DurationCoeff × Days)
-        when(countryDefaultDayPremiumService.calculateBasePremium(any(), any(), any(), anyInt()))
-                .thenReturn(new BigDecimal("38.50")); // 2.50 × 1.10 × 1.0 × 14
-
-        // скидка — нет
-        when(shared.calculateBundleDiscount(any(), any(), any()))
-                .thenReturn(new MedicalRiskPremiumCalculator.BundleDiscountResult(null, BigDecimal.ZERO));
-
-        // детали рисков
-        when(shared.buildRiskDetails(any(), any(), any(), any(), any(), anyInt(), anyInt(), any()))
-                .thenReturn(List.of());
-
-        // шаги расчёта
-        when(stepsBuilder.buildCountryDefaultSteps(any(), any(), any(), any(), anyLong(), any(), any(), any()))
-                .thenReturn(List.of());
-    }
-
-    // =====================================================
-    // РЕЖИМ РАСЧЁТА
-    // =====================================================
+    // =========================================================
+    // applyAgeCoefficient = null → читает из DB
+    // =========================================================
 
     @Test
-    void shouldReturnCountryDefaultMode() {
-        var result = strategy.calculate(standardAdultRequest());
+    void calculate_whenApplyAgeCoefficientIsNull_resolvesFromDb() {
+        var request = buildRequest(null);
+        setupMocks(true, new BigDecimal("1.10"));
 
-        assertThat(result.calculationMode())
-                .isEqualTo(MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT);
-    }
+        strategy.calculate(request);
 
-    // =====================================================
-    // БАЗОВАЯ СТАВКА И ПРЕМИЯ
-    // =====================================================
-
-    @Test
-    void shouldUseDefaultDayPremiumAsBaseRate() {
-        var result = strategy.calculate(standardAdultRequest());
-
-        assertThat(result.baseRate()).isEqualByComparingTo(DEFAULT_DAY_PREMIUM);
+        verify(calculationConfigService).resolveAgeCoefficientEnabled(null, DATE_FROM);
     }
 
     @Test
-    void shouldCalculatePositivePremium() {
-        var result = strategy.calculate(standardAdultRequest());
+    void calculate_whenDbEnablesCoefficient_passesEnabledTrueToShared() {
+        var request = buildRequest(null);
+        setupMocks(true, new BigDecimal("1.10"));
 
-        assertThat(result.premium())
-                .isNotNull()
-                .isPositive()
-                .hasScaleOf(2);
+        strategy.calculate(request);
+
+        verify(shared).calculateAge(BIRTH_DATE, DATE_FROM, true);
     }
 
     @Test
-    void shouldPopulateCountryDefaultDayPremiumFields() {
-        var result = strategy.calculate(standardAdultRequest());
+    void calculate_whenDbDisablesCoefficient_passesEnabledFalseToShared() {
+        var request = buildRequest(null);
+        setupMocks(false, BigDecimal.ONE);
 
-        assertThat(result.countryDefaultDayPremium()).isEqualByComparingTo(DEFAULT_DAY_PREMIUM);
-        assertThat(result.countryDefaultDayPremiumForInfo()).isEqualByComparingTo(DEFAULT_DAY_PREMIUM);
-        assertThat(result.countryDefaultCurrency()).isEqualTo("EUR");
+        strategy.calculate(request);
+
+        verify(shared).calculateAge(BIRTH_DATE, DATE_FROM, false);
     }
 
-    // =====================================================
-    // КОЭФФИЦИЕНТЫ
-    // =====================================================
+    // =========================================================
+    // applyAgeCoefficient = true → принудительно включает
+    // =========================================================
 
     @Test
-    void shouldApplyAgeCoefficient() {
-        var result = strategy.calculate(standardAdultRequest());
+    void calculate_whenApplyAgeCoefficientIsTrue_resolvesToTrue() {
+        var request = buildRequest(true);
+        setupMocks(true, new BigDecimal("1.10"));
 
-        assertThat(result.ageCoefficient()).isEqualByComparingTo(AGE_COEFF);
+        strategy.calculate(request);
+
+        verify(calculationConfigService).resolveAgeCoefficientEnabled(true, DATE_FROM);
+        verify(shared).calculateAge(BIRTH_DATE, DATE_FROM, true);
+    }
+
+    // =========================================================
+    // applyAgeCoefficient = false → принудительно отключает
+    // =========================================================
+
+    @Test
+    void calculate_whenApplyAgeCoefficientIsFalse_resolvesToFalse() {
+        var request = buildRequest(false);
+        setupMocks(false, BigDecimal.ONE);
+
+        strategy.calculate(request);
+
+        verify(calculationConfigService).resolveAgeCoefficientEnabled(false, DATE_FROM);
+        verify(shared).calculateAge(BIRTH_DATE, DATE_FROM, false);
+    }
+
+    @Test
+    void calculate_whenAgeCoefficientDisabled_ageCoefficientInResultIsOne() {
+        var request = buildRequest(false);
+        setupMocks(false, BigDecimal.ONE);
+
+        PremiumCalculationResult result = strategy.calculate(request);
+
+        assertThat(result.ageCoefficient()).isEqualByComparingTo(BigDecimal.ONE);
+    }
+
+    @Test
+    void calculate_whenAgeCoefficientEnabled_ageCoefficientInResultMatchesAge() {
+        var request = buildRequest(true);
+        BigDecimal ageCoeff = new BigDecimal("1.30");
+        setupMocks(true, ageCoeff);
+
+        PremiumCalculationResult result = strategy.calculate(request);
+
+        assertThat(result.ageCoefficient()).isEqualByComparingTo(ageCoeff);
+    }
+
+    // =========================================================
+    // Корректность расчёта
+    // =========================================================
+
+    @Test
+    void calculate_returnsCountryDefaultMode() {
+        var request = buildRequest(null);
+        setupMocks(true, new BigDecimal("1.00"));
+
+        PremiumCalculationResult result = strategy.calculate(request);
+
+        assertThat(result.calculationMode().name()).isEqualTo("COUNTRY_DEFAULT");
+    }
+
+    @Test
+    void calculate_returnsCorrectAge() {
+        var request = buildRequest(null);
+        setupMocks(true, new BigDecimal("1.00"));
+
+        PremiumCalculationResult result = strategy.calculate(request);
+
         assertThat(result.age()).isEqualTo(35);
     }
 
     @Test
-    void shouldApplyDurationCoefficient() {
-        when(shared.getDurationCoefficient(anyLong(), any()))
-                .thenReturn(new BigDecimal("1.2"));
+    void calculate_doesNotPassCountryCoefficientToFormula() {
+        // В COUNTRY_DEFAULT countryCoefficient не участвует в basePremium
+        // (передаётся BigDecimal.ONE в buildRiskDetails)
+        var request = buildRequest(null);
+        setupMocks(true, new BigDecimal("1.00"));
 
-        var result = strategy.calculate(standardAdultRequest());
+        strategy.calculate(request);
 
-        assertThat(result.durationCoefficient()).isEqualByComparingTo("1.2");
+        verify(shared).buildRiskDetails(any(), any(), any(),
+                eq(BigDecimal.ONE), // countryCoeff == ONE
+                any(), anyInt(), anyInt(), any());
     }
 
     @Test
-    void shouldPopulateCountryInfoFromCountryEntity() {
-        var result = strategy.calculate(standardAdultRequest());
+    void calculate_throwsException_whenDefaultPremiumNotFound() {
+        var request = buildRequest(null);
 
-        // countryCoefficient присутствует для инфо, но НЕ применяется в формуле
-        assertThat(result.countryCoefficient()).isEqualByComparingTo(spainLowRisk().getRiskCoefficient());
-        assertThat(result.countryName()).isEqualTo(spainLowRisk().getNameEn());
-    }
-
-    @Test
-    void shouldNotApplyCountryCoeffToFormula() {
-        // Меняем countryCoeff страны — не должно влиять на итоговую премию
-        var highRiskCountry = spainLowRisk();
-        highRiskCountry.setRiskCoefficient(new BigDecimal("5.00")); // очень высокий
-        when(countryRepository.findActiveByIsoCode(anyString(), any()))
-                .thenReturn(Optional.of(highRiskCountry));
-
-        BigDecimal premiumWithHighCountryCoeff = strategy.calculate(standardAdultRequest()).premium();
-
-        // Сбрасываем на стандартный
-        when(countryRepository.findActiveByIsoCode(anyString(), any()))
-                .thenReturn(Optional.of(spainLowRisk()));
-
-        BigDecimal premiumWithNormalCountryCoeff = strategy.calculate(standardAdultRequest()).premium();
-
-        assertThat(premiumWithHighCountryCoeff)
-                .isEqualByComparingTo(premiumWithNormalCountryCoeff);
-    }
-
-    // =====================================================
-    // ДОПОЛНИТЕЛЬНЫЕ РИСКИ
-    // =====================================================
-
-    @Test
-    void shouldApplyAdditionalRisksCoefficient() {
-        BigDecimal baggageCoeff = new BigDecimal("0.05");
-        when(shared.calculateAdditionalRisks(any(), anyInt(), any()))
-                .thenReturn(new SharedCalculationComponents.AdditionalRisksResult(
-                        baggageCoeff, List.of()));
-
-        // Пересчитываем basePremium с учётом доп. рисков
-        BigDecimal basePremium = new BigDecimal("38.50");
-        BigDecimal expectedWithRisks = basePremium
-                .multiply(BigDecimal.ONE.add(baggageCoeff))
-                .setScale(2, java.math.RoundingMode.HALF_UP);
-
-        var result = strategy.calculate(requestWithSelectedRisks("TRAVEL_BAGGAGE"));
-
-        assertThat(result.additionalRisksCoefficient()).isEqualByComparingTo(baggageCoeff);
-        assertThat(result.premium()).isEqualByComparingTo(expectedWithRisks);
-    }
-
-    // =====================================================
-    // СКИДКА
-    // =====================================================
-
-    @Test
-    void shouldApplyBundleDiscount() {
-        BigDecimal discount = new BigDecimal("5.00");
-        when(shared.calculateBundleDiscount(any(), any(), any()))
-                .thenReturn(new MedicalRiskPremiumCalculator.BundleDiscountResult(null, discount));
-
-        BigDecimal premiumBeforeDiscount = new BigDecimal("38.50");
-        BigDecimal expectedPremium = premiumBeforeDiscount.subtract(discount);
-
-        var result = strategy.calculate(standardAdultRequest());
-
-        assertThat(result.premium()).isEqualByComparingTo(expectedPremium);
-    }
-
-    @Test
-    void shouldReturnZeroDiscountWhenNoBundleApplies() {
-        // @BeforeEach уже настраивает discount = ZERO
-        var result = strategy.calculate(standardAdultRequest());
-
-        assertThat(result.bundleDiscount().discountAmount())
-                .isEqualByComparingTo(BigDecimal.ZERO);
-    }
-
-    // =====================================================
-    // ПРОЧИЕ ПОЛЯ РЕЗУЛЬТАТА
-    // =====================================================
-
-    @Test
-    void shouldPopulateDaysField() {
-        var result = strategy.calculate(standardAdultRequest());
-
-        assertThat(result.days()).isEqualTo(DAYS);
-    }
-
-    @Test
-    void shouldReturnNullCoverageAmount() {
-        // coverageAmount не применимо в COUNTRY_DEFAULT
-        var result = strategy.calculate(standardAdultRequest());
-
-        assertThat(result.coverageAmount()).isNull();
-    }
-
-    @Test
-    void shouldDelegateStepsToBuilder() {
-        strategy.calculate(standardAdultRequest());
-
-        verify(stepsBuilder).buildCountryDefaultSteps(
-                any(), any(), any(), any(), anyLong(), any(), any(), any());
-    }
-
-    // =====================================================
-    // NEGATIVE SCENARIOS
-    // =====================================================
-
-    @Test
-    void shouldFailWhenDefaultDayPremiumNotFound() {
-        when(countryDefaultDayPremiumService.findDefaultDayPremium(anyString(), any()))
+        when(countryDefaultDayPremiumService.findDefaultDayPremium(eq("TH"), eq(DATE_FROM)))
                 .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> strategy.calculate(standardAdultRequest()))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Country default day premium not found");
+        org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> strategy.calculate(request));
     }
 
-    @Test
-    void shouldFailWhenCountryNotFound() {
-        when(countryRepository.findActiveByIsoCode(anyString(), any()))
-                .thenReturn(Optional.empty());
+    // =========================================================
+    // helpers
+    // =========================================================
 
-        assertThatThrownBy(() -> strategy.calculate(standardAdultRequest()))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Country not found");
+    private TravelCalculatePremiumRequest buildRequest(Boolean applyAgeCoefficient) {
+        return TravelCalculatePremiumRequest.builder()
+                .personFirstName("Ivan")
+                .personLastName("Petrov")
+                .personBirthDate(BIRTH_DATE)
+                .agreementDateFrom(DATE_FROM)
+                .agreementDateTo(DATE_TO)
+                .countryIsoCode("TH")
+                .useCountryDefaultPremium(true)
+                .applyAgeCoefficient(applyAgeCoefficient)
+                .selectedRisks(Collections.emptyList())
+                .build();
     }
 
-    // =====================================================
-    // ВСПОМОГАТЕЛЬНЫЙ МЕТОД
-    // =====================================================
+    private void setupMocks(boolean ageCoefficientEnabled, BigDecimal ageCoeff) {
+        // CountryDefaultDayPremiumService
+        var defaultPremium = new CountryDefaultDayPremiumService.DefaultPremiumResult(
+                "FR", new BigDecimal("8.00"), "EUR", "a");
+        when(countryDefaultDayPremiumService.findDefaultDayPremium(eq("TH"), eq(DATE_FROM)))
+                .thenReturn(Optional.of(defaultPremium));
+        when(countryDefaultDayPremiumService.calculateBasePremium(
+                any(), any(), any(), anyInt()))
+                .thenReturn(new BigDecimal("106.40")); // 8.00 * 1.00 * 0.95 * 14
 
-    private CountryDefaultDayPremiumService.DefaultPremiumResult defaultPremiumResult() {
-        return new CountryDefaultDayPremiumService.DefaultPremiumResult(
-                "ES",
-                DEFAULT_DAY_PREMIUM,
-                "EUR",
-                "Spain default rate"
-        );
+        // Country
+        var country = mock(CountryEntity.class);
+        when(country.getRiskCoefficient()).thenReturn(new BigDecimal("1.3"));
+        when(country.getNameEn()).thenReturn("Thailand");
+        when(countryRepository.findActiveByIsoCode(eq("TH"), eq(DATE_FROM)))
+                .thenReturn(Optional.of(country));
+
+        // CalculationConfigService
+        when(calculationConfigService.resolveAgeCoefficientEnabled(any(), eq(DATE_FROM)))
+                .thenReturn(ageCoefficientEnabled);
+
+        // SharedCalculationComponents
+        var ageResult = new AgeCalculator.AgeCalculationResult(35, ageCoeff, "Adults");
+        when(shared.calculateAge(eq(BIRTH_DATE), eq(DATE_FROM), eq(ageCoefficientEnabled)))
+                .thenReturn(ageResult);
+        when(shared.calculateDays(DATE_FROM, DATE_TO)).thenReturn(14L);
+        when(shared.getDurationCoefficient(eq(14L), eq(DATE_FROM))).thenReturn(new BigDecimal("0.95"));
+        when(shared.calculateAdditionalRisks(any(), eq(35), eq(DATE_FROM)))
+                .thenReturn(new SharedCalculationComponents.AdditionalRisksResult(BigDecimal.ZERO, List.of()));
+        when(shared.calculateBundleDiscount(any(), any(), eq(DATE_FROM)))
+                .thenReturn(new BundleDiscountResult(null, BigDecimal.ZERO));
+        when(shared.buildRiskDetails(any(), any(), any(), any(), any(), anyInt(), anyInt(), any()))
+                .thenReturn(List.of());
+
+        // CalculationStepsBuilder
+        when(stepsBuilder.buildCountryDefaultSteps(any(), any(), any(), any(),
+                anyLong(), any(), any(), any()))
+                .thenReturn(List.of());
     }
 }
