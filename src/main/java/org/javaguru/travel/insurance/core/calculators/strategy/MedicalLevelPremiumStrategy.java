@@ -9,6 +9,7 @@ import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculat
 import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator.PremiumCalculationResult;
 import org.javaguru.travel.insurance.core.services.CalculationConfigService;
 import org.javaguru.travel.insurance.core.services.CountryDefaultDayPremiumService;
+import org.javaguru.travel.insurance.core.services.PayoutLimitService;
 import org.javaguru.travel.insurance.infrastructure.persistence.repositories.CountryRepository;
 import org.javaguru.travel.insurance.infrastructure.persistence.repositories.MedicalRiskLimitLevelRepository;
 import org.springframework.stereotype.Component;
@@ -22,6 +23,11 @@ import java.math.RoundingMode;
  * ФОРМУЛА:
  *   ПРЕМИЯ = DailyRate × AgeCoeff × CountryCoeff × DurationCoeff
  *            × (1 + Σ riskCoeffs) × Days − BundleDiscount
+ *
+ * ИЗМЕНЕНИЯ task_117:
+ *   После расчёта базовой премии применяется PayoutLimitService:
+ *   если maxPayoutAmount < coverageAmount, премия корректируется пропорционально.
+ *   Результат включает поля medicalPayoutLimit, appliedPayoutLimit, payoutLimitApplied.
  */
 @Slf4j
 @Component
@@ -33,7 +39,8 @@ public class MedicalLevelPremiumStrategy implements PremiumCalculationStrategy {
     private final CountryDefaultDayPremiumService countryDefaultDayPremiumService;
     private final SharedCalculationComponents shared;
     private final CalculationStepsBuilder stepsBuilder;
-    private final CalculationConfigService calculationConfigService;   // task_116
+    private final CalculationConfigService calculationConfigService;
+    private final PayoutLimitService payoutLimitService;   // task_117
 
     @Override
     public PremiumCalculationResult calculate(TravelCalculatePremiumRequest request) {
@@ -78,21 +85,29 @@ public class MedicalLevelPremiumStrategy implements PremiumCalculationStrategy {
                 .multiply(durationCoefficient)
                 .multiply(BigDecimal.ONE.add(additionalRisks.totalCoefficient()));
 
-        // 7. Базовая премия
-        BigDecimal basePremium = medicalLevel.getDailyRate()
+        // 7. Базовая премия (до лимита выплат)
+        BigDecimal rawBasePremium = medicalLevel.getDailyRate()
                 .multiply(totalCoeff)
                 .multiply(BigDecimal.valueOf(days))
                 .setScale(2, RoundingMode.HALF_UP);
 
-        // 8. Пакетная скидка
+        // 8. task_117: применяем лимит выплат
+        PayoutLimitService.PayoutLimitResult payoutResult = payoutLimitService.applyPayoutLimit(
+                rawBasePremium,
+                medicalLevel.getCoverageAmount(),
+                medicalLevel.getMaxPayoutAmount());
+
+        BigDecimal basePremium = payoutResult.adjustedPremium();
+
+        // 9. Пакетная скидка
         BundleDiscountResult bundleDiscount = shared.calculateBundleDiscount(
                 request.getSelectedRisks(), basePremium, request.getAgreementDateFrom());
 
-        // 9. Итоговая премия
+        // 10. Итоговая премия
         BigDecimal finalPremium = basePremium.subtract(bundleDiscount.discountAmount())
                 .setScale(2, RoundingMode.HALF_UP);
 
-        // 10. Детали по рискам
+        // 11. Детали по рискам
         var riskDetails = shared.buildRiskDetails(
                 request.getSelectedRisks(),
                 medicalLevel.getDailyRate(),
@@ -103,13 +118,13 @@ public class MedicalLevelPremiumStrategy implements PremiumCalculationStrategy {
                 ageResult.age(),
                 request.getAgreementDateFrom());
 
-        // 11. Дефолтная ставка страны (только для CountryInfo в ответе)
+        // 12. Дефолтная ставка страны (только для CountryInfo в ответе)
         CountryDefaultDayPremiumService.DefaultPremiumResult defaultPremiumInfo =
                 countryDefaultDayPremiumService
                         .findDefaultDayPremium(request.getCountryIsoCode(), request.getAgreementDateFrom())
                         .orElse(null);
 
-        // 12. Шаги расчёта
+        // 13. Шаги расчёта (добавляем шаг лимита выплат если применялся)
         var steps = stepsBuilder.buildMedicalLevelSteps(
                 medicalLevel.getDailyRate(),
                 ageResult.coefficient(),
@@ -119,12 +134,15 @@ public class MedicalLevelPremiumStrategy implements PremiumCalculationStrategy {
                 days,
                 basePremium,
                 bundleDiscount.discountAmount(),
-                finalPremium);
+                finalPremium,
+                payoutResult.payoutLimitApplied() ? payoutResult.appliedPayoutLimit() : null,
+                rawBasePremium);
 
         log.info("MEDICAL_LEVEL final premium: {} EUR (age={}, ageCoeff={}, ageCoefficientEnabled={}, " +
-                        "country={}, duration={}, bundleDiscount={})",
+                        "country={}, duration={}, bundleDiscount={}, payoutLimitApplied={})",
                 finalPremium, ageResult.age(), ageResult.coefficient(), ageCoefficientEnabled,
-                country.getRiskCoefficient(), durationCoefficient, bundleDiscount.discountAmount());
+                country.getRiskCoefficient(), durationCoefficient, bundleDiscount.discountAmount(),
+                payoutResult.payoutLimitApplied());
 
         return new PremiumCalculationResult(
                 finalPremium,
@@ -145,7 +163,11 @@ public class MedicalLevelPremiumStrategy implements PremiumCalculationStrategy {
                 CalculationMode.MEDICAL_LEVEL,
                 null,
                 defaultPremiumInfo != null ? defaultPremiumInfo.defaultDayPremium() : null,
-                defaultPremiumInfo != null ? defaultPremiumInfo.currency() : null
+                defaultPremiumInfo != null ? defaultPremiumInfo.currency() : null,
+                // task_117
+                medicalLevel.getCoverageAmount(),           // medicalPayoutLimit (для отображения)
+                payoutResult.appliedPayoutLimit(),          // appliedPayoutLimit
+                payoutResult.payoutLimitApplied()           // payoutLimitApplied
         );
     }
 }

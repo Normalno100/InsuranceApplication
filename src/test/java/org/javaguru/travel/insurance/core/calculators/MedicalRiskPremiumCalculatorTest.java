@@ -139,6 +139,48 @@ class MedicalRiskPremiumCalculatorTest extends BaseTestFixture {
     }
 
     // =====================================================
+    // task_117: ПОЛЯ ЛИМИТА ВЫПЛАТ В РЕЗУЛЬТАТЕ
+    // =====================================================
+
+    @Test
+    void medicalLevelResultShouldContainPayoutLimitFields() {
+        var result = calculator.calculatePremiumWithDetails(standardAdultRequest());
+
+        // MEDICAL_LEVEL stub содержит конкретные значения лимита
+        assertThat(result.medicalPayoutLimit()).isEqualByComparingTo("50000");
+        assertThat(result.appliedPayoutLimit()).isEqualByComparingTo("40000");
+        assertThat(result.payoutLimitApplied()).isTrue();
+    }
+
+    @Test
+    void countryDefaultResultShouldHaveNullPayoutLimitFields() {
+        var request = standardAdultRequest();
+        request.setUseCountryDefaultPremium(true);
+        when(countryDefaultDayPremiumService.hasDefaultDayPremium(anyString(), any()))
+                .thenReturn(true);
+
+        var result = calculator.calculatePremiumWithDetails(request);
+
+        // COUNTRY_DEFAULT: лимит выплат не применяется
+        assertThat(result.medicalPayoutLimit()).isNull();
+        assertThat(result.appliedPayoutLimit()).isNull();
+        assertThat(result.payoutLimitApplied()).isFalse();
+    }
+
+    @Test
+    void medicalLevelResultWithNoPayoutLimitAppliedShouldHaveFalseFlag() {
+        // stub без применения лимита (payoutLimitApplied = false)
+        var noLimitResult = stubResultNoPayoutLimit(new BigDecimal("52.50"),
+                MedicalRiskPremiumCalculator.CalculationMode.MEDICAL_LEVEL);
+        when(medicalLevelStrategy.calculate(any())).thenReturn(noLimitResult);
+
+        var result = calculator.calculatePremiumWithDetails(standardAdultRequest());
+
+        assertThat(result.payoutLimitApplied()).isFalse();
+        assertThat(result.appliedPayoutLimit()).isEqualByComparingTo("50000");
+    }
+
+    // =====================================================
     // ПРОВЕРКА ВЫЗОВА hasDefaultDayPremium
     // =====================================================
 
@@ -171,11 +213,53 @@ class MedicalRiskPremiumCalculatorTest extends BaseTestFixture {
     }
 
     // =====================================================
-    // ВСПОМОГАТЕЛЬНЫЙ МЕТОД
+    // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
     // =====================================================
 
-    /** Минимальный stub PremiumCalculationResult для тестов фасада */
+    /**
+     * Stub PremiumCalculationResult с применённым лимитом выплат (task_117).
+     *
+     * MEDICAL_LEVEL: medicalPayoutLimit=50000, appliedPayoutLimit=40000, payoutLimitApplied=true
+     * COUNTRY_DEFAULT: все поля лимита null/false
+     */
     private MedicalRiskPremiumCalculator.PremiumCalculationResult stubResult(
+            BigDecimal premium,
+            MedicalRiskPremiumCalculator.CalculationMode mode) {
+
+        boolean isCountryDefault = mode == MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT;
+
+        return new MedicalRiskPremiumCalculator.PremiumCalculationResult(
+                premium,
+                new BigDecimal("2.50"),
+                35,
+                new BigDecimal("1.10"),
+                "Adults",
+                new BigDecimal("1.20"),
+                "Spain",
+                BigDecimal.ONE,
+                BigDecimal.ZERO,
+                new BigDecimal("1.32"),
+                14,
+                new BigDecimal("50000"),
+                List.of(),
+                new MedicalRiskPremiumCalculator.BundleDiscountResult(null, BigDecimal.ZERO),
+                List.of(),
+                mode,
+                isCountryDefault ? new BigDecimal("2.50") : null,
+                null,
+                "EUR",
+                // task_117: поля лимита выплат
+                isCountryDefault ? null : new BigDecimal("50000"),  // medicalPayoutLimit
+                isCountryDefault ? null : new BigDecimal("40000"),  // appliedPayoutLimit
+                !isCountryDefault                                   // payoutLimitApplied
+        );
+    }
+
+    /**
+     * Stub PremiumCalculationResult для MEDICAL_LEVEL без применения лимита выплат.
+     * Лимит присутствует (maxPayoutAmount == coverageAmount), но корректировка не нужна.
+     */
+    private MedicalRiskPremiumCalculator.PremiumCalculationResult stubResultNoPayoutLimit(
             BigDecimal premium,
             MedicalRiskPremiumCalculator.CalculationMode mode) {
 
@@ -196,10 +280,13 @@ class MedicalRiskPremiumCalculatorTest extends BaseTestFixture {
                 new MedicalRiskPremiumCalculator.BundleDiscountResult(null, BigDecimal.ZERO),
                 List.of(),
                 mode,
-                mode == MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT
-                        ? new BigDecimal("2.50") : null,
                 null,
-                "EUR"
+                null,
+                "EUR",
+                // task_117: лимит равен покрытию — корректировка не применялась
+                new BigDecimal("50000"),  // medicalPayoutLimit
+                new BigDecimal("50000"),  // appliedPayoutLimit == coverageAmount
+                false                     // payoutLimitApplied
         );
     }
 }

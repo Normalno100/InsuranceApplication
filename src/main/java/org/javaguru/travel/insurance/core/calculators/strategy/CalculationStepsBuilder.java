@@ -10,8 +10,9 @@ import java.util.List;
 /**
  * Построитель шагов расчёта для отображения в ответе.
  *
- * ageCoefficient явно показан как отдельный шаг с числовым результатом.
- * выделен из MedicalRiskPremiumCalculator в отдельный компонент (SRP).
+ * ИЗМЕНЕНИЯ task_117:
+ * - buildMedicalLevelSteps принимает параметры payoutLimit и rawBasePremium.
+ *   Если лимит выплат был применён — добавляется отдельный шаг.
  */
 @Component
 public class CalculationStepsBuilder {
@@ -19,8 +20,10 @@ public class CalculationStepsBuilder {
     /**
      * Строит шаги расчёта для режима MEDICAL_LEVEL.
      *
-     * шаг "Age coefficient" содержит явное промежуточное значение
-     *           baseRate × ageCoefficient = X, что делает формулу прозрачной.
+     * task_117: если payoutLimit != null, добавляется шаг коррекции премии по лимиту.
+     *
+     * @param payoutLimit     применённый лимит выплат (null если не применялся)
+     * @param rawBasePremium  базовая премия ДО применения лимита выплат
      */
     public List<CalculationStep> buildMedicalLevelSteps(
             BigDecimal baseRate,
@@ -31,7 +34,9 @@ public class CalculationStepsBuilder {
             long days,
             BigDecimal basePremium,
             BigDecimal bundleDiscount,
-            BigDecimal finalPremium) {
+            BigDecimal finalPremium,
+            BigDecimal payoutLimit,
+            BigDecimal rawBasePremium) {
 
         List<CalculationStep> steps = new ArrayList<>();
 
@@ -41,7 +46,7 @@ public class CalculationStepsBuilder {
                 String.format("Daily Rate = %.2f EUR", baseRate),
                 baseRate));
 
-        // Шаг 2 (task_114): Возрастной коэффициент — явное промежуточное значение
+        // Шаг 2: Возрастной коэффициент
         BigDecimal afterAge = baseRate.multiply(ageCoefficient);
         steps.add(new CalculationStep(
                 "Age coefficient applied",
@@ -76,12 +81,22 @@ public class CalculationStepsBuilder {
         }
 
         // Шаг 6: Умножение на количество дней
+        BigDecimal premiumBeforeLimit = payoutLimit != null ? rawBasePremium : basePremium;
         steps.add(new CalculationStep(
                 "Multiply by trip days",
-                String.format("× %d days = %.2f EUR", days, basePremium),
-                basePremium));
+                String.format("× %d days = %.2f EUR", days, premiumBeforeLimit),
+                premiumBeforeLimit));
 
-        // Шаг 7: Пакетная скидка (если есть)
+        // Шаг 7 (task_117): Применение лимита выплат (если был применён)
+        if (payoutLimit != null) {
+            steps.add(new CalculationStep(
+                    "Payout limit correction applied",
+                    String.format("%.2f × (payoutLimit %.2f / coverage) = %.2f EUR",
+                            rawBasePremium, payoutLimit, basePremium),
+                    basePremium));
+        }
+
+        // Шаг 8: Пакетная скидка (если есть)
         if (bundleDiscount.compareTo(BigDecimal.ZERO) > 0) {
             steps.add(new CalculationStep(
                     "Bundle discount applied",
@@ -94,10 +109,26 @@ public class CalculationStepsBuilder {
     }
 
     /**
+     * Перегрузка без параметров лимита (обратная совместимость).
+     */
+    public List<CalculationStep> buildMedicalLevelSteps(
+            BigDecimal baseRate,
+            BigDecimal ageCoefficient,
+            BigDecimal countryCoefficient,
+            BigDecimal durationCoefficient,
+            BigDecimal additionalRisksCoefficient,
+            long days,
+            BigDecimal basePremium,
+            BigDecimal bundleDiscount,
+            BigDecimal finalPremium) {
+        return buildMedicalLevelSteps(baseRate, ageCoefficient, countryCoefficient,
+                durationCoefficient, additionalRisksCoefficient, days, basePremium,
+                bundleDiscount, finalPremium, null, basePremium);
+    }
+
+    /**
      * Строит шаги расчёта для режима COUNTRY_DEFAULT.
-     *
-     * шаг "Age coefficient" содержит явное промежуточное значение.
-     * Отличие: нет шага "Country coefficient" (он включён в базовую ставку).
+     * Лимит выплат в этом режиме не применяется.
      */
     public List<CalculationStep> buildCountryDefaultSteps(
             BigDecimal defaultDayPremium,
@@ -111,20 +142,20 @@ public class CalculationStepsBuilder {
 
         List<CalculationStep> steps = new ArrayList<>();
 
-        // Шаг 1: Дефолтная дневная ставка страны (включает country coeff)
+        // Шаг 1: Дефолтная дневная ставка страны
         steps.add(new CalculationStep(
                 "Country default day premium (country risk already included)",
                 String.format("Default Day Rate = %.2f EUR", defaultDayPremium),
                 defaultDayPremium));
 
-        // Шаг 2 (task_114): Возрастной коэффициент — явное промежуточное значение
+        // Шаг 2: Возрастной коэффициент
         BigDecimal afterAge = defaultDayPremium.multiply(ageCoefficient);
         steps.add(new CalculationStep(
                 "Age coefficient applied",
                 String.format("%.2f × %.4f (age coeff) = %.4f", defaultDayPremium, ageCoefficient, afterAge),
                 afterAge));
 
-        // Шаг 3: Коэффициент длительности (country coeff не применяется — уже в base rate)
+        // Шаг 3: Коэффициент длительности
         BigDecimal afterDuration = afterAge.multiply(durationCoefficient);
         steps.add(new CalculationStep(
                 "Duration coefficient applied [country coeff is baked into base rate]",

@@ -15,35 +15,11 @@ import java.util.List;
 /**
  * Фасад расчёта медицинской страховой премии.
  *
- * РЕФАКТОРИНГ task_115 — паттерн Strategy:
- *
- * До рефакторинга:
- *   - ~400 строк в одном классе (нарушение SRP)
- *   - Два режима в одном классе (сложная логика)
- *   - Дублирование кода между calculateWithMedicalLevel() и calculateWithCountryDefault()
- *   - Прямые зависимости от множества репозиториев
- *
- * После рефакторинга:
- *   MedicalRiskPremiumCalculator  ← фасад (этот класс, ~60 строк)
- *   ├── MedicalLevelPremiumStrategy   ← логика MEDICAL_LEVEL
- *   ├── CountryDefaultPremiumStrategy ← логика COUNTRY_DEFAULT
- *   ├── SharedCalculationComponents   ← общие компоненты (возраст, риски, скидки, детали)
- *   └── CalculationStepsBuilder       ← построение шагов расчёта
- *
- * task_114:
- *   - ageCoefficient явно отображается как отдельный шаг с промежуточным значением
- *   - referenceDate (agreementDateFrom) передаётся в AgeCalculator для выбора
- *     актуальной версии коэффициента из таблицы age_coefficients
- *   - Формула в шагах: "DailyRate × ageCoeff = X" вместо просто "× ageCoeff"
- *
- * ПОДДЕРЖИВАЕМЫЕ РЕЖИМЫ:
- *   MEDICAL_LEVEL  — стандартный, через медицинский уровень покрытия
- *   COUNTRY_DEFAULT — через дефолтную дневную ставку страны
- *
- * ВЫБОР РЕЖИМА:
- *   useCountryDefaultPremium=true + существует запись в country_default_day_premiums
- *     → COUNTRY_DEFAULT
- *   иначе → MEDICAL_LEVEL (в том числе как fallback)
+ * ИЗМЕНЕНИЯ task_117:
+ * - PremiumCalculationResult дополнен полями:
+ *     medicalPayoutLimit      — лимит выплат для отображения в TripSummary
+ *     appliedPayoutLimit      — фактически применённый лимит
+ *     payoutLimitApplied      — флаг: была ли произведена корректировка премии
  */
 @Slf4j
 @Component
@@ -62,10 +38,6 @@ public class MedicalRiskPremiumCalculator {
         return calculatePremiumWithDetails(request).premium();
     }
 
-    /**
-     * Рассчитывает премию с полной детальной разбивкой.
-     * Автоматически выбирает стратегию (режим) расчёта.
-     */
     public PremiumCalculationResult calculatePremiumWithDetails(TravelCalculatePremiumRequest request) {
         log.info("Premium calculation: country={}, useCountryDefault={}",
                 request.getCountryIsoCode(), request.getUseCountryDefaultPremium());
@@ -81,15 +53,6 @@ public class MedicalRiskPremiumCalculator {
     // ВЫБОР СТРАТЕГИИ
     // ========================================
 
-    /**
-     * Определяет, нужно ли использовать стратегию COUNTRY_DEFAULT.
-     *
-     * Условия:
-     * 1. request.useCountryDefaultPremium == true
-     * 2. Для страны есть активная запись в country_default_day_premiums
-     *
-     * Если запись отсутствует — fallback на MEDICAL_LEVEL с предупреждением в логах.
-     */
     private boolean shouldUseCountryDefaultMode(TravelCalculatePremiumRequest request) {
         if (!Boolean.TRUE.equals(request.getUseCountryDefaultPremium())) {
             return false;
@@ -109,7 +72,7 @@ public class MedicalRiskPremiumCalculator {
     }
 
     // ========================================
-    // ВЛОЖЕННЫЕ ТИПЫ (публичные — используются в ResponseAssembler и др.)
+    // ВЛОЖЕННЫЕ ТИПЫ
     // ========================================
 
     /** Режим расчёта премии */
@@ -118,11 +81,6 @@ public class MedicalRiskPremiumCalculator {
         COUNTRY_DEFAULT
     }
 
-    /**
-     * Результат расчёта пакетной скидки.
-     *
-     * Остаётся публичным т.к. используется в ResponseAssembler.
-     */
     public record BundleDiscountResult(
             RiskBundleService.ApplicableBundleResult bundle,
             BigDecimal discountAmount
@@ -130,6 +88,11 @@ public class MedicalRiskPremiumCalculator {
 
     /**
      * Полный результат расчёта премии.
+     *
+     * ИЗМЕНЕНИЯ task_117:
+     *   medicalPayoutLimit   — лимит выплат (для отображения в TripSummary)
+     *   appliedPayoutLimit   — фактически применённый лимит
+     *   payoutLimitApplied   — true если премия была скорректирована из-за лимита
      */
     public record PremiumCalculationResult(
             BigDecimal premium,
@@ -147,11 +110,15 @@ public class MedicalRiskPremiumCalculator {
             List<RiskPremiumDetail> riskDetails,
             BundleDiscountResult bundleDiscount,
             List<CalculationStep> calculationSteps,
-            // Поля режима расчёта
+            // Режим расчёта
             CalculationMode calculationMode,
             BigDecimal countryDefaultDayPremium,
             BigDecimal countryDefaultDayPremiumForInfo,
-            String countryDefaultCurrency
+            String countryDefaultCurrency,
+            // task_117: лимит выплат
+            BigDecimal medicalPayoutLimit,
+            BigDecimal appliedPayoutLimit,
+            Boolean payoutLimitApplied
     ) {}
 
     public record RiskPremiumDetail(

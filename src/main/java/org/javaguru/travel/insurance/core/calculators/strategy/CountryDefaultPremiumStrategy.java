@@ -21,6 +21,10 @@ import java.math.RoundingMode;
  * ФОРМУЛА:
  *   ПРЕМИЯ = DefaultDayPremium × AgeCoeff × DurationCoeff
  *            × (1 + Σ riskCoeffs) × Days − BundleDiscount
+ *
+ * ИЗМЕНЕНИЯ task_117:
+ *   В режиме COUNTRY_DEFAULT лимит выплат не применяется (нет medicalRiskLimitLevel).
+ *   Поля medicalPayoutLimit, appliedPayoutLimit, payoutLimitApplied = null / false.
  */
 @Slf4j
 @Component
@@ -31,7 +35,7 @@ public class CountryDefaultPremiumStrategy implements PremiumCalculationStrategy
     private final CountryRepository countryRepository;
     private final SharedCalculationComponents shared;
     private final CalculationStepsBuilder stepsBuilder;
-    private final CalculationConfigService calculationConfigService;   // task_116
+    private final CalculationConfigService calculationConfigService;
 
     @Override
     public PremiumCalculationResult calculate(TravelCalculatePremiumRequest request) {
@@ -107,7 +111,7 @@ public class CountryDefaultPremiumStrategy implements PremiumCalculationStrategy
                 .multiply(durationCoefficient)
                 .multiply(BigDecimal.ONE.add(additionalRisks.totalCoefficient()));
 
-        // 12. Шаги расчёта
+        // 12. Шаги расчёта (без лимита выплат — не применяется в COUNTRY_DEFAULT)
         var steps = stepsBuilder.buildCountryDefaultSteps(
                 defaultPremium.defaultDayPremium(),
                 ageResult.coefficient(),
@@ -142,7 +146,11 @@ public class CountryDefaultPremiumStrategy implements PremiumCalculationStrategy
                 CalculationMode.COUNTRY_DEFAULT,
                 defaultPremium.defaultDayPremium(),
                 defaultPremium.defaultDayPremium(),
-                defaultPremium.currency()
+                defaultPremium.currency(),
+                // task_117: лимит выплат не применяется в COUNTRY_DEFAULT
+                null,
+                null,
+                false
         );
     }
 }

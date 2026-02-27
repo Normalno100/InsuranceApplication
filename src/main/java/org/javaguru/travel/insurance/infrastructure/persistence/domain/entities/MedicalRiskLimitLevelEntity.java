@@ -11,7 +11,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * Сущность уровня медицинского покрытия в базе данных
+ * Сущность уровня медицинского покрытия в базе данных.
+ *
+ * ИЗМЕНЕНИЯ task_117:
+ * - Добавлено поле maxPayoutAmount — максимальная сумма страховой выплаты.
+ *   NULL означает, что лимит не установлен (выплата = coverageAmount).
  */
 @Entity
 @Table(name = "medical_risk_limit_levels")
@@ -37,6 +41,19 @@ public class MedicalRiskLimitLevelEntity {
     @Column(name = "currency", nullable = false, length = 3)
     private String currency = "EUR";
 
+    /**
+     * Максимальная сумма страховой выплаты по медицинскому риску.
+     *
+     * task_117:
+     *   NULL  → лимит не установлен, выплата = coverageAmount
+     *   > 0   → выплата ограничена этим значением даже если coverageAmount выше
+     *
+     * Пример: coverageAmount = 200_000, maxPayoutAmount = 150_000 →
+     *   при наступлении страхового случая выплачивается не более 150_000.
+     */
+    @Column(name = "max_payout_amount", precision = 12, scale = 2)
+    private BigDecimal maxPayoutAmount;
+
     @Column(name = "valid_from", nullable = false)
     private LocalDate validFrom;
 
@@ -48,6 +65,23 @@ public class MedicalRiskLimitLevelEntity {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    /**
+     * Возвращает эффективный лимит выплат:
+     * - если maxPayoutAmount задан — возвращает его
+     * - иначе — возвращает coverageAmount
+     */
+    public BigDecimal getEffectivePayoutLimit() {
+        return maxPayoutAmount != null ? maxPayoutAmount : coverageAmount;
+    }
+
+    /**
+     * Проверяет, установлен ли явный лимит выплат
+     * (отличный от coverageAmount).
+     */
+    public boolean hasExplicitPayoutLimit() {
+        return maxPayoutAmount != null;
+    }
 
     /**
      * Проверяет, активен ли уровень на указанную дату

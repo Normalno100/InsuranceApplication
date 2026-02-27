@@ -29,6 +29,8 @@ databaseChangeLog:
       file: db/changelog/changes/014-age-coefficients.xml
   - include:
       file: db/changelog/changes/015-create-calculation-config.xml
+  - include:
+      file: db/changelog/changes/016-add-medical-risk-payout-limits.xml
 
 
 

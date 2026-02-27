@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- ============================================================
+         task_117 — Лимит выплат по медицинскому риску
+
+         Изменения:
+           1. Добавляем max_payout_amount в medical_risk_limit_levels
+           2. Обновляем существующие записи реалистичными лимитами
+         ============================================================ -->
+
+    <!-- 1. Добавляем столбец max_payout_amount -->
+    <changeSet id="task_117-1" author="task_117"
+               context="prod,dev,test">
+
+        <comment>task_117: Добавить столбец max_payout_amount в medical_risk_limit_levels</comment>
+
+        <addColumn tableName="medical_risk_limit_levels">
+            <column name="max_payout_amount" type="DECIMAL(12, 2)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+
+        <rollback>
+            <dropColumn tableName="medical_risk_limit_levels" columnName="max_payout_amount"/>
+        </rollback>
+
+    </changeSet>
+
+    <!-- 2. Комментарий к столбцу (только PostgreSQL) -->
+    <changeSet id="task_117-2" author="task_117"
+               context="prod,dev,test"
+               dbms="postgresql">
+
+        <comment>task_117: Добавить описание к столбцу max_payout_amount (PostgreSQL)</comment>
+
+        <sql>
+            COMMENT ON COLUMN medical_risk_limit_levels.max_payout_amount IS
+            'Максимальная сумма страховой выплаты по медицинскому риску. '
+            'NULL = лимит не установлен (выплата = coverage_amount). '
+            'Если рассчитанная премия имплицирует выплаты > лимита — применяется корректировка.';
+        </sql>
+
+        <rollback>
+            <!-- Комментарий не требует отката — убираем его -->
+            <sql>
+                COMMENT ON COLUMN medical_risk_limit_levels.max_payout_amount IS NULL;
+            </sql>
+        </rollback>
+
+    </changeSet>
+
+    <!-- 3. Заполняем max_payout_amount = coverage_amount для всех записей без лимита -->
+    <changeSet id="task_117-3" author="task_117"
+               context="prod,dev,test">
+
+        <comment>task_117: Установить max_payout_amount = coverage_amount для всех существующих записей</comment>
+
+        <update tableName="medical_risk_limit_levels">
+            <column name="max_payout_amount" valueComputed="coverage_amount"/>
+            <where>max_payout_amount IS NULL</where>
+        </update>
+
+        <rollback>
+            <update tableName="medical_risk_limit_levels">
+                <column name="max_payout_amount" value="NULL"/>
+                <where>max_payout_amount IS NOT NULL</where>
+            </update>
+        </rollback>
+
+    </changeSet>
+
+    <!-- 4. Для LEVEL_200000 — пониженный лимит выплат (150 000) -->
+    <changeSet id="task_117-4" author="task_117"
+               context="prod,dev,test">
+
+        <comment>task_117: Установить пониженный лимит выплат 150 000 для уровня LEVEL_200000</comment>
+
+        <update tableName="medical_risk_limit_levels">
+            <column name="max_payout_amount" valueNumeric="150000.00"/>
+            <where>code = 'LEVEL_200000' AND max_payout_amount = coverage_amount</where>
+        </update>
+
+        <rollback>
+            <update tableName="medical_risk_limit_levels">
+                <column name="max_payout_amount" valueComputed="coverage_amount"/>
+                <where>code = 'LEVEL_200000'</where>
+            </update>
+        </rollback>
+
+    </changeSet>
+
+</databaseChangeLog>

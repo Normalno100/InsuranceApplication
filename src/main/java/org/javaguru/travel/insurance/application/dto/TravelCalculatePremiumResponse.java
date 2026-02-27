@@ -12,13 +12,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Ответ на расчет страховой премии
+ * Ответ на расчет страховой премии.
  *
- * ИЗМЕНЕНИЯ v2.1 (этап 4):
- * - TripSummary: добавлено поле countryDefaultDayPremium (дефолтная дневная премия страны)
- * - TripSummary: добавлено поле calculationMode (режим расчёта: MEDICAL_LEVEL / COUNTRY_DEFAULT)
- * - PricingDetails: добавлено поле countryDefaultDayPremium
- * - CountryInfo: новый вложенный класс с детальной информацией о стране
+ * ИЗМЕНЕНИЯ task_117:
+ * - TripSummary: добавлено поле medicalPayoutLimit (лимит выплат для информации)
+ * - PricingDetails: добавлены appliedPayoutLimit, payoutLimitApplied
  */
 @Getter
 @Setter
@@ -27,10 +25,6 @@ import java.util.UUID;
 @Builder
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class TravelCalculatePremiumResponse {
-
-    // ========================================
-    // МЕТАДАННЫЕ ОТВЕТА
-    // ========================================
 
     @Builder.Default
     private String apiVersion = "2.1";
@@ -44,34 +38,18 @@ public class TravelCalculatePremiumResponse {
 
     private Boolean success;
 
-    // ========================================
-    // СТАТУС И ОШИБКИ
-    // ========================================
-
     private ResponseStatus status;
 
     @Builder.Default
     private List<ValidationError> errors = List.of();
 
-    // ========================================
-    // КРАТКАЯ ИНФОРМАЦИЯ (SUMMARY)
-    // ========================================
-
     private PricingSummary pricing;
     private PersonSummary person;
     private TripSummary trip;
 
-    // ========================================
-    // ДЕТАЛЬНАЯ ИНФОРМАЦИЯ (ОПЦИОНАЛЬНО)
-    // ========================================
-
     private PricingDetails pricingDetails;
     private UnderwritingInfo underwriting;
     private List<AppliedDiscount> appliedDiscounts;
-
-    // ========================================
-    // ВЛОЖЕННЫЕ КЛАССЫ
-    // ========================================
 
     public enum ResponseStatus {
         SUCCESS,
@@ -80,21 +58,12 @@ public class TravelCalculatePremiumResponse {
         REQUIRES_REVIEW
     }
 
-    /**
-     * Режим расчёта премии
-     */
     public enum CalculationMode {
-        /** Расчёт через уровень медицинского покрытия (medical_risk_limit_levels) */
         MEDICAL_LEVEL,
-        /** Расчёт через дефолтную дневную премию страны (country_default_day_premiums) */
         COUNTRY_DEFAULT
     }
 
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class PricingSummary {
 
         @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
@@ -112,11 +81,7 @@ public class TravelCalculatePremiumResponse {
         private List<String> includedRisks = List.of();
     }
 
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class PersonSummary {
         private String firstName;
         private String lastName;
@@ -131,15 +96,12 @@ public class TravelCalculatePremiumResponse {
     /**
      * Краткая информация о поездке.
      *
-     * ИЗМЕНЕНИЯ v2.1:
-     * - countryDefaultDayPremium — дефолтная дневная ставка страны (если применялась)
-     * - calculationMode — режим расчёта (MEDICAL_LEVEL или COUNTRY_DEFAULT)
+     * ИЗМЕНЕНИЯ task_117:
+     * - medicalPayoutLimit — лимит страховых выплат по медицинскому риску.
+     *   Заполняется в режиме MEDICAL_LEVEL.
+     *   null в режиме COUNTRY_DEFAULT (нет привязки к уровню покрытия).
      */
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class TripSummary {
 
         @JsonFormat(pattern = "yyyy-MM-dd")
@@ -152,12 +114,20 @@ public class TravelCalculatePremiumResponse {
         private String countryCode;
         private String countryName;
 
-        /** Уровень медицинского покрытия (null если использовался COUNTRY_DEFAULT режим) */
+        /** Уровень медицинского покрытия (null если COUNTRY_DEFAULT) */
         private String medicalCoverageLevel;
 
-        /** Сумма покрытия (null если использовался COUNTRY_DEFAULT режим) */
+        /** Сумма покрытия (null если COUNTRY_DEFAULT) */
         @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
         private BigDecimal coverageAmount;
+
+        /**
+         * task_117: Лимит страховых выплат по медицинскому риску.
+         * Заполняется в режиме MEDICAL_LEVEL.
+         * Если payoutLimitApplied=true — этот лимит меньше coverageAmount и была применена корректировка.
+         */
+        @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
+        private BigDecimal medicalPayoutLimit;
 
         /**
          * Дефолтная дневная премия страны.
@@ -166,26 +136,17 @@ public class TravelCalculatePremiumResponse {
         @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
         private BigDecimal countryDefaultDayPremium;
 
-        /**
-         * Режим расчёта премии:
-         * - MEDICAL_LEVEL: стандартный расчёт через уровень покрытия
-         * - COUNTRY_DEFAULT: расчёт через дефолтную дневную премию страны
-         */
         private String calculationMode;
     }
 
     /**
      * Детальная информация о ценообразовании.
      *
-     * ИЗМЕНЕНИЯ v2.1:
-     * - countryDefaultDayPremium — дефолтная дневная ставка (если применялась)
-     * - countryInfo — детальная информация о стране
+     * ИЗМЕНЕНИЯ task_117:
+     * - appliedPayoutLimit — фактически применённый лимит выплат
+     * - payoutLimitApplied — true если премия была скорректирована
      */
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class PricingDetails {
 
         @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
@@ -200,14 +161,10 @@ public class TravelCalculatePremiumResponse {
         @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.0000")
         private BigDecimal durationCoefficient;
 
-        /**
-         * Дефолтная дневная премия страны.
-         * Заполняется только в режиме COUNTRY_DEFAULT.
-         */
         @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
         private BigDecimal countryDefaultDayPremium;
 
-        /** Детальная информация о стране (заполняется всегда при успешном ответе) */
+        /** Детальная информация о стране */
         private CountryInfo countryInfo;
 
         @Builder.Default
@@ -217,16 +174,23 @@ public class TravelCalculatePremiumResponse {
 
         @Builder.Default
         private List<CalculationStep> steps = List.of();
+
+        /**
+         * task_117: Фактически применённый лимит страховых выплат.
+         * null в режиме COUNTRY_DEFAULT или если лимит не применялся.
+         */
+        @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
+        private BigDecimal appliedPayoutLimit;
+
+        /**
+         * task_117: Флаг — была ли применена корректировка премии из-за лимита выплат.
+         * false = лимит не применялся (maxPayoutAmount >= coverageAmount или COUNTRY_DEFAULT режим).
+         * true  = премия была уменьшена пропорционально лимиту.
+         */
+        private Boolean payoutLimitApplied;
     }
 
-    /**
-     * Детальная информация о стране — добавлена в этапе 4.
-     */
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class CountryInfo {
         private String isoCode;
         private String name;
@@ -235,25 +199,14 @@ public class TravelCalculatePremiumResponse {
         @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.0000")
         private BigDecimal riskCoefficient;
 
-        /**
-         * Дефолтная дневная премия для этой страны (из country_default_day_premiums).
-         * null если для страны нет записи в таблице.
-         */
         @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
         private BigDecimal defaultDayPremium;
 
-        /** Валюта дефолтной премии */
         private String defaultDayPremiumCurrency;
-
-        /** Признак наличия дефолтной дневной премии */
         private Boolean hasDefaultDayPremium;
     }
 
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class RiskBreakdown {
         private String riskCode;
         private String riskName;
@@ -270,10 +223,7 @@ public class TravelCalculatePremiumResponse {
         private Boolean isMandatory;
     }
 
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     public static class CalculationStep {
         private Integer stepNumber;
         private String description;
@@ -281,11 +231,7 @@ public class TravelCalculatePremiumResponse {
         private BigDecimal result;
     }
 
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class UnderwritingInfo {
         private String decision;
         private String reason;
@@ -294,21 +240,14 @@ public class TravelCalculatePremiumResponse {
         private List<RuleEvaluation> evaluatedRules = List.of();
     }
 
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     public static class RuleEvaluation {
         private String ruleName;
         private String severity;
         private String message;
     }
 
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class AppliedDiscount {
         private String type;
         private String code;
@@ -321,10 +260,6 @@ public class TravelCalculatePremiumResponse {
         private BigDecimal percentage;
     }
 
-    // ========================================
-    // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
-    // ========================================
-
     public boolean hasErrors() {
         return errors != null && !errors.isEmpty();
     }
@@ -333,11 +268,7 @@ public class TravelCalculatePremiumResponse {
         return Boolean.TRUE.equals(success) && status == ResponseStatus.SUCCESS;
     }
 
-    @Getter
-    @Setter
-    @AllArgsConstructor
-    @NoArgsConstructor
-    @Builder
+    @Getter @Setter @AllArgsConstructor @NoArgsConstructor @Builder
     public static class ValidationError {
         private String field;
         private String message;
