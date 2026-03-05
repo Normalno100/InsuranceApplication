@@ -21,10 +21,6 @@ public class MedicalRiskLimitLevel {
     private final BigDecimal dailyRate;
     private final Currency currency;
 
-    /**
-     * task_117: Максимальная сумма страховой выплаты.
-     * null = не установлен, используется coverageAmount.
-     */
     private final BigDecimal maxPayoutAmount;
 
     private final LocalDate validFrom;
@@ -90,7 +86,7 @@ public class MedicalRiskLimitLevel {
     }
 
     /**
-     * task_117: Возвращает эффективный лимит выплат.
+     * Возвращает эффективный лимит выплат.
      * Если maxPayoutAmount задан — возвращает его, иначе coverageAmount.
      */
     public BigDecimal getEffectivePayoutLimit() {
@@ -98,7 +94,7 @@ public class MedicalRiskLimitLevel {
     }
 
     /**
-     * task_117: Проверяет, применяется ли ограничение выплат
+     * Проверяет, применяется ли ограничение выплат
      * (т.е. maxPayoutAmount < coverageAmount).
      */
     public boolean isPayoutLimitApplicable() {

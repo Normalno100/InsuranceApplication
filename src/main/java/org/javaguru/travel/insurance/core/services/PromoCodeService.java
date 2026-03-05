@@ -13,8 +13,28 @@ import java.time.LocalDate;
 import java.util.Optional;
 
 /**
- * Сервис для работы с промо-кодами и скидками
- **/
+ * Сервис для работы с промо-кодами и скидками.
+ *
+ * ИСПРАВЛЕНИЕ 2.1 (Race Condition):
+ * Метод applyPromoCode() теперь использует findActiveByCodeForUpdate(),
+ * который выполняет SELECT ... FOR UPDATE. Это гарантирует, что между
+ * чтением current_usage_count и его инкрементом никакая другая транзакция
+ * не может изменить строку промо-кода.
+ *
+ * ДО ИСПРАВЛЕНИЯ:
+ *   T1: findActiveByCode()  → usageCount = 99 (из 100)  ← нет блокировки
+ *   T2: findActiveByCode()  → usageCount = 99 (из 100)  ← читает то же самое
+ *   T1: validate()          → OK (99 < 100)
+ *   T2: validate()          → OK (99 < 100)  ← оба проходят проверку!
+ *   T1: save(count = 100)
+ *   T2: save(count = 100)   ← использован 101-й раз
+ *
+ * ПОСЛЕ ИСПРАВЛЕНИЯ:
+ *   T1: findActiveByCodeForUpdate() → захватывает блокировку строки
+ *   T2: findActiveByCodeForUpdate() → ждёт снятия блокировки
+ *   T1: validate() → OK, increment → save(count = 100), commit → блокировка снята
+ *   T2: читает count = 100 → validate() → FAIL (лимит достигнут)
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -23,9 +43,13 @@ public class PromoCodeService {
     private final PromoCodeRepository promoCodeRepository;
 
     /**
-     * Валидирует и применяет промо-код
+     * Валидирует и применяет промо-код.
      *
-     * @param code код промо-кода
+     * Метод целиком выполняется в одной транзакции. Пессимистическая блокировка
+     * строки промо-кода (SELECT FOR UPDATE) удерживается до коммита транзакции,
+     * что исключает одновременное применение одного кода сверх лимита.
+     *
+     * @param code          код промо-кода
      * @param agreementDate дата договора
      * @param premiumAmount сумма премии до скидки
      * @return результат применения промо-кода
@@ -38,8 +62,10 @@ public class PromoCodeService {
 
         log.debug("Applying promo code: {} for date: {}, premium: {}", code, agreementDate, premiumAmount);
 
-        // Ищем промо-код в БД
-        Optional<PromoCodeEntity> promoCodeOpt = promoCodeRepository.findActiveByCode(
+        // ИСПРАВЛЕНИЕ 2.1: используем SELECT ... FOR UPDATE вместо обычного SELECT.
+        // Блокировка строки гарантирует, что между чтением счётчика и его
+        // инкрементом никакая параллельная транзакция не изменит эту строку.
+        Optional<PromoCodeEntity> promoCodeOpt = promoCodeRepository.findActiveByCodeForUpdate(
                 code.toUpperCase(),
                 agreementDate
         );
@@ -51,7 +77,8 @@ public class PromoCodeService {
 
         PromoCodeEntity promoCode = promoCodeOpt.get();
 
-        // Валидация
+        // Валидация — теперь выполняется под блокировкой строки,
+        // поэтому current_usage_count гарантированно актуален.
         ValidationResult validation = validatePromoCode(promoCode, agreementDate, premiumAmount);
         if (!validation.isValid()) {
             log.warn("Promo code validation failed: {} - {}", code, validation.errorMessage());
@@ -61,7 +88,8 @@ public class PromoCodeService {
         // Расчет скидки
         BigDecimal discountAmount = calculateDiscount(promoCode, premiumAmount);
 
-        // ✅ КРИТИЧЕСКИ ВАЖНО: Инкрементируем счётчик использования в БД
+        // Инкремент счётчика и сохранение — атомарно относительно проверки лимита,
+        // т.к. блокировка строки удерживается до конца транзакции (@Transactional).
         promoCode.incrementUsageCount();
         promoCodeRepository.save(promoCode);
 
@@ -78,7 +106,8 @@ public class PromoCodeService {
     }
 
     /**
-     * Валидирует промо-код
+     * Валидирует промо-код.
+     * Вызывается под пессимистической блокировкой строки — все поля актуальны.
      */
     private ValidationResult validatePromoCode(
             PromoCodeEntity promoCode,
@@ -107,7 +136,9 @@ public class PromoCodeService {
             );
         }
 
-        // Проверка лимита использований
+        // Проверка лимита использований.
+        // ВАЖНО: current_usage_count здесь гарантированно актуален,
+        // т.к. строка заблокирована через SELECT FOR UPDATE.
         if (promoCode.getMaxUsageCount() != null
                 && promoCode.getCurrentUsageCount() >= promoCode.getMaxUsageCount()) {
             return ValidationResult.invalid("Promo code usage limit reached");
@@ -117,7 +148,7 @@ public class PromoCodeService {
     }
 
     /**
-     * Рассчитывает размер скидки
+     * Рассчитывает размер скидки.
      */
     private BigDecimal calculateDiscount(PromoCodeEntity promoCode, BigDecimal premiumAmount) {
         BigDecimal discount;
@@ -147,14 +178,15 @@ public class PromoCodeService {
     }
 
     /**
-     * Получает промо-код по коду (для просмотра, без применения)
+     * Получает промо-код по коду (для просмотра, без применения).
+     * Использует обычный SELECT без блокировки — изменение счётчика не предполагается.
      */
     public Optional<PromoCodeEntity> getPromoCode(String code) {
         return promoCodeRepository.findActiveByCode(code.toUpperCase());
     }
 
     /**
-     * Проверяет существование промо-кода
+     * Проверяет существование промо-кода.
      */
     public boolean exists(String code) {
         return promoCodeRepository.existsByCode(code.toUpperCase());
@@ -163,7 +195,7 @@ public class PromoCodeService {
     // ========== ВЛОЖЕННЫЕ КЛАССЫ ==========
 
     /**
-     * Тип скидки
+     * Тип скидки.
      */
     public enum DiscountType {
         PERCENTAGE,     // Процентная скидка
@@ -171,7 +203,7 @@ public class PromoCodeService {
     }
 
     /**
-     * Результат применения промо-кода
+     * Результат применения промо-кода.
      */
     public record PromoCodeResult(
             boolean isValid,
@@ -203,7 +235,7 @@ public class PromoCodeService {
     }
 
     /**
-     * Результат валидации
+     * Результат валидации (приватный, только для внутреннего использования).
      */
     private record ValidationResult(boolean isValid, String errorMessage) {
         public static ValidationResult valid() {

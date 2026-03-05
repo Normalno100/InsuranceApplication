@@ -99,8 +99,6 @@ public class ResponseAssembler {
 
     /**
      * Собирает успешный ответ.
-     *
-     * ИЗМЕНЕНИЯ v2.1: передаёт информацию о режиме расчёта и дефолтной ставке страны.
      */
     public TravelCalculatePremiumResponse buildSuccessResponse(
             TravelCalculatePremiumRequest request,
@@ -196,11 +194,6 @@ public class ResponseAssembler {
 
     /**
      * Строит TripSummary с поддержкой двух режимов расчёта.
-     *
-     * ИЗМЕНЕНИЯ v2.1:
-     * - calculationMode отражает, какой режим был использован
-     * - countryDefaultDayPremium заполняется в COUNTRY_DEFAULT режиме
-     * - medicalCoverageLevel и coverageAmount — в MEDICAL_LEVEL режиме
      */
     private TravelCalculatePremiumResponse.TripSummary buildTripSummary(
             TravelCalculatePremiumRequest request,
@@ -228,10 +221,6 @@ public class ResponseAssembler {
 
     /**
      * Строит PricingDetails с поддержкой двух режимов.
-     *
-     * ИЗМЕНЕНИЯ v2.1:
-     * - countryDefaultDayPremium заполняется в COUNTRY_DEFAULT режиме
-     * - countryInfo содержит информацию о стране (в обоих режимах)
      */
     private TravelCalculatePremiumResponse.PricingDetails buildPricingDetails(
             MedicalRiskPremiumCalculator.PremiumCalculationResult details) {

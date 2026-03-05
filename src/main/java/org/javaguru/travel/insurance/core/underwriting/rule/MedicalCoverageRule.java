@@ -11,6 +11,38 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 
+/**
+ * Правило андеррайтинга: проверка суммы медицинского покрытия по возрасту.
+ *
+ * ИСПРАВЛЕНИЕ (п. 2.2 плана рефакторинга):
+ *
+ * ПРОБЛЕМА (было):
+ *   evaluate() сразу вызывал
+ *   medicalRepository.findActiveByCode(request.getMedicalRiskLimitLevel(), ...)
+ *   без проверки режима расчёта. При useCountryDefaultPremium=true поле
+ *   medicalRiskLimitLevel равно null → NullPointerException /
+ *   IllegalArgumentException внутри репозитория.
+ *
+ * РЕШЕНИЕ (стало):
+ *   В начале evaluate() добавлены два guard-а:
+ *
+ *   1. useCountryDefaultPremium == true → немедленный PASS.
+ *      В этом режиме medicalRiskLimitLevel не задаётся и не нужен;
+ *      уровень покрытия отсутствует, проверять нечего.
+ *
+ *   2. medicalRiskLimitLevel == null → немедленный PASS.
+ *      Защита от NullPointerException в случаях, когда валидация
+ *      пропустила запрос при stopOnCriticalError=false.
+ *
+ * ПОВЕДЕНИЕ ПО РЕЖИМАМ:
+ *   COUNTRY_DEFAULT (useCountryDefaultPremium=true):
+ *     → PASS (без обращения к репозиторию)
+ *
+ *   MEDICAL_LEVEL (useCountryDefaultPremium=false/null):
+ *     age > blockingAge  && coverage > blockingThreshold  → BLOCKING
+ *     age >= reviewAge   && coverage > reviewThreshold    → REVIEW_REQUIRED
+ *     иначе                                              → PASS
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -22,6 +54,31 @@ public class MedicalCoverageRule implements UnderwritingRule {
 
     @Override
     public RuleResult evaluate(TravelCalculatePremiumRequest request) {
+
+        // ──────────────────────────────────────────────────────────────────
+        // GUARD 1: режим COUNTRY_DEFAULT
+        // Уровень медицинского покрытия в этом режиме не задаётся,
+        // поэтому правило неприменимо — пропускаем.
+        // ──────────────────────────────────────────────────────────────────
+        if (Boolean.TRUE.equals(request.getUseCountryDefaultPremium())) {
+            log.debug("MedicalCoverageRule: skipped — COUNTRY_DEFAULT mode");
+            return RuleResult.pass(getRuleName());
+        }
+
+        // ──────────────────────────────────────────────────────────────────
+        // GUARD 2: medicalRiskLimitLevel == null
+        // Защита от NPE на случай, если структурная валидация
+        // не остановила запрос (stopOnCriticalError=false).
+        // ──────────────────────────────────────────────────────────────────
+        if (request.getMedicalRiskLimitLevel() == null) {
+            log.debug("MedicalCoverageRule: skipped — medicalRiskLimitLevel is null");
+            return RuleResult.pass(getRuleName());
+        }
+
+        // ──────────────────────────────────────────────────────────────────
+        // Штатная логика режима MEDICAL_LEVEL (код не изменился)
+        // ──────────────────────────────────────────────────────────────────
+
         // Загружаем параметры из БД
         int reviewAge = configService.getIntParameter("MedicalCoverageRule", "REVIEW_AGE", 70);
         int blockingAge = configService.getIntParameter("MedicalCoverageRule", "BLOCKING_AGE", 75);
