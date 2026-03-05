@@ -23,6 +23,10 @@ import java.util.stream.Collectors;
  * - buildSuccessResponse теперь заполняет CountryInfo в PricingDetails
  * - TripSummary дополнен полями countryDefaultDayPremium и calculationMode
  * - buildPricingDetails учитывает режим расчёта (MEDICAL_LEVEL / COUNTRY_DEFAULT)
+ *
+ * ИСПРАВЛЕНИЕ п.2.5 (NPE в ResponseAssembler):
+ * - buildPricingDetails теперь проверяет details == null и возвращает пустой объект,
+ *   вместо падения с NullPointerException на вызове details.calculationMode()
  */
 @Slf4j
 @Component
@@ -129,7 +133,7 @@ public class ResponseAssembler {
         // Person Summary
         builder.person(buildPersonSummary(request, details));
 
-        // Trip Summary — теперь с режимом расчёта и дефолтной ставкой
+        // Trip Summary — с режимом расчёта и дефолтной ставкой
         builder.trip(buildTripSummary(request, details));
 
         // Applied Discounts
@@ -208,7 +212,6 @@ public class ResponseAssembler {
                 .days(details != null ? details.days() : null)
                 .countryCode(request.getCountryIsoCode())
                 .countryName(details != null ? details.countryName() : null)
-                // Поля зависят от режима расчёта
                 .medicalCoverageLevel(isCountryDefaultMode ? null : request.getMedicalRiskLimitLevel())
                 .coverageAmount(isCountryDefaultMode ? null
                         : (details != null ? details.coverageAmount() : null))
@@ -221,9 +224,29 @@ public class ResponseAssembler {
 
     /**
      * Строит PricingDetails с поддержкой двух режимов.
+     *
+     * ИСПРАВЛЕНИЕ п.2.5:
+     * Добавлена проверка details == null в начале метода.
+     *
+     * ПРОБЛЕМА (было):
+     *   Метод сразу вызывал details.calculationMode() без проверки на null.
+     *   Если calculationResult.details() возвращал null (например, при нестандартном
+     *   пути выполнения или в тестах), возникал NullPointerException.
+     *
+     * РЕШЕНИЕ (стало):
+     *   Guard в начале метода: если details == null — возвращается пустой
+     *   PricingDetails (builder без полей, все поля = null / пустые списки).
+     *   Это безопасно, т.к. includeDetails=true при details=null — граничный случай,
+     *   который не должен ронять весь ответ.
      */
     private TravelCalculatePremiumResponse.PricingDetails buildPricingDetails(
             MedicalRiskPremiumCalculator.PremiumCalculationResult details) {
+
+        if (details == null) {
+            log.warn("buildPricingDetails: details is null, returning empty PricingDetails");
+            return TravelCalculatePremiumResponse.PricingDetails.builder().build();
+        }
+
 
         boolean isCountryDefault = details.calculationMode()
                 == MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT;
@@ -314,7 +337,6 @@ public class ResponseAssembler {
 
         formula.append(" × ").append(String.format("%.4f", result.ageCoefficient())).append(" (age)");
 
-        // Коэффициент страны применяется только в MEDICAL_LEVEL
         if (!isCountryDefault) {
             formula.append(" × ").append(String.format("%.4f", result.countryCoefficient()))
                     .append(" (country)");
