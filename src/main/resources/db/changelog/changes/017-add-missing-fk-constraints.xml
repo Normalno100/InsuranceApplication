@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!--
+        ИСПРАВЛЕНИЕ (п. 2.3 плана рефакторинга): Отсутствие Foreign Keys в БД
+        🔴 КРИТИЧНО | P0
+
+        ПРОБЛЕМА:
+          Таблица agreements содержит два поля без FK-ограничений:
+            - medical_risk_limit_level VARCHAR(20) — ссылается на medical_risk_limit_levels.code
+            - country_iso_code        VARCHAR(2)  — ссылается на countries.iso_code
+
+          Из-за отсутствия FK возможно создать договор с несуществующей страной
+          или несуществующим уровнем медицинского покрытия. БД не обнаружит ошибку,
+          и данные могут оказаться в несогласованном состоянии.
+
+        ТЕХНИЧЕСКИЙ НЮАНС:
+          Стандартный FK требует, чтобы ссылочный столбец был PRIMARY KEY или имел
+          UNIQUE-ограничение. В текущей схеме:
+            - medical_risk_limit_levels: UK на (code, valid_from) — составной, не подходит
+            - countries:                 UK на (iso_code, valid_from) — составной, не подходит
+
+          РЕШЕНИЕ: перед добавлением FK создаём отдельный UNIQUE INDEX на каждый столбец.
+          Это корректно: коды уровней и ISO-коды стран семантически уникальны сами по себе
+          (дубликаты с разным valid_from — это версии, а не разные объекты с одним кодом).
+
+        ПОРЯДОК ВЫПОЛНЕНИЯ:
+          017-01 — Data quality check: нет "висящих" ссылок в agreements
+          017-02 — UNIQUE INDEX на medical_risk_limit_levels.code
+          017-03 — UNIQUE INDEX на countries.iso_code
+          017-04 — FK: agreements.medical_risk_limit_level → medical_risk_limit_levels.code
+          017-05 — FK: agreements.country_iso_code → countries.iso_code
+          017-06 — Комментарии к ограничениям
+    -->
+
+    <!-- ================================================================ -->
+    <!-- 017-01: Data Quality Check                                        -->
+    <!-- Убеждаемся, что нет "висящих" ссылок — до добавления FK          -->
+    <!-- ================================================================ -->
+    <changeSet id="017-01-data-quality-check-before-fk" author="travel-insurance">
+        <comment>
+            Pre-migration data quality check.
+            Ensures all existing agreements reference valid medical levels and countries.
+            Fails fast with a descriptive error if orphaned records exist,
+            preventing a silent FK violation during constraint creation.
+        </comment>
+
+        <sql splitStatements="false"><![CDATA[
+            -- Проверка 1: agreements ссылаются на существующий код медицинского покрытия
+            DO $$
+            DECLARE
+                v_count INT;
+                v_samples TEXT;
+            BEGIN
+                SELECT COUNT(*)
+                INTO v_count
+                FROM agreements a
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM medical_risk_limit_levels m
+                    WHERE m.code = a.medical_risk_limit_level
+                );
+
+                IF v_count > 0 THEN
+                    -- Собираем примеры для диагностики
+                    SELECT string_agg(DISTINCT a.medical_risk_limit_level, ', ')
+                    INTO v_samples
+                    FROM agreements a
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM medical_risk_limit_levels m
+                        WHERE m.code = a.medical_risk_limit_level
+                    )
+                    LIMIT 10;
+
+                    RAISE EXCEPTION
+                        'Data quality check FAILED: % agreement(s) reference non-existent '
+                        'medical_risk_limit_level codes: [%]. '
+                        'Fix the data before re-running this migration.',
+                        v_count, v_samples;
+                END IF;
+
+                RAISE NOTICE 'Check 1 PASSED: all agreements.medical_risk_limit_level values exist in medical_risk_limit_levels.code';
+            END $$;
+        ]]></sql>
+
+        <sql splitStatements="false"><![CDATA[
+            -- Проверка 2: agreements ссылаются на существующий ISO-код страны
+            DO $$
+            DECLARE
+                v_count INT;
+                v_samples TEXT;
+            BEGIN
+                SELECT COUNT(*)
+                INTO v_count
+                FROM agreements a
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM countries c
+                    WHERE c.iso_code = a.country_iso_code
+                );
+
+                IF v_count > 0 THEN
+                    SELECT string_agg(DISTINCT a.country_iso_code, ', ')
+                    INTO v_samples
+                    FROM agreements a
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM countries c
+                        WHERE c.iso_code = a.country_iso_code
+                    )
+                    LIMIT 10;
+
+                    RAISE EXCEPTION
+                        'Data quality check FAILED: % agreement(s) reference non-existent '
+                        'country_iso_code values: [%]. '
+                        'Fix the data before re-running this migration.',
+                        v_count, v_samples;
+                END IF;
+
+                RAISE NOTICE 'Check 2 PASSED: all agreements.country_iso_code values exist in countries.iso_code';
+            END $$;
+        ]]></sql>
+
+        <rollback>
+            <!-- Data quality checks не изменяют схему — откат не требуется -->
+        </rollback>
+    </changeSet>
+
+    <!-- ================================================================ -->
+    <!-- 017-02: UNIQUE INDEX на medical_risk_limit_levels.code           -->
+    <!--                                                                  -->
+    <!-- Необходим для создания FK из agreements.medical_risk_limit_level -->
+    <!-- Существующий UK (code, valid_from) — составной, для FK не годится -->
+    <!-- ================================================================ -->
+    <changeSet id="017-02-unique-index-medical-level-code" author="travel-insurance">
+        <comment>
+            Adding UNIQUE constraint on medical_risk_limit_levels.code.
+
+            WHY: PostgreSQL requires the referenced column to have a UNIQUE or PRIMARY KEY
+            constraint for FK creation. The existing UK is composite (code, valid_from),
+            which does not satisfy this requirement for a single-column FK reference.
+
+            SEMANTICS: medical level codes (e.g. '10000', '50000') are globally unique
+            identifiers — versioning via valid_from does not introduce duplicate codes.
+            This constraint enforces that invariant explicitly.
+        </comment>
+
+        <sql>
+            ALTER TABLE medical_risk_limit_levels
+            ADD CONSTRAINT uk_medical_level_code_unique
+            UNIQUE (code);
+        </sql>
+
+        <rollback>
+            <sql>
+                ALTER TABLE medical_risk_limit_levels
+                DROP CONSTRAINT IF EXISTS uk_medical_level_code_unique;
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ================================================================ -->
+    <!-- 017-03: UNIQUE INDEX на countries.iso_code                       -->
+    <!--                                                                  -->
+    <!-- Необходим для создания FK из agreements.country_iso_code         -->
+    <!-- Существующий UK (iso_code, valid_from) — составной, не подходит  -->
+    <!-- ================================================================ -->
+    <changeSet id="017-03-unique-index-country-iso-code" author="travel-insurance">
+        <comment>
+            Adding UNIQUE constraint on countries.iso_code.
+
+            WHY: Same reason as 017-02 — FK requires a single-column UNIQUE constraint.
+
+            SEMANTICS: ISO 3166-1 alpha-2 country codes are globally unique by definition.
+            The composite UK (iso_code, valid_from) tracks rate versioning, not identity.
+            This constraint makes the uniqueness of codes explicit and FK-compatible.
+        </comment>
+
+        <sql>
+            ALTER TABLE countries
+            ADD CONSTRAINT uk_country_iso_code_unique
+            UNIQUE (iso_code);
+        </sql>
+
+        <rollback>
+            <sql>
+                ALTER TABLE countries
+                DROP CONSTRAINT IF EXISTS uk_country_iso_code_unique;
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ================================================================ -->
+    <!-- 017-04: FK agreements.medical_risk_limit_level                   -->
+    <!--         → medical_risk_limit_levels(code)                        -->
+    <!-- ================================================================ -->
+    <changeSet id="017-04-fk-agreement-medical-level" author="travel-insurance">
+        <comment>
+            Adding FK constraint: agreements.medical_risk_limit_level → medical_risk_limit_levels.code.
+
+            Prevents creating agreements with non-existent medical coverage levels.
+            Data quality pre-checked in changeSet 017-01.
+        </comment>
+
+        <sql>
+            ALTER TABLE agreements
+            ADD CONSTRAINT fk_agreement_medical_level
+            FOREIGN KEY (medical_risk_limit_level)
+            REFERENCES medical_risk_limit_levels(code);
+        </sql>
+
+        <rollback>
+            <sql>
+                ALTER TABLE agreements
+                DROP CONSTRAINT IF EXISTS fk_agreement_medical_level;
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ================================================================ -->
+    <!-- 017-05: FK agreements.country_iso_code → countries(iso_code)     -->
+    <!-- ================================================================ -->
+    <changeSet id="017-05-fk-agreement-country" author="travel-insurance">
+        <comment>
+            Adding FK constraint: agreements.country_iso_code → countries.iso_code.
+
+            Prevents creating agreements with non-existent country codes.
+            Data quality pre-checked in changeSet 017-01.
+        </comment>
+
+        <sql>
+            ALTER TABLE agreements
+            ADD CONSTRAINT fk_agreement_country
+            FOREIGN KEY (country_iso_code)
+            REFERENCES countries(iso_code);
+        </sql>
+
+        <rollback>
+            <sql>
+                ALTER TABLE agreements
+                DROP CONSTRAINT IF EXISTS fk_agreement_country;
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ================================================================ -->
+    <!-- 017-06: Документирующие комментарии                              -->
+    <!-- ================================================================ -->
+    <changeSet id="017-06-add-constraint-comments" author="travel-insurance">
+        <comment>Adding documentation comments to new constraints and columns</comment>
+
+        <sql><![CDATA[
+            COMMENT ON CONSTRAINT fk_agreement_medical_level ON agreements IS
+            'FK added in 017 (п. 2.3 refactoring plan).
+            Ensures agreements.medical_risk_limit_level references a valid code
+            in medical_risk_limit_levels. Previously absent, allowing orphaned data.';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON CONSTRAINT fk_agreement_country ON agreements IS
+            'FK added in 017 (п. 2.3 refactoring plan).
+            Ensures agreements.country_iso_code references a valid ISO code
+            in countries. Previously absent, allowing orphaned data.';
+        ]]></sql>
+
+        <rollback>
+            <!-- Комментарии не требуют отката -->
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

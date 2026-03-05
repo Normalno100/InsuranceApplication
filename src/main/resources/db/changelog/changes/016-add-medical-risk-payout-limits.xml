@@ -46,7 +46,6 @@
         </sql>
 
         <rollback>
-            <!-- Комментарий не требует отката — убираем его -->
             <sql>
                 COMMENT ON COLUMN medical_risk_limit_levels.max_payout_amount IS NULL;
             </sql>
@@ -55,6 +54,21 @@
     </changeSet>
 
     <!-- 3. Заполняем max_payout_amount = coverage_amount для всех записей без лимита -->
+    <!--
+        ИСПРАВЛЕНИЕ (п. 2.4 плана рефакторинга): Некорректный Rollback
+
+        ПРОБЛЕМА (было):
+          <column name="max_payout_amount" value="NULL"/>
+          Атрибут value="NULL" в Liquibase передаёт строку "NULL", а не SQL NULL.
+          При откате столбец получал строку "NULL" вместо настоящего NULL,
+          что нарушало логику приложения (IS NULL проверки переставали работать)
+          и могло вызвать ошибку приведения типов (DECIMAL vs text).
+
+        РЕШЕНИЕ (стало):
+          <column name="max_payout_amount" xsi:nil="true"/>
+          Атрибут xsi:nil="true" — стандартный XML-способ выразить отсутствие значения.
+          Liquibase корректно транслирует его в SQL NULL при генерации UPDATE-запроса.
+    -->
     <changeSet id="task_117-3" author="task_117"
                context="prod,dev,test">
 
@@ -66,10 +80,21 @@
         </update>
 
         <rollback>
-            <update tableName="medical_risk_limit_levels">
-                <column name="max_payout_amount" value="NULL"/>
-                <where>max_payout_amount IS NOT NULL</where>
-            </update>
+            <!--
+                ИСПРАВЛЕНО (п. 2.4): <sql> вместо <update> с value="NULL".
+
+                value="NULL" — строка "NULL", не SQL NULL (оригинальный баг).
+                xsi:nil="true" — корректно для Liquibase, но не входит в XSD
+                  ColumnConfig, поэтому IDEA подчёркивает красным.
+
+                <sql> — единственный способ надёжно записать NULL
+                  без конфликтов с XSD-валидацией IDE.
+            -->
+            <sql>
+                UPDATE medical_risk_limit_levels
+                SET max_payout_amount = NULL
+                WHERE max_payout_amount IS NOT NULL;
+            </sql>
         </rollback>
 
     </changeSet>
