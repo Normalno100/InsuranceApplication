@@ -18,15 +18,6 @@ import java.util.stream.Collectors;
 
 /**
  * Assembler для сборки Response DTO.
- *
- * ИЗМЕНЕНИЯ v2.1 (этап 4–5):
- * - buildSuccessResponse теперь заполняет CountryInfo в PricingDetails
- * - TripSummary дополнен полями countryDefaultDayPremium и calculationMode
- * - buildPricingDetails учитывает режим расчёта (MEDICAL_LEVEL / COUNTRY_DEFAULT)
- *
- * ИСПРАВЛЕНИЕ п.2.5 (NPE в ResponseAssembler):
- * - buildPricingDetails теперь проверяет details == null и возвращает пустой объект,
- *   вместо падения с NullPointerException на вызове details.calculationMode()
  */
 @Slf4j
 @Component
@@ -34,10 +25,6 @@ import java.util.stream.Collectors;
 public class ResponseAssembler {
 
     private final CountryRepository countryRepository;
-
-    // ========================================
-    // ПУБЛИЧНЫЕ МЕТОДЫ
-    // ========================================
 
     public TravelCalculatePremiumResponse buildValidationErrorResponse(
             List<ValidationError> errors) {
@@ -101,9 +88,6 @@ public class ResponseAssembler {
                 .build();
     }
 
-    /**
-     * Собирает успешный ответ.
-     */
     public TravelCalculatePremiumResponse buildSuccessResponse(
             TravelCalculatePremiumRequest request,
             PremiumCalculationService.PremiumCalculationResult calculationResult,
@@ -119,7 +103,6 @@ public class ResponseAssembler {
                 .success(true)
                 .errors(List.of());
 
-        // Pricing Summary
         builder.pricing(TravelCalculatePremiumResponse.PricingSummary.builder()
                 .totalPremium(discountResult.finalPremium())
                 .baseAmount(discountResult.basePremium())
@@ -130,13 +113,10 @@ public class ResponseAssembler {
                         : List.of())
                 .build());
 
-        // Person Summary
         builder.person(buildPersonSummary(request, details));
 
-        // Trip Summary — с режимом расчёта и дефолтной ставкой
         builder.trip(buildTripSummary(request, details));
 
-        // Applied Discounts
         if (!discountResult.appliedDiscounts().isEmpty()) {
             var appliedDiscounts = discountResult.appliedDiscounts().stream()
                     .map(d -> TravelCalculatePremiumResponse.AppliedDiscount.builder()
@@ -150,13 +130,11 @@ public class ResponseAssembler {
             builder.appliedDiscounts(appliedDiscounts);
         }
 
-        // Underwriting Info
         builder.underwriting(TravelCalculatePremiumResponse.UnderwritingInfo.builder()
                 .decision(underwritingResult.getDecision().name())
                 .evaluatedRules(buildRuleEvaluations(underwritingResult))
                 .build());
 
-        // Pricing Details (если запрошено)
         if (includeDetails) {
             builder.pricingDetails(buildPricingDetails(details));
         }
@@ -176,9 +154,6 @@ public class ResponseAssembler {
                 .build();
     }
 
-    // ========================================
-    // ПРИВАТНЫЕ МЕТОДЫ
-    // ========================================
 
     private TravelCalculatePremiumResponse.PersonSummary buildPersonSummary(
             TravelCalculatePremiumRequest request,
@@ -224,20 +199,6 @@ public class ResponseAssembler {
 
     /**
      * Строит PricingDetails с поддержкой двух режимов.
-     *
-     * ИСПРАВЛЕНИЕ п.2.5:
-     * Добавлена проверка details == null в начале метода.
-     *
-     * ПРОБЛЕМА (было):
-     *   Метод сразу вызывал details.calculationMode() без проверки на null.
-     *   Если calculationResult.details() возвращал null (например, при нестандартном
-     *   пути выполнения или в тестах), возникал NullPointerException.
-     *
-     * РЕШЕНИЕ (стало):
-     *   Guard в начале метода: если details == null — возвращается пустой
-     *   PricingDetails (builder без полей, все поля = null / пустые списки).
-     *   Это безопасно, т.к. includeDetails=true при details=null — граничный случай,
-     *   который не должен ронять весь ответ.
      */
     private TravelCalculatePremiumResponse.PricingDetails buildPricingDetails(
             MedicalRiskPremiumCalculator.PremiumCalculationResult details) {
@@ -259,10 +220,8 @@ public class ResponseAssembler {
                 .countryDefaultDayPremium(isCountryDefault ? details.countryDefaultDayPremium() : null)
                 .calculationFormula(buildFormula(details));
 
-        // CountryInfo — всегда присутствует в деталях при успешном ответе
         builder.countryInfo(buildCountryInfo(details));
 
-        // Risk Breakdown
         var riskBreakdown = details.riskDetails().stream()
                 .map(r -> TravelCalculatePremiumResponse.RiskBreakdown.builder()
                         .riskCode(r.riskCode())
@@ -275,7 +234,6 @@ public class ResponseAssembler {
                 .collect(Collectors.toList());
         builder.riskBreakdown(riskBreakdown);
 
-        // Calculation Steps
         var steps = details.calculationSteps().stream()
                 .map(s -> {
                     var step = new TravelCalculatePremiumResponse.CalculationStep();

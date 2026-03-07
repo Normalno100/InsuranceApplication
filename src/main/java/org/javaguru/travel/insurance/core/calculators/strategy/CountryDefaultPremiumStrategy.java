@@ -9,7 +9,9 @@ import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculat
 import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator.PremiumCalculationResult;
 import org.javaguru.travel.insurance.core.services.CalculationConfigService;
 import org.javaguru.travel.insurance.core.services.CountryDefaultDayPremiumService;
-import org.javaguru.travel.insurance.infrastructure.persistence.repositories.CountryRepository;
+import org.javaguru.travel.insurance.domain.model.entity.Country;
+import org.javaguru.travel.insurance.domain.model.valueobject.CountryCode;
+import org.javaguru.travel.insurance.domain.port.ReferenceDataPort;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -22,6 +24,13 @@ import java.math.RoundingMode;
  *   ПРЕМИЯ = DefaultDayPremium × AgeCoeff × DurationCoeff
  *            × (1 + Σ riskCoeffs) × Days − BundleDiscount
  *
+ * ИЗМЕНЕНИЯ (рефакторинг DIP п.3.1):
+ *   Заменена прямая зависимость на infrastructure-репозиторий:
+ *     ❌ CountryRepository  →  ✅ ReferenceDataPort
+ *
+ *   Теперь core слой зависит только от domain port (интерфейс),
+ *   а не от infrastructure реализации. Стрела зависимости направлена внутрь.
+ *
  * ИЗМЕНЕНИЯ task_117:
  *   В режиме COUNTRY_DEFAULT лимит выплат не применяется (нет medicalRiskLimitLevel).
  *   Поля medicalPayoutLimit, appliedPayoutLimit, payoutLimitApplied = null / false.
@@ -32,7 +41,10 @@ import java.math.RoundingMode;
 public class CountryDefaultPremiumStrategy implements PremiumCalculationStrategy {
 
     private final CountryDefaultDayPremiumService countryDefaultDayPremiumService;
-    private final CountryRepository countryRepository;
+
+    // ✅ Domain port — правильная зависимость для core слоя
+    private final ReferenceDataPort referenceDataPort;
+
     private final SharedCalculationComponents shared;
     private final CalculationStepsBuilder stepsBuilder;
     private final CalculationConfigService calculationConfigService;
@@ -49,9 +61,11 @@ public class CountryDefaultPremiumStrategy implements PremiumCalculationStrategy
                         .orElseThrow(() -> new IllegalStateException(
                                 "Country default day premium not found for: " + request.getCountryIsoCode()));
 
-        // 2. Информация о стране
-        var country = countryRepository
-                .findActiveByIsoCode(request.getCountryIsoCode(), request.getAgreementDateFrom())
+        // 2. Информация о стране через domain port
+        Country country = referenceDataPort
+                .findCountry(
+                        new CountryCode(request.getCountryIsoCode()),
+                        request.getAgreementDateFrom())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Country not found: " + request.getCountryIsoCode()));
 
@@ -74,7 +88,7 @@ public class CountryDefaultPremiumStrategy implements PremiumCalculationStrategy
         SharedCalculationComponents.AdditionalRisksResult additionalRisks = shared.calculateAdditionalRisks(
                 request.getSelectedRisks(), ageResult.age(), request.getAgreementDateFrom());
 
-        // 7. Базовая премия — БЕЗ countryCoefficient
+        // 7. Базовая премия — БЕЗ countryCoefficient (уже включён в defaultDayPremium)
         BigDecimal basePremium = countryDefaultDayPremiumService.calculateBasePremium(
                 defaultPremium.defaultDayPremium(),
                 ageResult.coefficient(),
@@ -106,12 +120,15 @@ public class CountryDefaultPremiumStrategy implements PremiumCalculationStrategy
                 ageResult.age(),
                 request.getAgreementDateFrom());
 
-        // 11. totalCoeff для информации (без countryCoeff)
+        // 11. Коэффициент страны из domain entity (для информации в ответе)
+        BigDecimal countryRiskCoefficient = country.getRiskCoefficient().value();
+
+        // 12. totalCoeff для информации (без countryCoeff — он в baseRate)
         BigDecimal totalCoeff = ageResult.coefficient()
                 .multiply(durationCoefficient)
                 .multiply(BigDecimal.ONE.add(additionalRisks.totalCoefficient()));
 
-        // 12. Шаги расчёта (без лимита выплат — не применяется в COUNTRY_DEFAULT)
+        // 13. Шаги расчёта (без лимита выплат — не применяется в COUNTRY_DEFAULT)
         var steps = stepsBuilder.buildCountryDefaultSteps(
                 defaultPremium.defaultDayPremium(),
                 ageResult.coefficient(),
@@ -133,7 +150,7 @@ public class CountryDefaultPremiumStrategy implements PremiumCalculationStrategy
                 ageResult.age(),
                 ageResult.coefficient(),
                 ageResult.description(),
-                country.getRiskCoefficient(),
+                countryRiskCoefficient,
                 country.getNameEn(),
                 durationCoefficient,
                 additionalRisks.totalCoefficient(),
