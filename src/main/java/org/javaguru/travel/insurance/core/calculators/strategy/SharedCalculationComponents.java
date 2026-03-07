@@ -5,161 +5,124 @@ import lombok.extern.slf4j.Slf4j;
 import org.javaguru.travel.insurance.core.calculators.AgeCalculator;
 import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator.BundleDiscountResult;
 import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator.RiskPremiumDetail;
-import org.javaguru.travel.insurance.core.services.AgeRiskPricingService;
-import org.javaguru.travel.insurance.core.services.RiskBundleService;
-import org.javaguru.travel.insurance.core.services.TripDurationPricingService;
-import org.javaguru.travel.insurance.infrastructure.persistence.repositories.RiskTypeRepository;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Общие компоненты расчёта, используемые обеими стратегиями.
+ * Фасад общих компонентов расчёта.
  *
- * ОТВЕТСТВЕННОСТЬ:
- * Устраняет дублирование между MedicalLevelPremiumStrategy и CountryDefaultPremiumStrategy.
+ * ИЗМЕНЕНИЯ (п. 3.2 плана рефакторинга — декомпозиция God Component):
+ *
+ *   ДО: SharedCalculationComponents выполнял 5 разных ответственностей:
+ *     1. Расчёт возраста и коэффициента       → PersonAgeCalculator
+ *     2. Расчёт длительности поездки           → TripDurationCalculator
+ *     3. Расчёт дополнительных рисков          → AdditionalRisksCalculator
+ *     4. Расчёт пакетной скидки                → BundleDiscountCalculator
+ *     5. Построение деталей рисков для ответа  → RiskDetailsBuilder
+ *
+ *   ПОСЛЕ: каждая ответственность вынесена в отдельный компонент (SRP).
+ *   Данный класс сохранён как тонкий фасад для обратной совместимости
+ *   со стратегиями (MedicalLevelPremiumStrategy, CountryDefaultPremiumStrategy),
+ *   которые могут быть обновлены постепенно.
+ *
+ * ПЛАН МИГРАЦИИ:
+ *   В следующем PR стратегии следует обновить так, чтобы они зависели
+ *   непосредственно от нужных калькуляторов, а SharedCalculationComponents
+ *   можно будет удалить.
+ *
+ * ИСПРАВЛЕНИЕ DIP (п. 3.1):
+ *   Прежняя реализация зависела от RiskTypeRepository (infrastructure).
+ *   Теперь зависимость идёт через domain-port внутри AdditionalRisksCalculator
+ *   и RiskDetailsBuilder.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class SharedCalculationComponents {
 
-    private final AgeCalculator ageCalculator;
-    private final TripDurationPricingService durationPricingService;
-    private final AgeRiskPricingService ageRiskPricingService;
-    private final RiskBundleService riskBundleService;
-    private final RiskTypeRepository riskTypeRepository;
+    private final PersonAgeCalculator personAgeCalculator;
+    private final TripDurationCalculator tripDurationCalculator;
+    private final AdditionalRisksCalculator additionalRisksCalculator;
+    private final BundleDiscountCalculator bundleDiscountCalculator;
+    private final RiskDetailsBuilder riskDetailsBuilder;
 
     // ========================================
     // ВОЗРАСТ И КОЭФФИЦИЕНТ
     // ========================================
 
-    /**
-     * Рассчитывает возраст и возрастной коэффициент.
-     * Коэффициент всегда применяется (стандартный вызов, обратная совместимость).
-     *
-     * @param birthDate     дата рождения
-     * @param referenceDate дата начала поездки (agreementDateFrom)
-     */
+    /** @see PersonAgeCalculator#calculate(LocalDate, LocalDate) */
     public AgeCalculator.AgeCalculationResult calculateAge(
             LocalDate birthDate,
             LocalDate referenceDate) {
-        return calculateAge(birthDate, referenceDate, true);
+        return personAgeCalculator.calculate(birthDate, referenceDate);
     }
 
-    /**
-     * Рассчитывает возраст и возрастной коэффициент с учётом флага включения.
-     *
-     * если ageCoefficientEnabled=false, коэффициент будет равен 1.0.
-     *
-     * @param birthDate               дата рождения
-     * @param referenceDate           дата начала поездки
-     * @param ageCoefficientEnabled   true = применять коэффициент, false = 1.0
-     */
+    /** @see PersonAgeCalculator#calculate(LocalDate, LocalDate, boolean) */
     public AgeCalculator.AgeCalculationResult calculateAge(
             LocalDate birthDate,
             LocalDate referenceDate,
             boolean ageCoefficientEnabled) {
-
-        return ageCalculator.calculateAgeAndCoefficient(birthDate, referenceDate, ageCoefficientEnabled);
+        return personAgeCalculator.calculate(birthDate, referenceDate, ageCoefficientEnabled);
     }
 
     // ========================================
     // ДЛИТЕЛЬНОСТЬ
     // ========================================
 
+    /** @see TripDurationCalculator#calculateDays(LocalDate, LocalDate) */
     public long calculateDays(LocalDate dateFrom, LocalDate dateTo) {
-        return java.time.temporal.ChronoUnit.DAYS.between(dateFrom, dateTo);
+        return tripDurationCalculator.calculateDays(dateFrom, dateTo);
     }
 
+    /** @see TripDurationCalculator#getDurationCoefficient(long, LocalDate) */
     public BigDecimal getDurationCoefficient(long days, LocalDate date) {
-        return durationPricingService.getDurationCoefficient((int) days, date);
+        return tripDurationCalculator.getDurationCoefficient(days, date);
     }
 
     // ========================================
     // ДОПОЛНИТЕЛЬНЫЕ РИСКИ
     // ========================================
 
-    /**
-     * Рассчитывает суммарный коэффициент дополнительных рисков
-     * с учётом возрастных модификаторов.
-     */
+    /** @see AdditionalRisksCalculator#calculate(List, int, LocalDate) */
     public AdditionalRisksResult calculateAdditionalRisks(
             List<String> selectedRiskCodes,
             int age,
             LocalDate agreementDate) {
 
-        if (selectedRiskCodes == null || selectedRiskCodes.isEmpty()) {
-            return new AdditionalRisksResult(BigDecimal.ZERO, new ArrayList<>());
-        }
-
-        List<ModifiedRiskDetail> modifiedRisks = new ArrayList<>();
-        BigDecimal totalCoefficient = BigDecimal.ZERO;
-
-        for (String riskCode : selectedRiskCodes) {
-            var riskOpt = riskTypeRepository.findActiveByCode(riskCode, agreementDate);
-
-            if (riskOpt.isPresent() && !riskOpt.get().getIsMandatory()) {
-                var risk = riskOpt.get();
-                BigDecimal baseCoefficient = risk.getCoefficient();
-
-                BigDecimal ageModifier = ageRiskPricingService.getAgeRiskModifier(
-                        riskCode, age, agreementDate);
-
-                BigDecimal modifiedCoefficient = baseCoefficient.multiply(ageModifier);
-                modifiedRisks.add(new ModifiedRiskDetail(
-                        riskCode, baseCoefficient, ageModifier, modifiedCoefficient));
-                totalCoefficient = totalCoefficient.add(modifiedCoefficient);
-
-                log.debug("Risk '{}': base={}, age_modifier={}, modified={}",
-                        riskCode, baseCoefficient, ageModifier, modifiedCoefficient);
-            }
-        }
-
-        return new AdditionalRisksResult(totalCoefficient, modifiedRisks);
+        var result = additionalRisksCalculator.calculate(selectedRiskCodes, age, agreementDate);
+        // Адаптируем тип из нового калькулятора к локальному record (сохраняем API)
+        return new AdditionalRisksResult(
+                result.totalCoefficient(),
+                result.modifiedRisks().stream()
+                        .map(d -> new ModifiedRiskDetail(
+                                d.riskCode(),
+                                d.baseCoefficient(),
+                                d.ageModifier(),
+                                d.modifiedCoefficient()))
+                        .toList()
+        );
     }
 
     // ========================================
     // ПАКЕТНАЯ СКИДКА
     // ========================================
 
+    /** @see BundleDiscountCalculator#calculate(List, BigDecimal, LocalDate) */
     public BundleDiscountResult calculateBundleDiscount(
             List<String> selectedRisks,
             BigDecimal premiumAmount,
             LocalDate agreementDate) {
-
-        if (selectedRisks == null || selectedRisks.isEmpty()) {
-            return new BundleDiscountResult(null, BigDecimal.ZERO);
-        }
-
-        var bestBundleOpt = riskBundleService.getBestApplicableBundle(selectedRisks, agreementDate);
-
-        if (bestBundleOpt.isEmpty()) {
-            return new BundleDiscountResult(null, BigDecimal.ZERO);
-        }
-
-        var bundle = bestBundleOpt.get();
-        BigDecimal discountAmount = riskBundleService.calculateBundleDiscount(premiumAmount, bundle);
-
-        log.info("Applied bundle '{}' with {}% discount = {} EUR",
-                bundle.code(), bundle.discountPercentage(), discountAmount);
-
-        return new BundleDiscountResult(bundle, discountAmount);
+        return bundleDiscountCalculator.calculate(selectedRisks, premiumAmount, agreementDate);
     }
 
     // ========================================
     // ДЕТАЛИ ПО РИСКАМ
     // ========================================
 
-    /**
-     * Строит список деталей по каждому риску для ответа.
-     *
-     * @param countryCoefficient передаётся BigDecimal.ONE в режиме COUNTRY_DEFAULT
-     */
+    /** @see RiskDetailsBuilder#build(List, BigDecimal, BigDecimal, BigDecimal, BigDecimal, int, int, LocalDate) */
     public List<RiskPremiumDetail> buildRiskDetails(
             List<String> selectedRiskCodes,
             BigDecimal baseRate,
@@ -170,54 +133,19 @@ public class SharedCalculationComponents {
             int age,
             LocalDate agreementDate) {
 
-        List<RiskPremiumDetail> details = new ArrayList<>();
-
-        BigDecimal basePremium = baseRate
-                .multiply(ageCoefficient)
-                .multiply(countryCoefficient)
-                .multiply(durationCoefficient)
-                .multiply(BigDecimal.valueOf(days))
-                .setScale(2, RoundingMode.HALF_UP);
-
-        var medicalRisk = riskTypeRepository.findActiveByCode("TRAVEL_MEDICAL", agreementDate)
-                .orElseThrow(() -> new IllegalStateException("TRAVEL_MEDICAL risk not found"));
-
-        details.add(new RiskPremiumDetail(
-                medicalRisk.getCode(),
-                medicalRisk.getNameEn(),
-                basePremium,
-                BigDecimal.ZERO,
-                BigDecimal.ONE));
-
-        if (selectedRiskCodes != null) {
-            for (String riskCode : selectedRiskCodes) {
-                var riskOpt = riskTypeRepository.findActiveByCode(riskCode, agreementDate);
-                if (riskOpt.isPresent() && !riskOpt.get().getIsMandatory()) {
-                    var risk = riskOpt.get();
-
-                    BigDecimal ageModifier = ageRiskPricingService.getAgeRiskModifier(
-                            riskCode, age, agreementDate);
-
-                    BigDecimal modifiedCoefficient = risk.getCoefficient().multiply(ageModifier);
-                    BigDecimal riskPremium = basePremium
-                            .multiply(modifiedCoefficient)
-                            .setScale(2, RoundingMode.HALF_UP);
-
-                    details.add(new RiskPremiumDetail(
-                            risk.getCode(),
-                            risk.getNameEn(),
-                            riskPremium,
-                            risk.getCoefficient(),
-                            ageModifier));
-                }
-            }
-        }
-
-        return details;
+        return riskDetailsBuilder.build(
+                selectedRiskCodes,
+                baseRate,
+                ageCoefficient,
+                countryCoefficient,
+                durationCoefficient,
+                days,
+                age,
+                agreementDate);
     }
 
     // ========================================
-    // ВЛОЖЕННЫЕ ТИПЫ
+    // ВЛОЖЕННЫЕ ТИПЫ (сохранены для обратной совместимости)
     // ========================================
 
     public record AdditionalRisksResult(
