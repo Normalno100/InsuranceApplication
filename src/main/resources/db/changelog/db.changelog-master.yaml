@@ -33,7 +33,8 @@ databaseChangeLog:
       file: db/changelog/changes/016-add-medical-risk-payout-limits.xml
   - include:
       file: db/changelog/changes/017-add-missing-fk-constraints.xml
-
+  - include:
+      file: db/changelog/changes/018-discount-service-db-migration.xml
 
 
 

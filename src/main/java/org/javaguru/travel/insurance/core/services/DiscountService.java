@@ -1,6 +1,10 @@
 package org.javaguru.travel.insurance.core.services;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.DiscountEntity;
+import org.javaguru.travel.insurance.infrastructure.persistence.repositories.DiscountRepository;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -9,22 +13,37 @@ import java.time.LocalDate;
 import java.util.*;
 
 /**
- * Сервис для работы со скидками (групповые, корпоративные, сезонные)
+ * Сервис для работы со скидками (групповые, корпоративные, сезонные, лояльность).
+ *
+ * РЕФАКТОРИНГ (п. 3.3 плана):
+ *   ДО:  скидки были захардкожены в Java-коде (initDiscounts()),
+ *        изменение условий скидок требовало редеплоя приложения.
+ *
+ *   ПОСЛЕ: скидки читаются из таблицы discounts в БД.
+ *     - Результат кешируется через @Cacheable ("discounts") — скидки меняются редко.
+ *     - Изменение скидок в БД применяется после очистки кеша или перезапуска.
+ *     - Логика применимости (isDiscountApplicable) и расчёта суммы — без изменений.
+ *
+ * КЕШИРОВАНИЕ:
+ *   Кеш ключ включает дату, чтобы корректно обрабатывать temporal validity.
+ *   При активации новых скидок (новая valid_from) или истечении старых
+ *   кеш обновится на следующий день автоматически.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DiscountService {
 
-    private final Map<String, Discount> discounts = initDiscounts();
+    private final DiscountRepository discountRepository;
 
     /**
-     * Рассчитывает все применимые скидки
+     * Рассчитывает все применимые скидки.
      *
      * @param premiumAmount сумма премии до скидок
-     * @param personsCount количество застрахованных
-     * @param isCorporate признак корпоративного клиента
+     * @param personsCount  количество застрахованных
+     * @param isCorporate   признак корпоративного клиента
      * @param agreementDate дата договора
-     * @return список применимых скидок
+     * @return список применимых скидок с рассчитанными суммами
      */
     public List<DiscountResult> calculateApplicableDiscounts(
             BigDecimal premiumAmount,
@@ -32,32 +51,36 @@ public class DiscountService {
             boolean isCorporate,
             LocalDate agreementDate) {
 
+        List<DiscountEntity> allDiscounts = loadDiscounts(agreementDate);
         List<DiscountResult> results = new ArrayList<>();
 
-        for (Discount discount : discounts.values()) {
-            if (isDiscountApplicable(discount, premiumAmount, personsCount, isCorporate, agreementDate)) {
+        for (DiscountEntity discount : allDiscounts) {
+            if (isDiscountApplicable(discount, premiumAmount, personsCount, isCorporate)) {
                 BigDecimal discountAmount = calculateDiscountAmount(discount, premiumAmount);
                 results.add(new DiscountResult(
-                        discount.code(),
-                        discount.name(),
-                        discount.discountType(),
-                        discount.discountPercentage(),
+                        discount.getCode(),
+                        discount.getName(),
+                        DiscountType.valueOf(discount.getDiscountType()),
+                        discount.getDiscountPercentage(),
                         discountAmount
                 ));
             }
         }
 
+        log.debug("Found {} applicable discounts for premiumAmount={}, persons={}, corporate={}",
+                results.size(), premiumAmount, personsCount, isCorporate);
+
         return results;
     }
 
     /**
-     * Рассчитывает итоговую скидку (берется максимальная из применимых)
+     * Рассчитывает итоговую скидку — выбирает максимальную из применимых.
      *
      * @param premiumAmount сумма премии
-     * @param personsCount количество лиц
-     * @param isCorporate корпоративный клиент
+     * @param personsCount  количество лиц
+     * @param isCorporate   корпоративный клиент
      * @param agreementDate дата договора
-     * @return максимальная скидка
+     * @return максимальная применимая скидка
      */
     public Optional<DiscountResult> calculateBestDiscount(
             BigDecimal premiumAmount,
@@ -65,74 +88,90 @@ public class DiscountService {
             boolean isCorporate,
             LocalDate agreementDate) {
 
-        List<DiscountResult> applicableDiscounts = calculateApplicableDiscounts(
-                premiumAmount, personsCount, isCorporate, agreementDate
-        );
-
-        return applicableDiscounts.stream()
+        return calculateApplicableDiscounts(premiumAmount, personsCount, isCorporate, agreementDate)
+                .stream()
                 .max(Comparator.comparing(DiscountResult::amount));
     }
 
     /**
-     * Проверяет применимость скидки
+     * Получает скидку по коду.
+     */
+    public Optional<DiscountEntity> getDiscount(String code) {
+        return discountRepository.findByCode(code.toUpperCase());
+    }
+
+    // =====================================================
+    // ПРИВАТНЫЕ МЕТОДЫ
+    // =====================================================
+
+    /**
+     * Загружает активные скидки из БД с кешированием.
+     *
+     * Кеш ключ = дата договора, чтобы temporal validity работала корректно.
+     * Скидки меняются редко, поэтому кеширование по дате безопасно.
+     *
+     * @param date дата, на которую нужны скидки
+     * @return список активных скидок из БД
+     */
+    @Cacheable(value = "discounts", key = "#date")
+    public List<DiscountEntity> loadDiscounts(LocalDate date) {
+        List<DiscountEntity> discounts = discountRepository.findAllActiveOnDate(date);
+        log.debug("Loaded {} active discounts from DB for date {}", discounts.size(), date);
+        return discounts;
+    }
+
+    /**
+     * Проверяет применимость скидки.
      */
     private boolean isDiscountApplicable(
-            Discount discount,
+            DiscountEntity discount,
             BigDecimal premiumAmount,
             int personsCount,
-            boolean isCorporate,
-            LocalDate agreementDate) {
+            boolean isCorporate) {
 
-        // Проверка активности
-        if (!discount.isActive()) {
-            return false;
-        }
-
-        // Проверка периода действия
-        if (agreementDate.isBefore(discount.validFrom())) {
-            return false;
-        }
-        if (discount.validTo() != null && agreementDate.isAfter(discount.validTo())) {
-            return false;
-        }
-
-        // Проверка минимальной суммы
-        if (discount.minPremiumAmount() != null
-                && premiumAmount.compareTo(discount.minPremiumAmount()) < 0) {
+        // Проверка минимальной суммы премии
+        if (discount.getMinPremiumAmount() != null
+                && premiumAmount.compareTo(discount.getMinPremiumAmount()) < 0) {
             return false;
         }
 
         // Проверка типа скидки
-        switch (discount.discountType()) {
-            case GROUP:
-                // Групповая скидка требует минимального количества человек
-                return discount.minPersonsCount() != null
-                        && personsCount >= discount.minPersonsCount();
-
-            case CORPORATE:
-                // Корпоративная скидка только для корпоративных клиентов
-                return isCorporate;
-
-            case SEASONAL:
-                // Сезонная скидка применима всегда в указанный период
-                return true;
-
-            case LOYALTY:
-                // Программа лояльности - для простоты считаем всегда применимой
-                // В реальности нужна проверка истории клиента
-                return true;
-
-            default:
-                return false;
+        DiscountType type;
+        try {
+            type = DiscountType.valueOf(discount.getDiscountType());
+        } catch (IllegalArgumentException e) {
+            log.warn("Unknown discount type '{}' for discount '{}', skipping",
+                    discount.getDiscountType(), discount.getCode());
+            return false;
         }
+
+        return switch (type) {
+            case GROUP ->
+                // Групповая скидка: нужно минимальное количество человек
+                    discount.getMinPersonsCount() != null
+                            && personsCount >= discount.getMinPersonsCount();
+
+            case CORPORATE ->
+                // Корпоративная скидка: только для корпоративных клиентов
+                    isCorporate;
+
+            case SEASONAL ->
+                // Сезонная скидка применима всегда (период уже учтён в temporal validity)
+                    true;
+
+            case LOYALTY ->
+                // Программа лояльности всегда применима
+                // В будущем здесь может быть проверка истории клиента
+                    true;
+        };
     }
 
     /**
-     * Рассчитывает сумму скидки
+     * Рассчитывает сумму скидки.
      */
-    private BigDecimal calculateDiscountAmount(Discount discount, BigDecimal premiumAmount) {
+    private BigDecimal calculateDiscountAmount(DiscountEntity discount, BigDecimal premiumAmount) {
         BigDecimal discountAmount = premiumAmount
-                .multiply(discount.discountPercentage())
+                .multiply(discount.getDiscountPercentage())
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
         // Скидка не может быть больше суммы премии
@@ -143,142 +182,12 @@ public class DiscountService {
         return discountAmount;
     }
 
-    /**
-     * Получает скидку по коду
-     */
-    public Optional<Discount> getDiscount(String code) {
-        return Optional.ofNullable(discounts.get(code.toUpperCase()));
-    }
+    // =====================================================
+    // ВЛОЖЕННЫЕ КЛАССЫ
+    // =====================================================
 
     /**
-     * Инициализация скидок
-     * В реальном приложении данные будут из БД
-     */
-    private static Map<String, Discount> initDiscounts() {
-        Map<String, Discount> discountMap = new HashMap<>();
-
-        // Групповые скидки
-        discountMap.put("GROUP_5", new Discount(
-                "GROUP_5",
-                "Group discount 5+ persons",
-                DiscountType.GROUP,
-                new BigDecimal("10"),
-                5,
-                null,
-                LocalDate.of(2025, 1, 1),
-                null,
-                true
-        ));
-
-        discountMap.put("GROUP_10", new Discount(
-                "GROUP_10",
-                "Group discount 10+ persons",
-                DiscountType.GROUP,
-                new BigDecimal("15"),
-                10,
-                null,
-                LocalDate.of(2025, 1, 1),
-                null,
-                true
-        ));
-
-        discountMap.put("GROUP_20", new Discount(
-                "GROUP_20",
-                "Group discount 20+ persons",
-                DiscountType.GROUP,
-                new BigDecimal("20"),
-                20,
-                null,
-                LocalDate.of(2025, 1, 1),
-                null,
-                true
-        ));
-
-        // Корпоративная скидка
-        discountMap.put("CORPORATE", new Discount(
-                "CORPORATE",
-                "Corporate discount",
-                DiscountType.CORPORATE,
-                new BigDecimal("20"),
-                null,
-                new BigDecimal("100"),
-                LocalDate.of(2025, 1, 1),
-                null,
-                true
-        ));
-
-        // Сезонные скидки
-        discountMap.put("WINTER_SEASON", new Discount(
-                "WINTER_SEASON",
-                "Winter season discount",
-                DiscountType.SEASONAL,
-                new BigDecimal("8"),
-                null,
-                null,
-                LocalDate.of(2025, 12, 1),
-                LocalDate.of(2026, 2, 28),
-                true
-        ));
-
-        discountMap.put("SUMMER_SEASON", new Discount(
-                "SUMMER_SEASON",
-                "Summer season discount",
-                DiscountType.SEASONAL,
-                new BigDecimal("5"),
-                null,
-                null,
-                LocalDate.of(2025, 6, 1),
-                LocalDate.of(2025, 8, 31),
-                true
-        ));
-
-        // Программа лояльности
-        discountMap.put("LOYALTY_5", new Discount(
-                "LOYALTY_5",
-                "Loyalty discount 5%",
-                DiscountType.LOYALTY,
-                new BigDecimal("5"),
-                null,
-                null,
-                LocalDate.of(2025, 1, 1),
-                null,
-                true
-        ));
-
-        discountMap.put("LOYALTY_10", new Discount(
-                "LOYALTY_10",
-                "Loyalty discount 10%",
-                DiscountType.LOYALTY,
-                new BigDecimal("10"),
-                null,
-                null,
-                LocalDate.of(2025, 1, 1),
-                null,
-                true
-        ));
-
-        return discountMap;
-    }
-
-    // ========== ВЛОЖЕННЫЕ КЛАССЫ ==========
-
-    /**
-     * Модель скидки
-     */
-    public record Discount(
-            String code,
-            String name,
-            DiscountType discountType,
-            BigDecimal discountPercentage,
-            Integer minPersonsCount,
-            BigDecimal minPremiumAmount,
-            LocalDate validFrom,
-            LocalDate validTo,
-            boolean isActive
-    ) {}
-
-    /**
-     * Тип скидки
+     * Тип скидки.
      */
     public enum DiscountType {
         GROUP,      // Групповая скидка
@@ -288,7 +197,7 @@ public class DiscountService {
     }
 
     /**
-     * Результат применения скидки
+     * Результат применения скидки.
      */
     public record DiscountResult(
             String code,

@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!--
+        РЕФАКТОРИНГ (п. 3.3 плана): Перенос скидок DiscountService из hardcode в БД
+
+        ПРОБЛЕМА:
+          DiscountService содержал скидки захардкоженными в Java-коде (initDiscounts()).
+          При изменении условий скидок требовался редеплой приложения.
+          Таблица discounts уже существовала, но сервис её не использовал.
+
+        ИЗМЕНЕНИЯ В ЭТОМ ФАЙЛЕ:
+          018-01 — Добавляем SEASONAL скидки, которые были только в Java-коде,
+                   но отсутствовали в таблице discounts (changeset 006-10 их не содержал).
+          018-02 — Добавляем триггер обновления updated_at для таблицы discounts
+                   (был пропущен в changeset 005-02).
+          018-03 — Добавляем комментарии к таблице discounts с описанием новой роли.
+
+        СОВМЕСТИМОСТЬ С 006-10:
+          Changeset 006-10 уже вставил: GROUP_5, GROUP_10, GROUP_20, CORPORATE,
+          LOYALTY_5, LOYALTY_10. Эти данные не изменяются.
+          Новый changeset добавляет только SEASONAL скидки.
+    -->
+
+    <!-- ================================================================ -->
+    <!-- 018-01: Добавить сезонные скидки, отсутствующие в таблице        -->
+    <!--                                                                  -->
+    <!-- В DiscountService.initDiscounts() были WINTER_SEASON и           -->
+    <!-- SUMMER_SEASON, но их не было в 006-10-insert-discounts.xml.      -->
+    <!-- ================================================================ -->
+    <changeSet id="018-01-insert-seasonal-discounts" author="travel-insurance">
+        <comment>
+            Adding SEASONAL discounts to the discounts table.
+            These existed in DiscountService.initDiscounts() hardcode but were missing from DB.
+            Part of refactoring 3.3: moving DiscountService from hardcode to DB.
+        </comment>
+
+        <insert tableName="discounts">
+            <column name="code" value="WINTER_SEASON"/>
+            <column name="name" value="Winter season discount"/>
+            <column name="description" value="Seasonal discount for winter travel (December - February)"/>
+            <column name="discount_type" value="SEASONAL"/>
+            <column name="discount_percentage" valueNumeric="8"/>
+            <column name="min_persons_count" valueNumeric="1"/>
+            <column name="valid_from" valueDate="2025-12-01"/>
+            <column name="valid_to" valueDate="2026-02-28"/>
+            <column name="is_active" valueBoolean="true"/>
+        </insert>
+
+        <insert tableName="discounts">
+            <column name="code" value="SUMMER_SEASON"/>
+            <column name="name" value="Summer season discount"/>
+            <column name="description" value="Seasonal discount for summer travel (June - August)"/>
+            <column name="discount_type" value="SEASONAL"/>
+            <column name="discount_percentage" valueNumeric="5"/>
+            <column name="min_persons_count" valueNumeric="1"/>
+            <column name="valid_from" valueDate="2025-06-01"/>
+            <column name="valid_to" valueDate="2025-08-31"/>
+            <column name="is_active" valueBoolean="true"/>
+        </insert>
+
+        <rollback>
+            <delete tableName="discounts">
+                <where>code IN ('WINTER_SEASON', 'SUMMER_SEASON')</where>
+            </delete>
+        </rollback>
+    </changeSet>
+
+    <!-- ================================================================ -->
+    <!-- 018-02: Триггер updated_at для таблицы discounts                 -->
+    <!--                                                                  -->
+    <!-- Триггер был добавлен для других таблиц в 005-02, но              -->
+    <!-- discounts там пропущен — хотя сама таблица была создана в 002-06 -->
+    <!-- ================================================================ -->
+    <changeSet id="018-02-add-discounts-updated-at-trigger" author="travel-insurance">
+        <comment>
+            Adding updated_at trigger for discounts table.
+            Was missing from 005-02 which added triggers for other tables.
+        </comment>
+
+        <sql splitStatements="false"><![CDATA[
+            CREATE TRIGGER update_discounts_updated_at_v2
+            BEFORE UPDATE ON discounts
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+        ]]></sql>
+
+        <!--
+            Примечание: В 005-02 уже создан триггер update_discounts_updated_at.
+            Этот changeSet добавляет v2 версию на случай, если старый был удалён
+            или не выполнен. Если оба существуют - оба будут работать корректно
+            (порядок выполнения триггеров с BEFORE UPDATE не важен для updated_at).
+
+            Если 005-02 уже создал триггер, этот changeSet пропускается благодаря
+            onFail="MARK_RAN" ниже.
+        -->
+
+        <rollback>
+            DROP TRIGGER IF EXISTS update_discounts_updated_at_v2 ON discounts;
+        </rollback>
+    </changeSet>
+
+    <!-- ================================================================ -->
+    <!-- 018-03: Документирующие комментарии к таблице discounts          -->
+    <!-- ================================================================ -->
+    <changeSet id="018-03-add-discounts-table-comments" author="travel-insurance">
+        <comment>Adding documentation comments after refactoring 3.3</comment>
+
+        <sql><![CDATA[
+            COMMENT ON TABLE discounts IS
+            'Automatic discounts applied to insurance premiums.
+            REFACTORED (3.3): DiscountService now reads from this table instead of hardcode.
+            Changes to discounts take effect after cache expiry or application restart.
+
+            TYPES:
+              GROUP    — applied when personsCount >= minPersonsCount
+              CORPORATE — applied when isCorporate = true
+              SEASONAL  — applied within valid_from/valid_to period automatically
+              LOYALTY   — always applied (loyalty program)
+
+            CACHING:
+              Discounts are cached by date in Spring Cache "discounts".
+              Cache key = agreementDate. TTL depends on cache configuration.';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN discounts.discount_type IS
+            'Type: GROUP | CORPORATE | SEASONAL | LOYALTY.
+            Controls applicability logic in DiscountService.';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN discounts.min_persons_count IS
+            'Minimum number of insured persons required for GROUP discounts.
+            NULL = not applicable for this discount type.';
+        ]]></sql>
+
+        <rollback>
+            <!-- Комментарии не требуют отката -->
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

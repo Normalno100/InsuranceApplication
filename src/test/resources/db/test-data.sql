@@ -117,3 +117,22 @@ INSERT INTO underwriting_rules_config (rule_name, parameter_name, parameter_valu
 ('MedicalCoverageRule', 'BLOCKING_AGE', '75', 'Age blocking high coverage', '2020-01-01', true, CURRENT_TIMESTAMP),
 ('MedicalCoverageRule', 'REVIEW_COVERAGE_THRESHOLD', '100000', 'Coverage requiring review', '2020-01-01', true, CURRENT_TIMESTAMP),
 ('MedicalCoverageRule', 'BLOCKING_COVERAGE_THRESHOLD', '200000', 'Max coverage for elderly', '2020-01-01', true, CURRENT_TIMESTAMP);
+
+-- ============================================
+-- 9. DISCOUNTS (новый раздел)
+-- ============================================
+DELETE FROM discounts;
+
+INSERT INTO discounts (code, name, description, discount_type, discount_percentage, min_persons_count, min_premium_amount, valid_from, is_active, created_at) VALUES
+-- Групповые скидки
+('GROUP_5',  'Group discount 5 persons',  'Discount for groups of 5+',  'GROUP',    10, 5,  NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
+('GROUP_10', 'Group discount 10 persons', 'Discount for groups of 10+', 'GROUP',    15, 10, NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
+('GROUP_20', 'Group discount 20 persons', 'Discount for groups of 20+', 'GROUP',    20, 20, NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
+-- Корпоративная скидка
+('CORPORATE', 'Corporate discount', 'Discount for corporate clients', 'CORPORATE', 20, 1, 100, '2020-01-01', true, CURRENT_TIMESTAMP),
+-- Программа лояльности
+('LOYALTY_5',  'Loyalty 5%',  'Loyalty program discount 5%',  'LOYALTY', 5,  1, NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
+('LOYALTY_10', 'Loyalty 10%', 'Loyalty program discount 10%', 'LOYALTY', 10, 1, NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
+-- Сезонные скидки (активны для тестов)
+('WINTER_SEASON', 'Winter season discount', 'Winter seasonal discount', 'SEASONAL', 8, 1, NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
+('SUMMER_SEASON', 'Summer season discount', 'Summer seasonal discount', 'SEASONAL', 5, 1, NULL, '2020-01-01', true, CURRENT_TIMESTAMP);
