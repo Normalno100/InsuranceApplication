@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class RiskTypeEntity {
+public class RiskTypeEntity implements TemporallyValid {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -55,15 +55,7 @@ public class RiskTypeEntity {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    /**
-     * Проверяет, активен ли риск на указанную дату
-     */
-    public boolean isActiveOn(LocalDate date) {
-        if (date.isBefore(validFrom)) {
-            return false;
-        }
-        return validTo == null || !date.isAfter(validTo);
-    }
+    // isActiveOn(LocalDate) — унаследован от TempoралlyValid
 
     /**
      * Проверяет, активен ли риск сейчас

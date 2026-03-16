@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class RiskBundleEntity {
+public class RiskBundleEntity implements TemporallyValid {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -62,18 +62,7 @@ public class RiskBundleEntity {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    /**
-     * Проверяет, активен ли пакет на указанную дату
-     */
-    public boolean isActiveOn(LocalDate date) {
-        if (!Boolean.TRUE.equals(isActive)) {
-            return false;
-        }
-        if (date.isBefore(validFrom)) {
-            return false;
-        }
-        return validTo == null || !date.isAfter(validTo);
-    }
+    // isActiveOn(LocalDate) — унаследован от TemporallyValid
 
     @PrePersist
     protected void onCreate() {

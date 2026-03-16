@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class AgeCoefficientEntity {
+public class AgeCoefficientEntity implements TemporallyValid {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -75,15 +75,7 @@ public class AgeCoefficientEntity {
         return age >= ageFrom && age <= ageTo;
     }
 
-    /**
-     * Проверяет, активен ли коэффициент на указанную дату.
-     */
-    public boolean isActiveOn(LocalDate date) {
-        if (date.isBefore(validFrom)) {
-            return false;
-        }
-        return validTo == null || !date.isAfter(validTo);
-    }
+    // isActiveOn(LocalDate) — унаследован от TemporallyValid
 
     @PrePersist
     protected void onCreate() {

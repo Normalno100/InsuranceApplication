@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class CountryEntity {
+public class CountryEntity implements TemporallyValid {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -52,15 +52,7 @@ public class CountryEntity {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    /**
-     * Проверяет, активна ли страна на указанную дату
-     */
-    public boolean isActiveOn(LocalDate date) {
-        if (date.isBefore(validFrom)) {
-            return false;
-        }
-        return validTo == null || !date.isAfter(validTo);
-    }
+    // isActiveOn(LocalDate) — унаследован от TemporallyValid
 
     /**
      * Проверяет, активна ли страна сейчас

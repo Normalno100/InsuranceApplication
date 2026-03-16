@@ -15,7 +15,6 @@ import java.time.LocalDateTime;
  *
  * ИЗМЕНЕНИЯ task_117:
  * - Добавлено поле maxPayoutAmount — максимальная сумма страховой выплаты.
- *   NULL означает, что лимит не установлен (выплата = coverageAmount).
  */
 @Entity
 @Table(name = "medical_risk_limit_levels")
@@ -23,7 +22,7 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class MedicalRiskLimitLevelEntity {
+public class MedicalRiskLimitLevelEntity implements TemporallyValid {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -46,10 +45,7 @@ public class MedicalRiskLimitLevelEntity {
      *
      * task_117:
      *   NULL  → лимит не установлен, выплата = coverageAmount
-     *   > 0   → выплата ограничена этим значением даже если coverageAmount выше
-     *
-     * Пример: coverageAmount = 200_000, maxPayoutAmount = 150_000 →
-     *   при наступлении страхового случая выплачивается не более 150_000.
+     *   > 0   → выплата ограничена этим значением
      */
     @Column(name = "max_payout_amount", precision = 12, scale = 2)
     private BigDecimal maxPayoutAmount;
@@ -77,21 +73,12 @@ public class MedicalRiskLimitLevelEntity {
 
     /**
      * Проверяет, установлен ли явный лимит выплат
-     * (отличный от coverageAmount).
      */
     public boolean hasExplicitPayoutLimit() {
         return maxPayoutAmount != null;
     }
 
-    /**
-     * Проверяет, активен ли уровень на указанную дату
-     */
-    public boolean isActiveOn(LocalDate date) {
-        if (date.isBefore(validFrom)) {
-            return false;
-        }
-        return validTo == null || !date.isAfter(validTo);
-    }
+    // isActiveOn(LocalDate) — унаследован от TemporallyValid
 
     /**
      * Проверяет, активен ли уровень сейчас
