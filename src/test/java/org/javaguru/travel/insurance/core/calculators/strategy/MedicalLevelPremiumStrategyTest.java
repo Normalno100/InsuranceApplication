@@ -42,7 +42,14 @@ class MedicalLevelPremiumStrategyTest {
 
     @Mock private ReferenceDataPort referenceDataPort;
     @Mock private CountryDefaultDayPremiumService countryDefaultDayPremiumService;
-    @Mock private SharedCalculationComponents shared;
+
+    // ✅ Конкретные калькуляторы вместо SharedCalculationComponents
+    @Mock private PersonAgeCalculator personAgeCalculator;
+    @Mock private TripDurationCalculator tripDurationCalculator;
+    @Mock private AdditionalRisksCalculator additionalRisksCalculator;
+    @Mock private BundleDiscountCalculator bundleDiscountCalculator;
+    @Mock private RiskDetailsBuilder riskDetailsBuilder;
+
     @Mock private CalculationStepsBuilder stepsBuilder;
     @Mock private CalculationConfigService calculationConfigService;
     @Mock private PayoutLimitService payoutLimitService;
@@ -90,6 +97,77 @@ class MedicalLevelPremiumStrategyTest {
         PremiumCalculationResult result = strategy.calculate(request);
 
         assertThat(result.payoutLimitApplied()).isFalse();
+    }
+
+    @Test
+    void calculate_delegatesToPersonAgeCalculator() {
+        var request = buildRequest(true);
+        setupMocks(true, BigDecimal.ONE, noPayoutLimit());
+
+        strategy.calculate(request);
+
+        verify(personAgeCalculator).calculate(BIRTH_DATE, DATE_FROM, true);
+    }
+
+    @Test
+    void calculate_delegatesToTripDurationCalculator() {
+        var request = buildRequest(null);
+        setupMocks(true, BigDecimal.ONE, noPayoutLimit());
+
+        strategy.calculate(request);
+
+        verify(tripDurationCalculator).calculateDays(DATE_FROM, DATE_TO);
+        verify(tripDurationCalculator).getDurationCoefficient(14L, DATE_FROM);
+    }
+
+    @Test
+    void calculate_delegatesToAdditionalRisksCalculator() {
+        var request = buildRequest(null);
+        setupMocks(true, BigDecimal.ONE, noPayoutLimit());
+
+        strategy.calculate(request);
+
+        verify(additionalRisksCalculator).calculate(
+                eq(Collections.emptyList()), eq(35), eq(DATE_FROM));
+    }
+
+    @Test
+    void calculate_delegatesToBundleDiscountCalculator() {
+        var request = buildRequest(null);
+        setupMocks(true, BigDecimal.ONE, noPayoutLimit());
+
+        strategy.calculate(request);
+
+        verify(bundleDiscountCalculator).calculate(
+                eq(Collections.emptyList()), any(BigDecimal.class), eq(DATE_FROM));
+    }
+
+    @Test
+    void calculate_delegatesToRiskDetailsBuilder() {
+        var request = buildRequest(null);
+        setupMocks(true, BigDecimal.ONE, noPayoutLimit());
+
+        strategy.calculate(request);
+
+        verify(riskDetailsBuilder).build(
+                eq(Collections.emptyList()),
+                eq(DAILY_RATE),
+                eq(BigDecimal.ONE),
+                eq(COUNTRY_COEFF),
+                eq(DURATION_COEFF),
+                eq(14),
+                eq(35),
+                eq(DATE_FROM));
+    }
+
+    @Test
+    void calculate_whenAgeCoefficientDisabled_passesEnabledFalseToCalculator() {
+        var request = buildRequest(false);
+        setupMocks(false, BigDecimal.ONE, noPayoutLimit());
+
+        strategy.calculate(request);
+
+        verify(personAgeCalculator).calculate(BIRTH_DATE, DATE_FROM, false);
     }
 
     // =========================================================
@@ -145,7 +223,6 @@ class MedicalLevelPremiumStrategyTest {
 
         var coefficient = mock(org.javaguru.travel.insurance.domain.model.valueobject.Coefficient.class);
         when(coefficient.value()).thenReturn(COUNTRY_COEFF);
-
         when(country.getRiskCoefficient()).thenReturn(coefficient);
 
         when(referenceDataPort.findCountry(any(CountryCode.class), eq(DATE_FROM)))
@@ -155,33 +232,38 @@ class MedicalLevelPremiumStrategyTest {
         when(calculationConfigService.resolveAgeCoefficientEnabled(any(), eq(DATE_FROM)))
                 .thenReturn(ageCoefficientEnabled);
 
-        // Age
+        // PersonAgeCalculator
         var ageResult = new AgeCalculator.AgeCalculationResult(35, ageCoeff, "Adults");
-        when(shared.calculateAge(eq(BIRTH_DATE), eq(DATE_FROM), eq(ageCoefficientEnabled)))
+        when(personAgeCalculator.calculate(eq(BIRTH_DATE), eq(DATE_FROM), eq(ageCoefficientEnabled)))
                 .thenReturn(ageResult);
 
-        // Days
-        when(shared.calculateDays(DATE_FROM, DATE_TO)).thenReturn(14L);
-
-        when(shared.getDurationCoefficient(eq(14L), eq(DATE_FROM)))
+        // TripDurationCalculator
+        when(tripDurationCalculator.calculateDays(DATE_FROM, DATE_TO)).thenReturn(14L);
+        when(tripDurationCalculator.getDurationCoefficient(eq(14L), eq(DATE_FROM)))
                 .thenReturn(DURATION_COEFF);
 
-        when(shared.calculateAdditionalRisks(any(), eq(35), eq(DATE_FROM)))
-                .thenReturn(new SharedCalculationComponents.AdditionalRisksResult(BigDecimal.ZERO, List.of()));
+        // AdditionalRisksCalculator
+        when(additionalRisksCalculator.calculate(any(), eq(35), eq(DATE_FROM)))
+                .thenReturn(new AdditionalRisksCalculator.AdditionalRisksResult(
+                        BigDecimal.ZERO, List.of()));
 
-        when(shared.calculateBundleDiscount(any(), any(), eq(DATE_FROM)))
+        // BundleDiscountCalculator
+        when(bundleDiscountCalculator.calculate(any(), any(), eq(DATE_FROM)))
                 .thenReturn(new BundleDiscountResult(null, BigDecimal.ZERO));
 
-        when(shared.buildRiskDetails(any(), any(), any(), any(), any(), anyInt(), eq(35), eq(DATE_FROM)))
+        // RiskDetailsBuilder
+        when(riskDetailsBuilder.build(any(), any(), any(), any(), any(), anyInt(), eq(35), eq(DATE_FROM)))
                 .thenReturn(List.of());
 
-        // payout limit
+        // PayoutLimitService
         when(payoutLimitService.applyPayoutLimit(any(), any(), any()))
                 .thenReturn(payoutLimitResult);
 
+        // CountryDefaultDayPremiumService (для CountryInfo в ответе)
         when(countryDefaultDayPremiumService.findDefaultDayPremium(eq("ES"), eq(DATE_FROM)))
                 .thenReturn(Optional.empty());
 
+        // CalculationStepsBuilder
         when(stepsBuilder.buildMedicalLevelSteps(
                 any(), any(), any(), any(), any(),
                 anyLong(), any(), any(), any(),

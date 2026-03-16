@@ -24,16 +24,18 @@ import java.math.RoundingMode;
  *   ПРЕМИЯ = DefaultDayPremium × AgeCoeff × DurationCoeff
  *            × (1 + Σ riskCoeffs) × Days − BundleDiscount
  *
- * ИЗМЕНЕНИЯ (рефакторинг DIP п.3.1):
- *   Заменена прямая зависимость на infrastructure-репозиторий:
- *     ❌ CountryRepository  →  ✅ ReferenceDataPort
+ * ИЗМЕНЕНИЯ (п. 3.2 плана рефакторинга — финальный шаг декомпозиции God Component):
+ *   ❌ SharedCalculationComponents  →  ✅ прямые зависимости от конкретных калькуляторов:
+ *     PersonAgeCalculator        — возраст и возрастной коэффициент
+ *     TripDurationCalculator     — количество дней и коэффициент длительности
+ *     AdditionalRisksCalculator  — дополнительные риски
+ *     BundleDiscountCalculator   — пакетная скидка
+ *     RiskDetailsBuilder         — детали по рискам для ответа API
  *
- *   Теперь core слой зависит только от domain port (интерфейс),
- *   а не от infrastructure реализации. Стрела зависимости направлена внутрь.
+ * SharedCalculationComponents удалён из зависимостей.
  *
- * ИЗМЕНЕНИЯ task_117:
- *   В режиме COUNTRY_DEFAULT лимит выплат не применяется (нет medicalRiskLimitLevel).
- *   Поля medicalPayoutLimit, appliedPayoutLimit, payoutLimitApplied = null / false.
+ * В режиме COUNTRY_DEFAULT лимит выплат не применяется (нет medicalRiskLimitLevel).
+ * Поля medicalPayoutLimit, appliedPayoutLimit, payoutLimitApplied = null / false.
  */
 @Slf4j
 @Component
@@ -45,7 +47,13 @@ public class CountryDefaultPremiumStrategy implements PremiumCalculationStrategy
     // ✅ Domain port — правильная зависимость для core слоя
     private final ReferenceDataPort referenceDataPort;
 
-    private final SharedCalculationComponents shared;
+    // ✅ Прямые зависимости от конкретных калькуляторов (SRP, нет God Component)
+    private final PersonAgeCalculator personAgeCalculator;
+    private final TripDurationCalculator tripDurationCalculator;
+    private final AdditionalRisksCalculator additionalRisksCalculator;
+    private final BundleDiscountCalculator bundleDiscountCalculator;
+    private final RiskDetailsBuilder riskDetailsBuilder;
+
     private final CalculationStepsBuilder stepsBuilder;
     private final CalculationConfigService calculationConfigService;
 
@@ -74,19 +82,26 @@ public class CountryDefaultPremiumStrategy implements PremiumCalculationStrategy
                 request.getApplyAgeCoefficient(),
                 request.getAgreementDateFrom());
 
-        // 4. Возраст и коэффициент
-        AgeCalculator.AgeCalculationResult ageResult = shared.calculateAge(
+        // 4. Возраст и коэффициент — PersonAgeCalculator
+        AgeCalculator.AgeCalculationResult ageResult = personAgeCalculator.calculate(
                 request.getPersonBirthDate(),
                 request.getAgreementDateFrom(),
                 ageCoefficientEnabled);
 
-        // 5. Дни и коэффициент длительности
-        long days = shared.calculateDays(request.getAgreementDateFrom(), request.getAgreementDateTo());
-        BigDecimal durationCoefficient = shared.getDurationCoefficient(days, request.getAgreementDateFrom());
+        // 5. Дни и коэффициент длительности — TripDurationCalculator
+        long days = tripDurationCalculator.calculateDays(
+                request.getAgreementDateFrom(),
+                request.getAgreementDateTo());
+        BigDecimal durationCoefficient = tripDurationCalculator.getDurationCoefficient(
+                days,
+                request.getAgreementDateFrom());
 
-        // 6. Дополнительные риски
-        SharedCalculationComponents.AdditionalRisksResult additionalRisks = shared.calculateAdditionalRisks(
-                request.getSelectedRisks(), ageResult.age(), request.getAgreementDateFrom());
+        // 6. Дополнительные риски — AdditionalRisksCalculator
+        AdditionalRisksCalculator.AdditionalRisksResult additionalRisks =
+                additionalRisksCalculator.calculate(
+                        request.getSelectedRisks(),
+                        ageResult.age(),
+                        request.getAgreementDateFrom());
 
         // 7. Базовая премия — БЕЗ countryCoefficient (уже включён в defaultDayPremium)
         BigDecimal basePremium = countryDefaultDayPremiumService.calculateBasePremium(
@@ -101,16 +116,19 @@ public class CountryDefaultPremiumStrategy implements PremiumCalculationStrategy
                     .setScale(2, RoundingMode.HALF_UP);
         }
 
-        // 8. Пакетная скидка
-        BundleDiscountResult bundleDiscount = shared.calculateBundleDiscount(
-                request.getSelectedRisks(), basePremium, request.getAgreementDateFrom());
+        // 8. Пакетная скидка — BundleDiscountCalculator
+        BundleDiscountResult bundleDiscount = bundleDiscountCalculator.calculate(
+                request.getSelectedRisks(),
+                basePremium,
+                request.getAgreementDateFrom());
 
         // 9. Итоговая премия
         BigDecimal finalPremium = basePremium.subtract(bundleDiscount.discountAmount())
                 .setScale(2, RoundingMode.HALF_UP);
 
-        // 10. Детали по рискам (countryCoeff = ONE в COUNTRY_DEFAULT)
-        var riskDetails = shared.buildRiskDetails(
+        // 10. Детали по рискам — RiskDetailsBuilder
+        //     countryCoeff = ONE в COUNTRY_DEFAULT (коэффициент уже в baseRate)
+        var riskDetails = riskDetailsBuilder.build(
                 request.getSelectedRisks(),
                 defaultPremium.defaultDayPremium(),
                 ageResult.coefficient(),

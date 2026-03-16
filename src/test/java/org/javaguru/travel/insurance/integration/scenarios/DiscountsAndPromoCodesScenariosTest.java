@@ -135,8 +135,8 @@ class DiscountsAndPromoCodesScenariosTest extends BaseIntegrationTest {
                 .personFirstName("Late")
                 .personLastName("User")
                 .personBirthDate(LocalDate.of(1990, 1, 1))
-                .agreementDateFrom(LocalDate.of(2026, 3, 15)) // после окончания WINTER2025
-                .agreementDateTo(LocalDate.of(2026, 3, 25))
+                .agreementDateFrom(LocalDate.now().plusDays(1))
+                .agreementDateTo(LocalDate.now().plusDays(10))
                 .countryIsoCode("FR")
                 .medicalRiskLimitLevel("50000")
                 .promoCode("WINTER2025")

@@ -23,10 +23,8 @@ import java.util.Optional;
  *   применяет возрастной модификатор и возвращает суммарный коэффициент
  *   и детали по каждому риску.
  *
- * ИСПРАВЛЕНИЕ DIP (п. 3.1 / 3.2):
- *   Ранее SharedCalculationComponents использовал RiskTypeRepository напрямую.
- *   Теперь этот компонент зависит от ReferenceDataPort (domain port) —
- *   стрела зависимости направлена внутрь (core → domain, не core → infrastructure).
+ * ИСПРАВЛЕНИЕ DIP (п. 3.1):
+ *   Зависит от ReferenceDataPort (domain port), а не от RiskTypeRepository.
  */
 @Slf4j
 @Component
@@ -57,7 +55,7 @@ public class AdditionalRisksCalculator {
             return new AdditionalRisksResult(BigDecimal.ZERO, new ArrayList<>());
         }
 
-        List<ModifiedRiskDetail> modifiedRisks = new ArrayList<>();
+        List<RiskDetail> riskDetails = new ArrayList<>();
         BigDecimal totalCoefficient = BigDecimal.ZERO;
 
         for (String riskCode : selectedRiskCodes) {
@@ -77,7 +75,7 @@ public class AdditionalRisksCalculator {
 
             BigDecimal modifiedCoefficient = baseCoefficient.multiply(ageModifier);
 
-            modifiedRisks.add(new ModifiedRiskDetail(
+            riskDetails.add(new RiskDetail(
                     riskCode, baseCoefficient, ageModifier, modifiedCoefficient));
 
             totalCoefficient = totalCoefficient.add(modifiedCoefficient);
@@ -87,9 +85,9 @@ public class AdditionalRisksCalculator {
         }
 
         log.debug("Total additional risks coefficient: {} ({} risks)",
-                totalCoefficient, modifiedRisks.size());
+                totalCoefficient, riskDetails.size());
 
-        return new AdditionalRisksResult(totalCoefficient, modifiedRisks);
+        return new AdditionalRisksResult(totalCoefficient, riskDetails);
     }
 
     // ========================================
@@ -100,17 +98,17 @@ public class AdditionalRisksCalculator {
      * Суммарный результат расчёта дополнительных рисков.
      *
      * @param totalCoefficient суммарный коэффициент всех применённых рисков
-     * @param modifiedRisks    детали по каждому риску с возрастным модификатором
+     * @param riskDetails      детали по каждому риску с возрастным модификатором
      */
     public record AdditionalRisksResult(
             BigDecimal totalCoefficient,
-            List<ModifiedRiskDetail> modifiedRisks
+            List<RiskDetail> riskDetails
     ) {}
 
     /**
      * Детали по одному риску после применения возрастного модификатора.
      */
-    public record ModifiedRiskDetail(
+    public record RiskDetail(
             String riskCode,
             BigDecimal baseCoefficient,
             BigDecimal ageModifier,
