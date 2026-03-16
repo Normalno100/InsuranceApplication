@@ -4,9 +4,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 import org.javaguru.travel.insurance.core.calculators.AgeCalculator;
+import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator.AgeDetails;
 import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator.BundleDiscountResult;
 import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator.CalculationMode;
+import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator.CountryDetails;
+import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator.PayoutLimitDetails;
 import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator.PremiumCalculationResult;
+import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator.RiskDetails;
+import org.javaguru.travel.insurance.core.calculators.MedicalRiskPremiumCalculator.TripDetails;
 import org.javaguru.travel.insurance.core.services.CalculationConfigService;
 import org.javaguru.travel.insurance.core.services.CountryDefaultDayPremiumService;
 import org.javaguru.travel.insurance.core.services.PayoutLimitService;
@@ -26,33 +31,22 @@ import java.math.RoundingMode;
  *   ПРЕМИЯ = DailyRate × AgeCoeff × CountryCoeff × DurationCoeff
  *            × (1 + Σ riskCoeffs) × Days − BundleDiscount
  *
- * ИЗМЕНЕНИЯ (п. 3.2 плана рефакторинга — финальный шаг декомпозиции God Component):
- *   ❌ SharedCalculationComponents  →  ✅ прямые зависимости от конкретных калькуляторов:
- *     PersonAgeCalculator        — возраст и возрастной коэффициент
- *     TripDurationCalculator     — количество дней и коэффициент длительности
- *     AdditionalRisksCalculator  — дополнительные риски
- *     BundleDiscountCalculator   — пакетная скидка
- *     RiskDetailsBuilder         — детали по рискам для ответа API
- *
- * SharedCalculationComponents удалён из зависимостей.
+ * РЕФАКТОРИНГ (п. 4.3): PremiumCalculationResult собирается через
+ * вложенные records AgeDetails, CountryDetails, TripDetails, RiskDetails,
+ * PayoutLimitDetails вместо 22 плоских параметров.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class MedicalLevelPremiumStrategy implements PremiumCalculationStrategy {
 
-    // ✅ Domain port — правильная зависимость для core слоя
     private final ReferenceDataPort referenceDataPort;
-
     private final CountryDefaultDayPremiumService countryDefaultDayPremiumService;
-
-    // ✅ Прямые зависимости от конкретных калькуляторов (SRP, нет God Component)
     private final PersonAgeCalculator personAgeCalculator;
     private final TripDurationCalculator tripDurationCalculator;
     private final AdditionalRisksCalculator additionalRisksCalculator;
     private final BundleDiscountCalculator bundleDiscountCalculator;
     private final RiskDetailsBuilder riskDetailsBuilder;
-
     private final CalculationStepsBuilder stepsBuilder;
     private final CalculationConfigService calculationConfigService;
     private final PayoutLimitService payoutLimitService;
@@ -64,51 +58,40 @@ public class MedicalLevelPremiumStrategy implements PremiumCalculationStrategy {
                 request.getMedicalRiskLimitLevel(),
                 request.getApplyAgeCoefficient());
 
-        // 1. Справочные данные через domain port
+        // 1. Справочные данные
         MedicalRiskLimitLevel medicalLevel = referenceDataPort
-                .findMedicalLevel(
-                        request.getMedicalRiskLimitLevel(),
-                        request.getAgreementDateFrom())
+                .findMedicalLevel(request.getMedicalRiskLimitLevel(), request.getAgreementDateFrom())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Medical level not found: " + request.getMedicalRiskLimitLevel()));
 
         Country country = referenceDataPort
-                .findCountry(
-                        new CountryCode(request.getCountryIsoCode()),
-                        request.getAgreementDateFrom())
+                .findCountry(new CountryCode(request.getCountryIsoCode()), request.getAgreementDateFrom())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Country not found: " + request.getCountryIsoCode()));
 
-        // 2. task_116: определяем, применять ли возрастной коэффициент
+        // 2. AgeCoefficient switch (task_116)
         boolean ageCoefficientEnabled = calculationConfigService.resolveAgeCoefficientEnabled(
-                request.getApplyAgeCoefficient(),
-                request.getAgreementDateFrom());
+                request.getApplyAgeCoefficient(), request.getAgreementDateFrom());
 
-        // 3. Возраст и коэффициент — PersonAgeCalculator
+        // 3. Возраст — PersonAgeCalculator
         AgeCalculator.AgeCalculationResult ageResult = personAgeCalculator.calculate(
-                request.getPersonBirthDate(),
-                request.getAgreementDateFrom(),
-                ageCoefficientEnabled);
+                request.getPersonBirthDate(), request.getAgreementDateFrom(), ageCoefficientEnabled);
 
-        // 4. Дни и коэффициент длительности — TripDurationCalculator
+        // 4. Длительность — TripDurationCalculator
         long days = tripDurationCalculator.calculateDays(
-                request.getAgreementDateFrom(),
-                request.getAgreementDateTo());
+                request.getAgreementDateFrom(), request.getAgreementDateTo());
         BigDecimal durationCoefficient = tripDurationCalculator.getDurationCoefficient(
-                days,
-                request.getAgreementDateFrom());
+                days, request.getAgreementDateFrom());
 
         // 5. Дополнительные риски — AdditionalRisksCalculator
         AdditionalRisksCalculator.AdditionalRisksResult additionalRisks =
                 additionalRisksCalculator.calculate(
-                        request.getSelectedRisks(),
-                        ageResult.age(),
-                        request.getAgreementDateFrom());
+                        request.getSelectedRisks(), ageResult.age(), request.getAgreementDateFrom());
 
-        // 6. Коэффициент страны из domain entity
+        // 6. Коэффициент страны
         BigDecimal countryRiskCoefficient = country.getRiskCoefficient().value();
 
-        // 7. Итоговый коэффициент (MEDICAL_LEVEL включает countryCoeff)
+        // 7. Итоговый коэффициент
         BigDecimal totalCoeff = ageResult.coefficient()
                 .multiply(countryRiskCoefficient)
                 .multiply(durationCoefficient)
@@ -120,7 +103,7 @@ public class MedicalLevelPremiumStrategy implements PremiumCalculationStrategy {
                 .multiply(BigDecimal.valueOf(days))
                 .setScale(2, RoundingMode.HALF_UP);
 
-        // 9. task_117: применяем лимит выплат
+        // 9. task_117: лимит выплат
         PayoutLimitService.PayoutLimitResult payoutResult = payoutLimitService.applyPayoutLimit(
                 rawBasePremium,
                 medicalLevel.getCoverageAmount(),
@@ -130,16 +113,14 @@ public class MedicalLevelPremiumStrategy implements PremiumCalculationStrategy {
 
         // 10. Пакетная скидка — BundleDiscountCalculator
         BundleDiscountResult bundleDiscount = bundleDiscountCalculator.calculate(
-                request.getSelectedRisks(),
-                basePremium,
-                request.getAgreementDateFrom());
+                request.getSelectedRisks(), basePremium, request.getAgreementDateFrom());
 
         // 11. Итоговая премия
         BigDecimal finalPremium = basePremium.subtract(bundleDiscount.discountAmount())
                 .setScale(2, RoundingMode.HALF_UP);
 
         // 12. Детали по рискам — RiskDetailsBuilder
-        var riskDetails = riskDetailsBuilder.build(
+        var riskPremiumDetails = riskDetailsBuilder.build(
                 request.getSelectedRisks(),
                 medicalLevel.getDailyRate(),
                 ageResult.coefficient(),
@@ -149,7 +130,7 @@ public class MedicalLevelPremiumStrategy implements PremiumCalculationStrategy {
                 ageResult.age(),
                 request.getAgreementDateFrom());
 
-        // 13. Дефолтная ставка страны (только для CountryInfo в ответе)
+        // 13. CountryInfo для ответа
         CountryDefaultDayPremiumService.DefaultPremiumResult defaultPremiumInfo =
                 countryDefaultDayPremiumService
                         .findDefaultDayPremium(request.getCountryIsoCode(), request.getAgreementDateFrom())
@@ -175,30 +156,43 @@ public class MedicalLevelPremiumStrategy implements PremiumCalculationStrategy {
                 countryRiskCoefficient, durationCoefficient, bundleDiscount.discountAmount(),
                 payoutResult.payoutLimitApplied());
 
-        return new PremiumCalculationResult(
-                finalPremium,
-                medicalLevel.getDailyRate(),
+        // ── Сборка результата через вложенные records (п. 4.3) ──────────────
+
+        AgeDetails ageDetails = new AgeDetails(
                 ageResult.age(),
                 ageResult.coefficient(),
-                ageResult.description(),
-                countryRiskCoefficient,
+                ageResult.description());
+
+        CountryDetails countryDetails = new CountryDetails(
                 country.getNameEn(),
+                countryRiskCoefficient,
+                null,   // countryDefaultDayPremium — не применяется в MEDICAL_LEVEL
+                defaultPremiumInfo != null ? defaultPremiumInfo.defaultDayPremium() : null,
+                defaultPremiumInfo != null ? defaultPremiumInfo.currency() : null);
+
+        TripDetails tripDetails = new TripDetails(
+                (int) days,
                 durationCoefficient,
                 additionalRisks.totalCoefficient(),
                 totalCoeff,
-                (int) days,
-                medicalLevel.getCoverageAmount(),
-                riskDetails,
-                bundleDiscount,
-                steps,
-                CalculationMode.MEDICAL_LEVEL,
-                null,
-                defaultPremiumInfo != null ? defaultPremiumInfo.defaultDayPremium() : null,
-                defaultPremiumInfo != null ? defaultPremiumInfo.currency() : null,
-                // task_117
-                medicalLevel.getCoverageAmount(),
+                medicalLevel.getCoverageAmount());
+
+        RiskDetails riskDetails = new RiskDetails(riskPremiumDetails, bundleDiscount);
+
+        PayoutLimitDetails payoutLimitDetails = new PayoutLimitDetails(
+                medicalLevel.getCoverageAmount(),   // medicalPayoutLimit = coverageAmount для отображения
                 payoutResult.appliedPayoutLimit(),
-                payoutResult.payoutLimitApplied()
-        );
+                payoutResult.payoutLimitApplied());
+
+        return new PremiumCalculationResult(
+                finalPremium,
+                medicalLevel.getDailyRate(),
+                ageDetails,
+                countryDetails,
+                tripDetails,
+                riskDetails,
+                CalculationMode.MEDICAL_LEVEL,
+                steps,
+                payoutLimitDetails);
     }
 }

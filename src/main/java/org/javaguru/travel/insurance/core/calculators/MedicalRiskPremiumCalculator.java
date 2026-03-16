@@ -15,11 +15,13 @@ import java.util.List;
 /**
  * Фасад расчёта медицинской страховой премии.
  *
- * ИЗМЕНЕНИЯ task_117:
- * - PremiumCalculationResult дополнен полями:
- *     medicalPayoutLimit      — лимит выплат для отображения в TripSummary
- *     appliedPayoutLimit      — фактически применённый лимит
- *     payoutLimitApplied      — флаг: была ли произведена корректировка премии
+ * РЕФАКТОРИНГ (п. 4.3 плана):
+ * - PremiumCalculationResult декомпозирован с 22 параметров на вложенные records:
+ *     AgeDetails       — возраст и возрастной коэффициент
+ *     CountryDetails   — страна, коэффициент, дефолтные ставки
+ *     TripDetails      — дни, коэффициенты длительности, покрытие
+ *     RiskDetails      — детали рисков, пакетная скидка
+ *     PayoutLimitDetails — лимит выплат (task_117)
  */
 @Slf4j
 @Component
@@ -86,40 +88,83 @@ public class MedicalRiskPremiumCalculator {
             BigDecimal discountAmount
     ) {}
 
+    // ── Вложенные records (декомпозиция 22 полей) ──────────────────────────
+
+    /**
+     * Возраст застрахованного и возрастной коэффициент.
+     */
+    public record AgeDetails(
+            int age,
+            BigDecimal ageCoefficient,
+            String ageGroupDescription
+    ) {}
+
+    /**
+     * Информация о стране назначения.
+     *
+     * countryDefaultDayPremium       — дефолтная ставка, применённая в расчёте (только COUNTRY_DEFAULT)
+     * countryDefaultDayPremiumForInfo — дефолтная ставка для информации в ответе (оба режима)
+     * countryDefaultCurrency          — валюта дефолтной ставки
+     */
+    public record CountryDetails(
+            String countryName,
+            BigDecimal countryCoefficient,
+            BigDecimal countryDefaultDayPremium,
+            BigDecimal countryDefaultDayPremiumForInfo,
+            String countryDefaultCurrency
+    ) {}
+
+    /**
+     * Параметры поездки и расчётные коэффициенты.
+     */
+    public record TripDetails(
+            int days,
+            BigDecimal durationCoefficient,
+            BigDecimal additionalRisksCoefficient,
+            BigDecimal totalCoefficient,
+            BigDecimal coverageAmount
+    ) {}
+
+    /**
+     * Детализация по рискам и пакетная скидка.
+     */
+    public record RiskDetails(
+            List<RiskPremiumDetail> riskPremiumDetails,
+            BundleDiscountResult bundleDiscount
+    ) {}
+
+    /**
+     * Лимит страховых выплат (task_117).
+     *
+     * medicalPayoutLimit   — лимит выплат для отображения в TripSummary
+     * appliedPayoutLimit   — фактически применённый лимит
+     * payoutLimitApplied   — true если премия была скорректирована из-за лимита
+     */
+    public record PayoutLimitDetails(
+            BigDecimal medicalPayoutLimit,
+            BigDecimal appliedPayoutLimit,
+            boolean payoutLimitApplied
+    ) {}
+
     /**
      * Полный результат расчёта премии.
      *
-     * ИЗМЕНЕНИЯ task_117:
-     *   medicalPayoutLimit   — лимит выплат (для отображения в TripSummary)
-     *   appliedPayoutLimit   — фактически применённый лимит
-     *   payoutLimitApplied   — true если премия была скорректирована из-за лимита
+     * РЕФАКТОРИНГ (п. 4.3): вместо 22 плоских параметров — 5 вложенных records.
+     *
+     * Для обратной совместимости добавлены convenience-методы,
+     * делегирующие к вложенным records.
      */
     public record PremiumCalculationResult(
             BigDecimal premium,
             BigDecimal baseRate,
-            int age,
-            BigDecimal ageCoefficient,
-            String ageGroupDescription,
-            BigDecimal countryCoefficient,
-            String countryName,
-            BigDecimal durationCoefficient,
-            BigDecimal additionalRisksCoefficient,
-            BigDecimal totalCoefficient,
-            int days,
-            BigDecimal coverageAmount,
-            List<RiskPremiumDetail> riskDetails,
-            BundleDiscountResult bundleDiscount,
-            List<CalculationStep> calculationSteps,
-            // Режим расчёта
+            AgeDetails ageDetails,
+            CountryDetails countryDetails,
+            TripDetails tripDetails,
+            RiskDetails riskDetails,
             CalculationMode calculationMode,
-            BigDecimal countryDefaultDayPremium,
-            BigDecimal countryDefaultDayPremiumForInfo,
-            String countryDefaultCurrency,
-            // task_117: лимит выплат
-            BigDecimal medicalPayoutLimit,
-            BigDecimal appliedPayoutLimit,
-            Boolean payoutLimitApplied
-    ) {}
+            List<CalculationStep> calculationSteps,
+            PayoutLimitDetails payoutLimitDetails
+    ) { }
 
     public record RiskPremiumDetail(
             String riskCode,

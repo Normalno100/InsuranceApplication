@@ -18,9 +18,9 @@ import java.util.stream.Collectors;
 /**
  * Assembler для сборки Response DTO.
  *
- * РЕФАКТОРИНГ (п. 4.2 плана):
- *   Метод buildFormula() вынесен в FormulaBuilder.
- *   ResponseAssembler делегирует построение формулы через FormulaBuilder.
+ * РЕФАКТОРИНГ (п. 4.2 плана): Метод buildFormula() вынесен в FormulaBuilder.
+ * РЕФАКТОРИНГ (п. 4.3 плана): Обновлён для работы с декомпозированным
+ * PremiumCalculationResult — читает поля через вложенные records.
  */
 @Slf4j
 @Component
@@ -118,7 +118,6 @@ public class ResponseAssembler {
                 .build());
 
         builder.person(buildPersonSummary(request, details));
-
         builder.trip(buildTripSummary(request, details));
 
         if (!discountResult.appliedDiscounts().isEmpty()) {
@@ -158,13 +157,15 @@ public class ResponseAssembler {
                 .build();
     }
 
+    // ── Приватные методы ──────────────────────────────────────────────────────
 
     private TravelCalculatePremiumResponse.PersonSummary buildPersonSummary(
             TravelCalculatePremiumRequest request,
             MedicalRiskPremiumCalculator.PremiumCalculationResult details) {
 
-        Integer age = details != null ? details.age() : null;
-        String ageGroup = details != null ? details.ageGroupDescription() : null;
+        // РЕФАКТОРИНГ (п. 4.3): читаем через вложенный record ageDetails
+        Integer age = details != null ? details.ageDetails().age() : null;
+        String ageGroup = details != null ? details.ageDetails().ageGroupDescription() : null;
 
         return TravelCalculatePremiumResponse.PersonSummary.builder()
                 .firstName(request.getPersonFirstName())
@@ -175,36 +176,34 @@ public class ResponseAssembler {
                 .build();
     }
 
-    /**
-     * Строит TripSummary с поддержкой двух режимов расчёта.
-     */
     private TravelCalculatePremiumResponse.TripSummary buildTripSummary(
             TravelCalculatePremiumRequest request,
             MedicalRiskPremiumCalculator.PremiumCalculationResult details) {
 
+        // РЕФАКТОРИНГ (п. 4.3): читаем через вложенные records
         boolean isCountryDefaultMode = details != null
                 && details.calculationMode() == MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT;
 
         return TravelCalculatePremiumResponse.TripSummary.builder()
                 .dateFrom(request.getAgreementDateFrom())
                 .dateTo(request.getAgreementDateTo())
-                .days(details != null ? details.days() : null)
+                .days(details != null ? details.tripDetails().days() : null)
                 .countryCode(request.getCountryIsoCode())
-                .countryName(details != null ? details.countryName() : null)
+                .countryName(details != null ? details.countryDetails().countryName() : null)
                 .medicalCoverageLevel(isCountryDefaultMode ? null : request.getMedicalRiskLimitLevel())
                 .coverageAmount(isCountryDefaultMode ? null
-                        : (details != null ? details.coverageAmount() : null))
+                        : (details != null ? details.tripDetails().coverageAmount() : null))
                 .countryDefaultDayPremium(isCountryDefaultMode && details != null
-                        ? details.countryDefaultDayPremium()
+                        ? details.countryDetails().countryDefaultDayPremium()
                         : null)
                 .calculationMode(details != null ? details.calculationMode().name() : null)
+                // task_117
+                .medicalPayoutLimit(details != null
+                        ? details.payoutLimitDetails().medicalPayoutLimit()
+                        : null)
                 .build();
     }
 
-    /**
-     * Строит PricingDetails с поддержкой двух режимов.
-     * Делегирует построение формулы в FormulaBuilder.
-     */
     private TravelCalculatePremiumResponse.PricingDetails buildPricingDetails(
             MedicalRiskPremiumCalculator.PremiumCalculationResult details) {
 
@@ -213,21 +212,27 @@ public class ResponseAssembler {
             return TravelCalculatePremiumResponse.PricingDetails.builder().build();
         }
 
+        // РЕФАКТОРИНГ (п. 4.3): читаем через вложенные records
         boolean isCountryDefault = details.calculationMode()
                 == MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT;
 
         var builder = TravelCalculatePremiumResponse.PricingDetails.builder()
                 .baseRate(details.baseRate())
-                .ageCoefficient(details.ageCoefficient())
-                .countryCoefficient(details.countryCoefficient())
-                .durationCoefficient(details.durationCoefficient())
-                .countryDefaultDayPremium(isCountryDefault ? details.countryDefaultDayPremium() : null)
-                // РЕФАКТОРИНГ (п. 4.2): делегируем построение формулы в FormulaBuilder
+                .ageCoefficient(details.ageDetails().ageCoefficient())
+                .countryCoefficient(details.countryDetails().countryCoefficient())
+                .durationCoefficient(details.tripDetails().durationCoefficient())
+                .countryDefaultDayPremium(isCountryDefault
+                        ? details.countryDetails().countryDefaultDayPremium()
+                        : null)
+                // task_117
+                .appliedPayoutLimit(details.payoutLimitDetails().appliedPayoutLimit())
+                .payoutLimitApplied(details.payoutLimitDetails().payoutLimitApplied())
+                // делегируем построение формулы в FormulaBuilder
                 .calculationFormula(formulaBuilder.build(details));
 
         builder.countryInfo(buildCountryInfo(details));
 
-        var riskBreakdown = details.riskDetails().stream()
+        var riskBreakdown = details.riskDetails().riskPremiumDetails().stream()
                 .map(r -> TravelCalculatePremiumResponse.RiskBreakdown.builder()
                         .riskCode(r.riskCode())
                         .riskName(r.riskName())
@@ -254,19 +259,17 @@ public class ResponseAssembler {
         return builder.build();
     }
 
-    /**
-     * Строит CountryInfo — детальная информация о стране.
-     */
     private TravelCalculatePremiumResponse.CountryInfo buildCountryInfo(
             MedicalRiskPremiumCalculator.PremiumCalculationResult details) {
 
-        boolean hasDefaultPremium = details.countryDefaultDayPremiumForInfo() != null;
+        // РЕФАКТОРИНГ (п. 4.3): читаем через вложенный record countryDetails
+        boolean hasDefaultPremium = details.countryDetails().countryDefaultDayPremiumForInfo() != null;
 
         return TravelCalculatePremiumResponse.CountryInfo.builder()
-                .name(details.countryName())
-                .riskCoefficient(details.countryCoefficient())
-                .defaultDayPremium(details.countryDefaultDayPremiumForInfo())
-                .defaultDayPremiumCurrency(details.countryDefaultCurrency())
+                .name(details.countryDetails().countryName())
+                .riskCoefficient(details.countryDetails().countryCoefficient())
+                .defaultDayPremium(details.countryDetails().countryDefaultDayPremiumForInfo())
+                .defaultDayPremiumCurrency(details.countryDetails().countryDefaultCurrency())
                 .hasDefaultDayPremium(hasDefaultPremium)
                 .build();
     }

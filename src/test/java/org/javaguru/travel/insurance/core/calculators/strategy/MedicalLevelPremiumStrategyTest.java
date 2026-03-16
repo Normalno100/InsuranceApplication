@@ -28,6 +28,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * РЕФАКТОРИНГ (п. 4.3): Проверки обновлены для работы
+ * с вложенными records PremiumCalculationResult.
+ */
 @ExtendWith(MockitoExtension.class)
 class MedicalLevelPremiumStrategyTest {
 
@@ -42,22 +46,17 @@ class MedicalLevelPremiumStrategyTest {
 
     @Mock private ReferenceDataPort referenceDataPort;
     @Mock private CountryDefaultDayPremiumService countryDefaultDayPremiumService;
-
-    // ✅ Конкретные калькуляторы вместо SharedCalculationComponents
     @Mock private PersonAgeCalculator personAgeCalculator;
     @Mock private TripDurationCalculator tripDurationCalculator;
     @Mock private AdditionalRisksCalculator additionalRisksCalculator;
     @Mock private BundleDiscountCalculator bundleDiscountCalculator;
     @Mock private RiskDetailsBuilder riskDetailsBuilder;
-
     @Mock private CalculationStepsBuilder stepsBuilder;
     @Mock private CalculationConfigService calculationConfigService;
     @Mock private PayoutLimitService payoutLimitService;
 
     @InjectMocks
     private MedicalLevelPremiumStrategy strategy;
-
-    // =========================================================
 
     @Test
     void calculate_returnsResultWithCorrectMode() {
@@ -70,33 +69,77 @@ class MedicalLevelPremiumStrategyTest {
     }
 
     @Test
-    void calculate_returnsCorrectAge() {
+    void calculate_returnsCorrectAgeViaNestedRecord() {
         var request = buildRequest(null);
         setupMocks(true, BigDecimal.ONE, noPayoutLimit());
 
         PremiumCalculationResult result = strategy.calculate(request);
 
-        assertThat(result.age()).isEqualTo(35);
+        assertThat(result.ageDetails().age()).isEqualTo(35);
     }
 
     @Test
-    void calculate_whenPayoutLimitApplied_flagIsTrue() {
+    void calculate_coverageAmountInTripDetails() {
+        var request = buildRequest(null);
+        setupMocks(true, BigDecimal.ONE, noPayoutLimit());
+
+        PremiumCalculationResult result = strategy.calculate(request);
+
+        assertThat(result.tripDetails().coverageAmount()).isEqualByComparingTo(COVERAGE);
+    }
+
+    @Test
+    void calculate_whenPayoutLimitApplied_flagIsTrueInPayoutLimitDetails() {
         var request = buildRequest(null);
         setupMocks(true, BigDecimal.ONE, withPayoutLimit(new BigDecimal("8000")));
 
         PremiumCalculationResult result = strategy.calculate(request);
 
-        assertThat(result.payoutLimitApplied()).isTrue();
+        assertThat(result.payoutLimitDetails().payoutLimitApplied()).isTrue();
+        assertThat(result.payoutLimitDetails().appliedPayoutLimit()).isEqualByComparingTo("8000");
     }
 
     @Test
-    void calculate_whenPayoutLimitNotApplied_flagIsFalse() {
+    void calculate_whenPayoutLimitNotApplied_flagIsFalseInPayoutLimitDetails() {
         var request = buildRequest(null);
         setupMocks(true, BigDecimal.ONE, noPayoutLimit());
 
         PremiumCalculationResult result = strategy.calculate(request);
 
-        assertThat(result.payoutLimitApplied()).isFalse();
+        assertThat(result.payoutLimitDetails().payoutLimitApplied()).isFalse();
+    }
+
+    @Test
+    void calculate_countryDetailsContainCorrectCoefficient() {
+        var request = buildRequest(null);
+        setupMocks(true, BigDecimal.ONE, noPayoutLimit());
+
+        PremiumCalculationResult result = strategy.calculate(request);
+
+        assertThat(result.countryDetails().countryCoefficient()).isEqualByComparingTo(COUNTRY_COEFF);
+        assertThat(result.countryDetails().countryName()).isEqualTo("Spain");
+    }
+
+    @Test
+    void calculate_tripDetailsContainDays() {
+        var request = buildRequest(null);
+        setupMocks(true, BigDecimal.ONE, noPayoutLimit());
+
+        PremiumCalculationResult result = strategy.calculate(request);
+
+        assertThat(result.tripDetails().days()).isEqualTo(14);
+        assertThat(result.tripDetails().durationCoefficient()).isEqualByComparingTo(DURATION_COEFF);
+    }
+
+    @Test
+    void calculate_riskDetailsContainBundleDiscount() {
+        var request = buildRequest(null);
+        setupMocks(true, BigDecimal.ONE, noPayoutLimit());
+
+        PremiumCalculationResult result = strategy.calculate(request);
+
+        assertThat(result.riskDetails().bundleDiscount().discountAmount())
+                .isEqualByComparingTo(BigDecimal.ZERO);
     }
 
     @Test
@@ -170,9 +213,7 @@ class MedicalLevelPremiumStrategyTest {
         verify(personAgeCalculator).calculate(BIRTH_DATE, DATE_FROM, false);
     }
 
-    // =========================================================
-    // helpers
-    // =========================================================
+    // ── helpers ──────────────────────────────────────────────────────────────
 
     private TravelCalculatePremiumRequest buildRequest(Boolean applyAgeCoefficient) {
         return TravelCalculatePremiumRequest.builder()
@@ -189,26 +230,17 @@ class MedicalLevelPremiumStrategyTest {
     }
 
     private PayoutLimitResult noPayoutLimit() {
-        return new PayoutLimitResult(
-                new BigDecimal("26.60"),
-                COVERAGE,
-                false
-        );
+        return new PayoutLimitResult(new BigDecimal("26.60"), COVERAGE, false);
     }
 
     private PayoutLimitResult withPayoutLimit(BigDecimal appliedLimit) {
-        return new PayoutLimitResult(
-                new BigDecimal("21.00"),
-                appliedLimit,
-                true
-        );
+        return new PayoutLimitResult(new BigDecimal("21.00"), appliedLimit, true);
     }
 
     private void setupMocks(boolean ageCoefficientEnabled,
                             BigDecimal ageCoeff,
                             PayoutLimitResult payoutLimitResult) {
 
-        // Domain entity MedicalRiskLimitLevel
         MedicalRiskLimitLevel medicalLevel = mock(MedicalRiskLimitLevel.class);
         when(medicalLevel.getDailyRate()).thenReturn(DAILY_RATE);
         when(medicalLevel.getCoverageAmount()).thenReturn(COVERAGE);
@@ -217,7 +249,6 @@ class MedicalLevelPremiumStrategyTest {
         when(referenceDataPort.findMedicalLevel(eq("10000"), eq(DATE_FROM)))
                 .thenReturn(Optional.of(medicalLevel));
 
-        // Domain entity Country
         Country country = mock(Country.class);
         when(country.getNameEn()).thenReturn("Spain");
 
@@ -228,46 +259,35 @@ class MedicalLevelPremiumStrategyTest {
         when(referenceDataPort.findCountry(any(CountryCode.class), eq(DATE_FROM)))
                 .thenReturn(Optional.of(country));
 
-        // Age config
         when(calculationConfigService.resolveAgeCoefficientEnabled(any(), eq(DATE_FROM)))
                 .thenReturn(ageCoefficientEnabled);
 
-        // PersonAgeCalculator
         var ageResult = new AgeCalculator.AgeCalculationResult(35, ageCoeff, "Adults");
         when(personAgeCalculator.calculate(eq(BIRTH_DATE), eq(DATE_FROM), eq(ageCoefficientEnabled)))
                 .thenReturn(ageResult);
 
-        // TripDurationCalculator
         when(tripDurationCalculator.calculateDays(DATE_FROM, DATE_TO)).thenReturn(14L);
         when(tripDurationCalculator.getDurationCoefficient(eq(14L), eq(DATE_FROM)))
                 .thenReturn(DURATION_COEFF);
 
-        // AdditionalRisksCalculator
         when(additionalRisksCalculator.calculate(any(), eq(35), eq(DATE_FROM)))
-                .thenReturn(new AdditionalRisksCalculator.AdditionalRisksResult(
-                        BigDecimal.ZERO, List.of()));
+                .thenReturn(new AdditionalRisksCalculator.AdditionalRisksResult(BigDecimal.ZERO, List.of()));
 
-        // BundleDiscountCalculator
         when(bundleDiscountCalculator.calculate(any(), any(), eq(DATE_FROM)))
                 .thenReturn(new BundleDiscountResult(null, BigDecimal.ZERO));
 
-        // RiskDetailsBuilder
         when(riskDetailsBuilder.build(any(), any(), any(), any(), any(), anyInt(), eq(35), eq(DATE_FROM)))
                 .thenReturn(List.of());
 
-        // PayoutLimitService
         when(payoutLimitService.applyPayoutLimit(any(), any(), any()))
                 .thenReturn(payoutLimitResult);
 
-        // CountryDefaultDayPremiumService (для CountryInfo в ответе)
         when(countryDefaultDayPremiumService.findDefaultDayPremium(eq("ES"), eq(DATE_FROM)))
                 .thenReturn(Optional.empty());
 
-        // CalculationStepsBuilder
         when(stepsBuilder.buildMedicalLevelSteps(
                 any(), any(), any(), any(), any(),
-                anyLong(), any(), any(), any(),
-                any(), any()))
+                anyLong(), any(), any(), any(), any(), any()))
                 .thenReturn(List.of());
     }
 }

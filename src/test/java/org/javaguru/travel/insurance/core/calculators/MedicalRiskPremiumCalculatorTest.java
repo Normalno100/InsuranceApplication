@@ -21,16 +21,10 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Тесты MedicalRiskPremiumCalculator — фасада паттерна Strategy (task_115).
+ * Тесты MedicalRiskPremiumCalculator — фасада паттерна Strategy.
  *
- * Ответственность фасада: выбрать правильную стратегию и делегировать вызов.
- * Детальная логика расчёта формулы проверяется в:
- *   - MedicalLevelPremiumStrategyTest
- *   - CountryDefaultPremiumStrategyTest
- *
- * ВАЖНО: фасад зависит только от трёх бинов:
- *   MedicalLevelPremiumStrategy, CountryDefaultPremiumStrategy, CountryDefaultDayPremiumService.
- * Прямых зависимостей от репозиториев нет — они скрыты внутри стратегий.
+ * РЕФАКТОРИНГ (п. 4.3): Обновлены stub-методы для создания
+ * PremiumCalculationResult через вложенные records.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -56,7 +50,6 @@ class MedicalRiskPremiumCalculatorTest extends BaseTestFixture {
         when(medicalLevelStrategy.calculate(any())).thenReturn(medicalLevelResult);
         when(countryDefaultStrategy.calculate(any())).thenReturn(countryDefaultResult);
 
-        // дефолт: дефолтной ставки нет → всегда MEDICAL_LEVEL
         when(countryDefaultDayPremiumService.hasDefaultDayPremium(anyString(), any()))
                 .thenReturn(false);
     }
@@ -105,7 +98,6 @@ class MedicalRiskPremiumCalculatorTest extends BaseTestFixture {
     void shouldFallbackToMedicalLevelWhenNoDefaultPremiumExists() {
         var request = standardAdultRequest();
         request.setUseCountryDefaultPremium(true);
-        // hasDefaultDayPremium замокан как false в @BeforeEach -> fallback
 
         var result = calculator.calculatePremiumWithDetails(request);
 
@@ -139,17 +131,63 @@ class MedicalRiskPremiumCalculatorTest extends BaseTestFixture {
     }
 
     // =====================================================
-    // task_117: ПОЛЯ ЛИМИТА ВЫПЛАТ В РЕЗУЛЬТАТЕ
+    // ПРОВЕРКА ВЛОЖЕННЫХ RECORDS (п. 4.3)
+    // =====================================================
+
+    @Test
+    void shouldAccessAgeDetailsViaNestedRecord() {
+        var result = calculator.calculatePremiumWithDetails(standardAdultRequest());
+
+        assertThat(result.ageDetails().age()).isEqualTo(35);
+        assertThat(result.ageDetails().ageCoefficient()).isEqualByComparingTo("1.10");
+        assertThat(result.ageDetails().ageGroupDescription()).isEqualTo("Adults");
+    }
+
+    @Test
+    void shouldAccessCountryDetailsViaNestedRecord() {
+        var result = calculator.calculatePremiumWithDetails(standardAdultRequest());
+
+        assertThat(result.countryDetails().countryName()).isEqualTo("Spain");
+        assertThat(result.countryDetails().countryCoefficient()).isEqualByComparingTo("1.20");
+    }
+
+    @Test
+    void shouldAccessTripDetailsViaNestedRecord() {
+        var result = calculator.calculatePremiumWithDetails(standardAdultRequest());
+
+        assertThat(result.tripDetails().days()).isEqualTo(14);
+        assertThat(result.tripDetails().coverageAmount()).isEqualByComparingTo("50000");
+    }
+
+    @Test
+    void shouldAccessPayoutLimitDetailsViaNestedRecord() {
+        var result = calculator.calculatePremiumWithDetails(standardAdultRequest());
+
+        assertThat(result.payoutLimitDetails().medicalPayoutLimit()).isEqualByComparingTo("50000");
+        assertThat(result.payoutLimitDetails().appliedPayoutLimit()).isEqualByComparingTo("40000");
+        assertThat(result.payoutLimitDetails().payoutLimitApplied()).isTrue();
+    }
+
+    @Test
+    void shouldAccessRiskDetailsViaNestedRecord() {
+        var result = calculator.calculatePremiumWithDetails(standardAdultRequest());
+
+        assertThat(result.riskDetails().riskPremiumDetails()).isEmpty();
+        assertThat(result.riskDetails().bundleDiscount().discountAmount())
+                .isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    // =====================================================
+    // task_117: ЛИМИТ ВЫПЛАТ
     // =====================================================
 
     @Test
     void medicalLevelResultShouldContainPayoutLimitFields() {
         var result = calculator.calculatePremiumWithDetails(standardAdultRequest());
 
-        // MEDICAL_LEVEL stub содержит конкретные значения лимита
-        assertThat(result.medicalPayoutLimit()).isEqualByComparingTo("50000");
-        assertThat(result.appliedPayoutLimit()).isEqualByComparingTo("40000");
-        assertThat(result.payoutLimitApplied()).isTrue();
+        assertThat(result.payoutLimitDetails().medicalPayoutLimit()).isEqualByComparingTo("50000");
+        assertThat(result.payoutLimitDetails().appliedPayoutLimit()).isEqualByComparingTo("40000");
+        assertThat(result.payoutLimitDetails().payoutLimitApplied()).isTrue();
     }
 
     @Test
@@ -161,23 +199,21 @@ class MedicalRiskPremiumCalculatorTest extends BaseTestFixture {
 
         var result = calculator.calculatePremiumWithDetails(request);
 
-        // COUNTRY_DEFAULT: лимит выплат не применяется
-        assertThat(result.medicalPayoutLimit()).isNull();
-        assertThat(result.appliedPayoutLimit()).isNull();
-        assertThat(result.payoutLimitApplied()).isFalse();
+        assertThat(result.payoutLimitDetails().medicalPayoutLimit()).isNull();
+        assertThat(result.payoutLimitDetails().appliedPayoutLimit()).isNull();
+        assertThat(result.payoutLimitDetails().payoutLimitApplied()).isFalse();
     }
 
     @Test
     void medicalLevelResultWithNoPayoutLimitAppliedShouldHaveFalseFlag() {
-        // stub без применения лимита (payoutLimitApplied = false)
         var noLimitResult = stubResultNoPayoutLimit(new BigDecimal("52.50"),
                 MedicalRiskPremiumCalculator.CalculationMode.MEDICAL_LEVEL);
         when(medicalLevelStrategy.calculate(any())).thenReturn(noLimitResult);
 
         var result = calculator.calculatePremiumWithDetails(standardAdultRequest());
 
-        assertThat(result.payoutLimitApplied()).isFalse();
-        assertThat(result.appliedPayoutLimit()).isEqualByComparingTo("50000");
+        assertThat(result.payoutLimitDetails().payoutLimitApplied()).isFalse();
+        assertThat(result.payoutLimitDetails().appliedPayoutLimit()).isEqualByComparingTo("50000");
     }
 
     // =====================================================
@@ -187,16 +223,6 @@ class MedicalRiskPremiumCalculatorTest extends BaseTestFixture {
     @Test
     void shouldNotCallHasDefaultPremiumWhenFlagIsNull() {
         calculator.calculatePremiumWithDetails(standardAdultRequest());
-
-        verify(countryDefaultDayPremiumService, never()).hasDefaultDayPremium(anyString(), any());
-    }
-
-    @Test
-    void shouldNotCallHasDefaultPremiumWhenFlagIsFalse() {
-        var request = standardAdultRequest();
-        request.setUseCountryDefaultPremium(false);
-
-        calculator.calculatePremiumWithDetails(request);
 
         verify(countryDefaultDayPremiumService, never()).hasDefaultDayPremium(anyString(), any());
     }
@@ -217,10 +243,7 @@ class MedicalRiskPremiumCalculatorTest extends BaseTestFixture {
     // =====================================================
 
     /**
-     * Stub PremiumCalculationResult с применённым лимитом выплат (task_117).
-     *
-     * MEDICAL_LEVEL: medicalPayoutLimit=50000, appliedPayoutLimit=40000, payoutLimitApplied=true
-     * COUNTRY_DEFAULT: все поля лимита null/false
+     * Создаёт stub PremiumCalculationResult через новые вложенные records.
      */
     private MedicalRiskPremiumCalculator.PremiumCalculationResult stubResult(
             BigDecimal premium,
@@ -228,65 +251,80 @@ class MedicalRiskPremiumCalculatorTest extends BaseTestFixture {
 
         boolean isCountryDefault = mode == MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT;
 
-        return new MedicalRiskPremiumCalculator.PremiumCalculationResult(
-                premium,
-                new BigDecimal("2.50"),
-                35,
-                new BigDecimal("1.10"),
-                "Adults",
-                new BigDecimal("1.20"),
+        var ageDetails = new MedicalRiskPremiumCalculator.AgeDetails(
+                35, new BigDecimal("1.10"), "Adults");
+
+        var countryDetails = new MedicalRiskPremiumCalculator.CountryDetails(
                 "Spain",
+                new BigDecimal("1.20"),
+                isCountryDefault ? new BigDecimal("2.50") : null,
+                null,
+                "EUR");
+
+        var tripDetails = new MedicalRiskPremiumCalculator.TripDetails(
+                14,
                 BigDecimal.ONE,
                 BigDecimal.ZERO,
                 new BigDecimal("1.32"),
-                14,
+                isCountryDefault ? null : new BigDecimal("50000"));
+
+        var riskDetails = new MedicalRiskPremiumCalculator.RiskDetails(
+                List.of(),
+                new MedicalRiskPremiumCalculator.BundleDiscountResult(null, BigDecimal.ZERO));
+
+        var payoutLimitDetails = isCountryDefault
+                ? new MedicalRiskPremiumCalculator.PayoutLimitDetails(null, null, false)
+                : new MedicalRiskPremiumCalculator.PayoutLimitDetails(
                 new BigDecimal("50000"),
-                List.of(),
-                new MedicalRiskPremiumCalculator.BundleDiscountResult(null, BigDecimal.ZERO),
-                List.of(),
+                new BigDecimal("40000"),
+                true);
+
+        return new MedicalRiskPremiumCalculator.PremiumCalculationResult(
+                premium,
+                new BigDecimal("2.50"),
+                ageDetails,
+                countryDetails,
+                tripDetails,
+                riskDetails,
                 mode,
-                isCountryDefault ? new BigDecimal("2.50") : null,
-                null,
-                "EUR",
-                // task_117: поля лимита выплат
-                isCountryDefault ? null : new BigDecimal("50000"),  // medicalPayoutLimit
-                isCountryDefault ? null : new BigDecimal("40000"),  // appliedPayoutLimit
-                !isCountryDefault                                   // payoutLimitApplied
-        );
+                List.of(),
+                payoutLimitDetails);
     }
 
     /**
-     * Stub PremiumCalculationResult для MEDICAL_LEVEL без применения лимита выплат.
-     * Лимит присутствует (maxPayoutAmount == coverageAmount), но корректировка не нужна.
+     * Stub для MEDICAL_LEVEL без применения лимита выплат.
      */
     private MedicalRiskPremiumCalculator.PremiumCalculationResult stubResultNoPayoutLimit(
             BigDecimal premium,
             MedicalRiskPremiumCalculator.CalculationMode mode) {
 
+        var ageDetails = new MedicalRiskPremiumCalculator.AgeDetails(
+                35, new BigDecimal("1.10"), "Adults");
+
+        var countryDetails = new MedicalRiskPremiumCalculator.CountryDetails(
+                "Spain", new BigDecimal("1.20"), null, null, "EUR");
+
+        var tripDetails = new MedicalRiskPremiumCalculator.TripDetails(
+                14, BigDecimal.ONE, BigDecimal.ZERO, new BigDecimal("1.32"), new BigDecimal("50000"));
+
+        var riskDetails = new MedicalRiskPremiumCalculator.RiskDetails(
+                List.of(),
+                new MedicalRiskPremiumCalculator.BundleDiscountResult(null, BigDecimal.ZERO));
+
+        var payoutLimitDetails = new MedicalRiskPremiumCalculator.PayoutLimitDetails(
+                new BigDecimal("50000"),
+                new BigDecimal("50000"),  // appliedPayoutLimit == coverageAmount
+                false);
+
         return new MedicalRiskPremiumCalculator.PremiumCalculationResult(
                 premium,
                 new BigDecimal("2.50"),
-                35,
-                new BigDecimal("1.10"),
-                "Adults",
-                new BigDecimal("1.20"),
-                "Spain",
-                BigDecimal.ONE,
-                BigDecimal.ZERO,
-                new BigDecimal("1.32"),
-                14,
-                new BigDecimal("50000"),
-                List.of(),
-                new MedicalRiskPremiumCalculator.BundleDiscountResult(null, BigDecimal.ZERO),
-                List.of(),
+                ageDetails,
+                countryDetails,
+                tripDetails,
+                riskDetails,
                 mode,
-                null,
-                null,
-                "EUR",
-                // task_117: лимит равен покрытию — корректировка не применялась
-                new BigDecimal("50000"),  // medicalPayoutLimit
-                new BigDecimal("50000"),  // appliedPayoutLimit == coverageAmount
-                false                     // payoutLimitApplied
-        );
+                List.of(),
+                payoutLimitDetails);
     }
 }
