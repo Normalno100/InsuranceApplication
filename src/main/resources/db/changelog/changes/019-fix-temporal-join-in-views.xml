@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!--
+        ИСПРАВЛЕНИЕ (п. 3.4 плана рефакторинга): Temporal JOIN в представлениях
+        🟠 ВЫСОКИЙ | P1
+
+        ПРОБЛЕМА:
+          v_active_agreements и v_country_statistics выполняют JOIN с таблицей countries
+          без учёта temporal validity:
+            JOIN countries c ON a.country_iso_code = c.iso_code
+
+          Если у страны существует несколько версий (разные valid_from/valid_to),
+          JOIN возвращает декартово произведение — по одной строке на каждую версию
+          страны. Представления начинают возвращать дублирующиеся строки соглашений.
+
+        ПРИМЕР ДУБЛИРОВАНИЯ:
+          Страна ES имеет 2 версии (valid_from='2020-01-01' и valid_from='2024-01-01').
+          Соглашение #1 по ES → JOIN вернёт 2 строки вместо 1.
+
+        РЕШЕНИЕ:
+          Добавить условие temporal validity в JOIN:
+            JOIN countries c ON a.country_iso_code = c.iso_code
+                AND c.valid_from <= CURRENT_DATE
+                AND (c.valid_to IS NULL OR c.valid_to >= CURRENT_DATE)
+
+          Это гарантирует что для каждого соглашения будет выбрана ровно одна
+          (текущая) версия страны, либо строка вообще не попадёт в представление
+          если для страны нет активной версии на сегодняшний день.
+
+        АФФЕКТОВАННЫЕ ПРЕДСТАВЛЕНИЯ:
+          - v_active_agreements  (changeSet 004-01)
+          - v_country_statistics (changeSet 004-02)
+
+        СТРАТЕГИЯ ИСПРАВЛЕНИЯ:
+          Создаём новые changeSets, которые пересоздают представления с корректным
+          temporal JOIN. Используем replaceIfExists="true" — Liquibase выполнит
+          CREATE OR REPLACE VIEW, что безопасно для production без downtime.
+
+        ПРИМЕЧАНИЕ:
+          v_promo_code_statistics (changeSet 004-03) не затронуто, т.к. оно не
+          JOIN-ится с countries.
+    -->
+
+    <!-- ================================================================ -->
+    <!-- 019-01: Пересоздание v_active_agreements с temporal JOIN         -->
+    <!-- ================================================================ -->
+    <changeSet id="019-01-fix-temporal-join-v-active-agreements" author="travel-insurance">
+        <comment>
+            Fix temporal JOIN in v_active_agreements (refactoring plan, p. 3.4).
+
+            БЫЛО:
+            JOIN countries c ON a.country_iso_code = c.iso_code
+
+            СТАЛО:
+            JOIN countries c ON a.country_iso_code = c.iso_code
+            AND c.valid_from &lt;= CURRENT_DATE
+            AND (c.valid_to IS NULL OR c.valid_to &gt;= CURRENT_DATE)
+
+            Без этого исправления наличие нескольких версий страны (temporal versioning)
+            приводило к дублированию строк в представлении.
+        </comment>
+
+        <createView viewName="v_active_agreements" replaceIfExists="true">
+            SELECT
+            a.id,
+            a.agreement_number,
+            p.first_name,
+            p.last_name,
+            p.birth_date,
+            EXTRACT(YEAR FROM AGE(p.birth_date)) AS age,
+            a.date_from,
+            a.date_to,
+            a.days_count,
+            c.name_en                           AS country_name,
+            c.risk_coefficient                  AS country_risk,
+            a.medical_risk_limit_level,
+            a.premium_amount,
+            a.currency,
+            a.status,
+            a.created_at
+            FROM agreements a
+            JOIN persons p ON a.person_id = p.id
+            JOIN countries c
+            ON  a.country_iso_code = c.iso_code
+            AND c.valid_from &lt;= CURRENT_DATE
+            AND (c.valid_to IS NULL OR c.valid_to &gt;= CURRENT_DATE)
+            WHERE a.status    = 'ACTIVE'
+            AND a.date_to  &gt;= CURRENT_DATE
+        </createView>
+
+        <rollback>
+            <!--
+                Откат: возвращаем исходную версию без temporal JOIN (как в 004-01).
+                После отката дублирование строк при наличии нескольких версий страны
+                возобновится, но это корректно для отката к предыдущему состоянию.
+            -->
+            <createView viewName="v_active_agreements" replaceIfExists="true">
+                SELECT
+                a.id,
+                a.agreement_number,
+                p.first_name,
+                p.last_name,
+                p.birth_date,
+                EXTRACT(YEAR FROM AGE(p.birth_date)) AS age,
+                a.date_from,
+                a.date_to,
+                a.days_count,
+                c.name_en                           AS country_name,
+                c.risk_coefficient                  AS country_risk,
+                a.medical_risk_limit_level,
+                a.premium_amount,
+                a.currency,
+                a.status,
+                a.created_at
+                FROM agreements a
+                JOIN persons p ON a.person_id = p.id
+                JOIN countries c ON a.country_iso_code = c.iso_code
+                WHERE a.status    = 'ACTIVE'
+                AND a.date_to  &gt;= CURRENT_DATE
+            </createView>
+        </rollback>
+    </changeSet>
+
+    <!-- ================================================================ -->
+    <!-- 019-02: Пересоздание v_country_statistics с temporal JOIN        -->
+    <!-- ================================================================ -->
+    <changeSet id="019-02-fix-temporal-join-v-country-statistics" author="travel-insurance">
+        <comment>
+            Fix temporal JOIN in v_country_statistics (refactoring plan, p. 3.4).
+
+            БЫЛО:
+            LEFT JOIN agreements a ON c.iso_code = a.country_iso_code
+            (страна берётся из основного запроса без temporal-фильтра в соединении)
+
+            СТАЛО:
+            Добавлен WHERE-фильтр на temporal validity самой страны,
+            чтобы в статистике отображались только текущие активные версии стран.
+
+            ДОПОЛНИТЕЛЬНОЕ УЛУЧШЕНИЕ:
+            Исходное представление делало GROUP BY по c.iso_code, c.name_en, c.risk_group,
+            что при наличии нескольких версий страны (с разными name_en или risk_group)
+            создавало несколько групп для одного iso_code.
+            Теперь temporal-фильтр гарантирует одну активную версию на страну,
+            GROUP BY по iso_code даёт корректный результат.
+        </comment>
+
+        <createView viewName="v_country_statistics" replaceIfExists="true">
+            SELECT
+            c.iso_code,
+            c.name_en,
+            c.risk_group,
+            COUNT(a.id)          AS agreements_count,
+            SUM(a.premium_amount) AS total_premium,
+            AVG(a.premium_amount) AS avg_premium,
+            AVG(a.days_count)     AS avg_days
+            FROM countries c
+            LEFT JOIN agreements a ON c.iso_code = a.country_iso_code
+            WHERE c.valid_from &lt;= CURRENT_DATE
+            AND (c.valid_to IS NULL OR c.valid_to &gt;= CURRENT_DATE)
+            GROUP BY c.iso_code, c.name_en, c.risk_group
+        </createView>
+
+        <rollback>
+            <!-- Откат: возвращаем исходную версию без temporal-фильтра (как в 004-02). -->
+            <createView viewName="v_country_statistics" replaceIfExists="true">
+                SELECT
+                c.iso_code,
+                c.name_en,
+                c.risk_group,
+                COUNT(a.id)          AS agreements_count,
+                SUM(a.premium_amount) AS total_premium,
+                AVG(a.premium_amount) AS avg_premium,
+                AVG(a.days_count)     AS avg_days
+                FROM countries c
+                LEFT JOIN agreements a ON c.iso_code = a.country_iso_code
+                GROUP BY c.iso_code, c.name_en, c.risk_group
+            </createView>
+        </rollback>
+    </changeSet>
+
+    <!-- ================================================================ -->
+    <!-- 019-03: Документирующие комментарии к исправленным представлениям-->
+    <!-- ================================================================ -->
+    <changeSet id="019-03-add-view-comments" author="travel-insurance"
+               dbms="postgresql">
+        <comment>Adding documentation comments to fixed views (PostgreSQL only)</comment>
+
+        <sql><![CDATA[
+            COMMENT ON VIEW v_active_agreements IS
+            'Active insurance agreements with current country information.
+
+            FIXED (refactoring plan, p. 3.4):
+            JOIN with countries now uses temporal validity filter:
+              c.valid_from <= CURRENT_DATE AND (c.valid_to IS NULL OR c.valid_to >= CURRENT_DATE)
+
+            Without this fix, multiple country versions (temporal versioning) caused
+            duplicate rows — one row per country version per agreement.
+
+            Shows only agreements with status=ACTIVE and date_to >= today.';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON VIEW v_country_statistics IS
+            'Aggregated statistics by country: agreement count, premium totals and averages.
+
+            FIXED (refactoring plan, p. 3.4):
+            Countries are filtered to current active versions only:
+              c.valid_from <= CURRENT_DATE AND (c.valid_to IS NULL OR c.valid_to >= CURRENT_DATE)
+
+            Without this fix, a country with multiple temporal versions would appear
+            multiple times in the statistics, each with a partial count of agreements.';
+        ]]></sql>
+
+        <rollback>
+            <!-- Комментарии не требуют отката -->
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
