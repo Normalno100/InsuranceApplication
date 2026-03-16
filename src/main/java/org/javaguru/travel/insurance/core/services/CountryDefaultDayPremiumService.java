@@ -31,6 +31,11 @@ import java.util.Optional;
  * FALLBACK логика:
  * Если для страны нет записи в country_default_day_premiums, сервис возвращает
  * Optional.empty() — вызывающий код должен откатиться на стандартный расчёт.
+ *
+ * РЕФАКТОРИНГ (п. 4.2 плана):
+ * Удалён метод buildFormula() — он являлся dead code (нигде не вызывался).
+ * Логика построения формулы централизована в FormulaBuilder
+ * (пакет application/assembler).
  */
 @Slf4j
 @Service
@@ -140,45 +145,6 @@ public class CountryDefaultDayPremiumService {
                 defaultDayPremium, ageCoefficient, durationCoefficient, days, result);
 
         return result;
-    }
-
-    /**
-     * Строит строку формулы для отображения в ответе (поле calculationFormula).
-     */
-    public String buildFormula(
-            BigDecimal defaultDayPremium,
-            BigDecimal ageCoefficient,
-            BigDecimal durationCoefficient,
-            int days,
-            BigDecimal additionalRisksCoefficient,
-            BigDecimal bundleDiscount) {
-
-        StringBuilder formula = new StringBuilder("Premium = ")
-                .append(String.format("%.2f", defaultDayPremium))
-                .append(" (country default rate)")
-                .append(" × ")
-                .append(String.format("%.4f", ageCoefficient))
-                .append(" (age)")
-                .append(" × ")
-                .append(String.format("%.4f", durationCoefficient))
-                .append(" (duration)");
-
-        if (additionalRisksCoefficient != null
-                && additionalRisksCoefficient.compareTo(BigDecimal.ZERO) > 0) {
-            formula.append(" × (1 + ")
-                    .append(String.format("%.4f", additionalRisksCoefficient))
-                    .append(") (risks)");
-        }
-
-        formula.append(" × ").append(days).append(" days");
-
-        if (bundleDiscount != null && bundleDiscount.compareTo(BigDecimal.ZERO) > 0) {
-            formula.append(" - ")
-                    .append(String.format("%.2f", bundleDiscount))
-                    .append(" (bundle discount)");
-        }
-
-        return formula.toString();
     }
 
     // ========================================

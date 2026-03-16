@@ -12,12 +12,15 @@ import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRespo
 import org.javaguru.travel.insurance.infrastructure.persistence.repositories.CountryRepository;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
  * Assembler для сборки Response DTO.
+ *
+ * РЕФАКТОРИНГ (п. 4.2 плана):
+ *   Метод buildFormula() вынесен в FormulaBuilder.
+ *   ResponseAssembler делегирует построение формулы через FormulaBuilder.
  */
 @Slf4j
 @Component
@@ -25,6 +28,7 @@ import java.util.stream.Collectors;
 public class ResponseAssembler {
 
     private final CountryRepository countryRepository;
+    private final FormulaBuilder formulaBuilder;
 
     public TravelCalculatePremiumResponse buildValidationErrorResponse(
             List<ValidationError> errors) {
@@ -199,6 +203,7 @@ public class ResponseAssembler {
 
     /**
      * Строит PricingDetails с поддержкой двух режимов.
+     * Делегирует построение формулы в FormulaBuilder.
      */
     private TravelCalculatePremiumResponse.PricingDetails buildPricingDetails(
             MedicalRiskPremiumCalculator.PremiumCalculationResult details) {
@@ -207,7 +212,6 @@ public class ResponseAssembler {
             log.warn("buildPricingDetails: details is null, returning empty PricingDetails");
             return TravelCalculatePremiumResponse.PricingDetails.builder().build();
         }
-
 
         boolean isCountryDefault = details.calculationMode()
                 == MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT;
@@ -218,7 +222,8 @@ public class ResponseAssembler {
                 .countryCoefficient(details.countryCoefficient())
                 .durationCoefficient(details.durationCoefficient())
                 .countryDefaultDayPremium(isCountryDefault ? details.countryDefaultDayPremium() : null)
-                .calculationFormula(buildFormula(details));
+                // РЕФАКТОРИНГ (п. 4.2): делегируем построение формулы в FormulaBuilder
+                .calculationFormula(formulaBuilder.build(details));
 
         builder.countryInfo(buildCountryInfo(details));
 
@@ -275,50 +280,6 @@ public class ResponseAssembler {
                         r.getSeverity().name(),
                         r.getMessage()))
                 .collect(Collectors.toList());
-    }
-
-    /**
-     * Строит формулу расчёта в зависимости от режима.
-     */
-    private String buildFormula(MedicalRiskPremiumCalculator.PremiumCalculationResult result) {
-        boolean isCountryDefault = result.calculationMode()
-                == MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT;
-
-        var formula = new StringBuilder("Premium = ")
-                .append(String.format("%.2f", result.baseRate()));
-
-        if (isCountryDefault) {
-            formula.append(" (country default rate)");
-        } else {
-            formula.append(" (daily rate)");
-        }
-
-        formula.append(" × ").append(String.format("%.4f", result.ageCoefficient())).append(" (age)");
-
-        if (!isCountryDefault) {
-            formula.append(" × ").append(String.format("%.4f", result.countryCoefficient()))
-                    .append(" (country)");
-        }
-
-        formula.append(" × ").append(String.format("%.4f", result.durationCoefficient()))
-                .append(" (duration)");
-
-        if (result.additionalRisksCoefficient().compareTo(BigDecimal.ZERO) > 0) {
-            formula.append(" × (1 + ")
-                    .append(String.format("%.4f", result.additionalRisksCoefficient()))
-                    .append(") (risks)");
-        }
-
-        formula.append(" × ").append(result.days()).append(" days");
-
-        if (result.bundleDiscount() != null
-                && result.bundleDiscount().discountAmount().compareTo(BigDecimal.ZERO) > 0) {
-            formula.append(" - ")
-                    .append(String.format("%.2f", result.bundleDiscount().discountAmount()))
-                    .append(" (bundle discount)");
-        }
-
-        return formula.toString();
     }
 
     private String resolveCurrency(TravelCalculatePremiumRequest request) {
