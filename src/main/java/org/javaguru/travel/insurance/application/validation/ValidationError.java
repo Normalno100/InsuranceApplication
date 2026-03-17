@@ -1,19 +1,36 @@
 package org.javaguru.travel.insurance.application.validation;
 
 import lombok.Getter;
-import lombok.Setter;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Ошибка валидации с поддержкой severity и i18n
+ * Ошибка валидации с поддержкой severity и i18n.
+ *
+ * РЕФАКТОРИНГ (п. 5.2): Иммутабельность ValidationError
+ *
+ * БЫЛО:
+ *   - @Setter позволял изменять поля после создания
+ *   - parameters — изменяемый HashMap, возвращался через геттер напрямую
+ *   - withParameter() мутировал существующий объект (this.parameters.put(...))
+ *
+ * СТАЛО:
+ *   - @Setter удалён; все поля final — объект неизменяем после создания
+ *   - parameters через геттер отдаётся как Collections.unmodifiableMap()
+ *     — внешний код не может изменить карту параметров
+ *   - withParameter() создаёт НОВЫЙ ValidationError с расширенным набором
+ *     параметров (copy-on-write), сохраняя привычный fluent API без мутации
+ *
+ * СОВМЕСТИМОСТЬ: публичные конструкторы и фабричные методы не изменились.
+ * Весь существующий код, использующий цепочки withParameter(), продолжает
+ * работать без изменений — разница только в том, что теперь каждый вызов
+ * возвращает новый объект, а не изменяет текущий.
  */
 @Getter
-@Setter
 public class ValidationError {
 
-    // Getters
     private final String field;
     private final String message;
     private final String errorCode;
@@ -29,44 +46,53 @@ public class ValidationError {
     }
 
     public ValidationError(String field, String message, String errorCode, Severity severity) {
-        this.field = field;
-        this.message = message;
-        this.errorCode = errorCode;
-        this.severity = severity != null ? severity : Severity.ERROR;
-        this.parameters = new HashMap<>();
+        this(field, message, errorCode, severity, Collections.emptyMap());
     }
 
     /**
-     * Добавить параметр для i18n
+     * Приватный полный конструктор — используется только внутри класса
+     * для создания копии с расширенными параметрами в withParameter().
+     */
+    private ValidationError(String field, String message, String errorCode,
+                            Severity severity, Map<String, Object> parameters) {
+        this.field     = field;
+        this.message   = message;
+        this.errorCode = errorCode;
+        this.severity  = severity != null ? severity : Severity.ERROR;
+        // Храним собственную изолированную копию карты
+        this.parameters = Collections.unmodifiableMap(new HashMap<>(parameters));
+    }
+
+    /**
+     * Возвращает НОВЫЙ ValidationError с добавленным параметром.
+     *
+     * Исходный объект остаётся неизменным (иммутабельность).
+     * Использование: цепочки вызовов работают как раньше —
+     *   ValidationError.error("field", "msg")
+     *       .withParameter("min", 0)
+     *       .withParameter("max", 80)
      */
     public ValidationError withParameter(String key, Object value) {
-        this.parameters.put(key, value);
-        return this;
+        Map<String, Object> extended = new HashMap<>(this.parameters);
+        extended.put(key, value);
+        return new ValidationError(this.field, this.message, this.errorCode,
+                this.severity, extended);
     }
 
     /**
-     * Уровень серьёзности ошибки
+     * Уровень серьёзности ошибки.
      */
     public enum Severity {
-        /**
-         * Предупреждение - не блокирует операцию
-         */
+        /** Предупреждение — не блокирует операцию */
         WARNING,
-
-        /**
-         * Ошибка - блокирует операцию
-         */
+        /** Ошибка — блокирует операцию */
         ERROR,
-
-        /**
-         * Критическая ошибка - прерывает дальнейшую валидацию
-         */
+        /** Критическая ошибка — прерывает дальнейшую валидацию */
         CRITICAL
     }
 
-    /**
-     * Фабричные методы для удобства
-     */
+    // ── Фабричные методы ────────────────────────────────────────────────────
+
     public static ValidationError warning(String field, String message) {
         return new ValidationError(field, message, null, Severity.WARNING);
     }
