@@ -47,6 +47,10 @@ dependencies {
 
 	implementation "io.hypersistence:hypersistence-utils-hibernate-63:3.7.3"
 
+	implementation 'org.springframework.retry:spring-retry'
+    implementation 'io.micrometer:micrometer-core'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
 	/* =====================================================
      * TEST DEPENDENCIES
      * ===================================================== */
