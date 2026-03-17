@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!--
+        ИСПРАВЛЕНИЕ (п. 5.5 плана рефакторинга): Обнуление счётчиков промо-кодов
+        Приоритет: 🟠 ВЫСОКИЙ | P1
+
+        ПРОБЛЕМА (changeset 011-01):
+          UPDATE promo_codes
+          SET current_usage_count = 0
+          WHERE current_usage_count IS NULL OR current_usage_count > 0;
+
+          Этот changeset обнулял счётчики ВСЕХ промо-кодов без разбора,
+          включая те, что уже были реально использованы и имели ненулевые
+          счётчики в promo_code_usage.
+
+          Последствия:
+          - Промо-коды с лимитом использований (max_usage_count) могли быть
+            применены сверх лимита после обнуления счётчика.
+          - Аналитика по использованию промо-кодов в promo_codes расходилась
+            с фактическими данными в promo_code_usage.
+          - Лимитированные промо-коды (WELCOME50 с max_usage_count=100) могли
+            быть использованы повторно после миграции.
+
+        ПОЧЕМУ НОВЫЙ CHANGESET, А НЕ ПРАВКА 011-01:
+          Liquibase вычисляет контрольную сумму (checksum) для каждого
+          выполненного changeset. Изменение уже применённого changeset приведёт
+          к ошибке при следующем запуске Liquibase:
+            "Validation Failed: ... checksum was: X but is now: Y"
+          Поэтому исправление ВСЕГДА делается новым changesetом.
+
+        РЕШЕНИЕ:
+          Пересчитать current_usage_count из таблицы promo_code_usage —
+          единственного достоверного источника истории применений.
+
+          Логика:
+            current_usage_count = COUNT(*) записей в promo_code_usage
+            для данного promo_code_id
+
+          Для промо-кодов, которые никогда не использовались (нет записей
+          в promo_code_usage), счётчик корректно выставляется в 0.
+
+        ПОРЯДОК ВЫПОЛНЕНИЯ:
+          021-01 — Пересчёт счётчиков из promo_code_usage (основное исправление)
+          021-02 — Верификация: проверка согласованности данных после исправления
+          021-03 — Комментарий к столбцу с описанием правильной семантики
+
+        ВАЖНО ДЛЯ PRODUCTION:
+          Перед применением убедиться, что нет активных транзакций с промо-кодами.
+          Выполнять во время технического обслуживания или в период низкой нагрузки.
+    -->
+
+    <!-- ================================================================ -->
+    <!-- 021-01: Пересчёт current_usage_count из promo_code_usage         -->
+    <!-- ================================================================ -->
+    <changeSet id="021-01-recalculate-promo-code-usage-counters" author="travel-insurance">
+        <comment>
+            Fix: recalculate current_usage_count from promo_code_usage table.
+
+            Replaces the incorrect approach from 011-01 (reset all counters to 0)
+            with correct recalculation based on actual usage history.
+
+            Formula: current_usage_count = COUNT(*) in promo_code_usage per promo_code_id
+
+            For promo codes that have never been used (no records in promo_code_usage),
+            the counter is correctly set to 0.
+        </comment>
+
+        <sql splitStatements="false"><![CDATA[
+            UPDATE promo_codes pc
+            SET current_usage_count = (
+                SELECT COUNT(*)
+                FROM promo_code_usage pcu
+                WHERE pcu.promo_code_id = pc.id
+            );
+        ]]></sql>
+
+        <rollback>
+            <!--
+                Откат: возвращаем к состоянию после 011-01 (все счётчики = 0).
+                Это некорректное состояние, но соответствует тому, что было
+                до применения данного исправления.
+            -->
+            <sql splitStatements="false"><![CDATA[
+                UPDATE promo_codes
+                SET current_usage_count = 0;
+            ]]></sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ================================================================ -->
+    <!-- 021-02: Верификация согласованности данных                       -->
+    <!-- ================================================================ -->
+    <changeSet id="021-02-verify-promo-code-counter-consistency" author="travel-insurance">
+        <comment>
+            Verification: ensure current_usage_count is consistent with promo_code_usage.
+
+            Raises an exception if any promo code has a counter that differs
+            from the actual count in promo_code_usage — protecting against
+            data inconsistencies introduced by future migrations or direct DB edits.
+
+            This check runs immediately after recalculation (021-01) as a guard.
+        </comment>
+
+        <sql splitStatements="false"><![CDATA[
+            DO $$
+            DECLARE
+                v_inconsistent_count INT;
+                v_samples TEXT;
+            BEGIN
+                -- Проверяем что current_usage_count совпадает с реальными данными
+                SELECT COUNT(*)
+                INTO v_inconsistent_count
+                FROM promo_codes pc
+                WHERE pc.current_usage_count != (
+                    SELECT COUNT(*)
+                    FROM promo_code_usage pcu
+                    WHERE pcu.promo_code_id = pc.id
+                );
+
+                IF v_inconsistent_count > 0 THEN
+                    -- Собираем примеры для диагностики
+                    SELECT string_agg(
+                        pc.code || ': counter=' || pc.current_usage_count::TEXT
+                            || ', actual=' || (
+                                SELECT COUNT(*)::TEXT
+                                FROM promo_code_usage pcu
+                                WHERE pcu.promo_code_id = pc.id
+                            ),
+                        ', '
+                    )
+                    INTO v_samples
+                    FROM promo_codes pc
+                    WHERE pc.current_usage_count != (
+                        SELECT COUNT(*)
+                        FROM promo_code_usage pcu
+                        WHERE pcu.promo_code_id = pc.id
+                    )
+                    LIMIT 5;
+
+                    RAISE EXCEPTION
+                        'Data consistency check FAILED after counter recalculation: '
+                        '% promo code(s) still have incorrect counters: [%]',
+                        v_inconsistent_count, v_samples;
+                END IF;
+
+                RAISE NOTICE 'Verification PASSED: all % promo code counters are consistent with promo_code_usage.',
+                    (SELECT COUNT(*) FROM promo_codes);
+            END $$;
+        ]]></sql>
+
+        <rollback>
+            <!-- Верификация не изменяет данные — откат не требуется -->
+        </rollback>
+    </changeSet>
+
+    <!-- ================================================================ -->
+    <!-- 021-03: Документирующий комментарий к столбцу                    -->
+    <!-- ================================================================ -->
+    <changeSet id="021-03-document-promo-code-usage-counter"
+               author="travel-insurance"
+               dbms="postgresql">
+        <comment>
+            Update column comment to document correct semantics and migration history.
+        </comment>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN promo_codes.current_usage_count IS
+            'Number of times this promo code has been successfully applied.
+
+            SOURCE OF TRUTH: promo_code_usage table (COUNT per promo_code_id).
+
+            IMPORTANT — Migration history:
+              011-01 (INCORRECT): Reset all counters to 0 unconditionally.
+                This was a bug — it erased real usage data for codes that
+                had already been applied.
+              021-01 (FIX): Recalculated from promo_code_usage.
+
+            MAINTENANCE:
+              This counter is incremented transactionally in PromoCodeService
+              via pessimistic locking (SELECT FOR UPDATE) to prevent race conditions.
+              Never update this column directly; always go through the service layer.
+
+            CONSISTENCY CHECK:
+              current_usage_count should always equal:
+                SELECT COUNT(*) FROM promo_code_usage WHERE promo_code_id = id';
+        ]]></sql>
+
+        <rollback>
+            <sql><![CDATA[
+                COMMENT ON COLUMN promo_codes.current_usage_count IS
+                'Current number of times this promo code has been used.
+                IMPORTANT: This counter is now persistent and incremented transactionally.';
+            ]]></sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

@@ -39,3 +39,5 @@ databaseChangeLog:
       file: db/changelog/changes/019-fix-temporal-join-in-views.xml
   - include:
       file: db/changelog/changes/020-fix-calculation-config-unique-constraint.xml
+  - include:
+      file: db/changelog/changes/021-fix-promo-code-usage-counters.xml
