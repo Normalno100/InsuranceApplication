@@ -126,22 +126,68 @@
     <!-- ПРОФИЛИ SPRING                               -->
     <!-- ============================================ -->
 
+    <!--
+        ИСПРАВЛЕНИЕ (п. 5.4 плана рефакторинга): Двойное логирование
+
+        ПРОБЛЕМА (было):
+          Логгеры внутри <springProfile> не имели additivity="false":
+            <logger name="org.javaguru..." level="DEBUG" />
+
+          По умолчанию additivity=true — сообщение обрабатывается
+          профильным логгером, затем передаётся вверх к root-логгеру
+          и снова пишется в консоль/файл. Итого: каждое сообщение
+          появлялось дважды при активном профиле.
+
+        РЕШЕНИЕ (стало):
+          Добавлено additivity="false" и явные <appender-ref> во всех
+          профильных логгерах. Это разрывает цепочку propagation:
+          сообщение обрабатывается только данным логгером и не
+          передаётся родительскому.
+
+        ПОЧЕМУ НУЖНЫ appender-ref В ПРОФИЛЬНЫХ ЛОГГЕРАХ:
+          При additivity="false" логгер полностью «перехватывает»
+          обработку — если не указать appender-ref, сообщения просто
+          исчезнут (не запишутся никуда). Поэтому каждый профильный
+          логгер явно ссылается на нужные appender-ы.
+    -->
+
     <!-- Профиль DEVELOPMENT -->
     <springProfile name="dev">
-        <logger name="org.javaguru.travel.insurance" level="DEBUG" />
-        <logger name="org.springframework.web" level="DEBUG" />
+        <logger name="org.javaguru.travel.insurance" level="DEBUG" additivity="false">
+            <appender-ref ref="CONSOLE" />
+            <appender-ref ref="FILE_ALL" />
+            <appender-ref ref="FILE_ERROR" />
+        </logger>
+        <logger name="org.springframework.web" level="DEBUG" additivity="false">
+            <appender-ref ref="CONSOLE" />
+            <appender-ref ref="FILE_ALL" />
+        </logger>
     </springProfile>
 
     <!-- Профиль PRODUCTION -->
     <springProfile name="prod">
-        <logger name="org.javaguru.travel.insurance" level="INFO" />
-        <logger name="org.springframework" level="WARN" />
+        <logger name="org.javaguru.travel.insurance" level="INFO" additivity="false">
+            <appender-ref ref="CONSOLE" />
+            <appender-ref ref="FILE_ALL" />
+            <appender-ref ref="FILE_ERROR" />
+        </logger>
+        <logger name="org.springframework" level="WARN" additivity="false">
+            <appender-ref ref="CONSOLE" />
+            <appender-ref ref="FILE_ALL" />
+        </logger>
     </springProfile>
 
     <!-- Профиль TESTING -->
     <springProfile name="test">
-        <logger name="org.javaguru.travel.insurance" level="DEBUG" />
-        <logger name="org.springframework" level="WARN" />
+        <logger name="org.javaguru.travel.insurance" level="DEBUG" additivity="false">
+            <appender-ref ref="CONSOLE" />
+            <appender-ref ref="FILE_ALL" />
+            <appender-ref ref="FILE_ERROR" />
+        </logger>
+        <logger name="org.springframework" level="WARN" additivity="false">
+            <appender-ref ref="CONSOLE" />
+            <appender-ref ref="FILE_ALL" />
+        </logger>
     </springProfile>
 
     <!-- ============================================ -->
