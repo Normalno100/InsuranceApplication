@@ -1,17 +1,23 @@
 package org.javaguru.travel.insurance.application.validation.rule.structural;
 
-import org.javaguru.travel.insurance.application.validation.FieldValidationRule;
+import org.javaguru.travel.insurance.application.validation.AbstractFieldValidator;
 import org.javaguru.travel.insurance.application.validation.ValidationContext;
 import org.javaguru.travel.insurance.application.validation.ValidationError;
 import org.javaguru.travel.insurance.application.validation.ValidationResult;
-import org.javaguru.travel.insurance.application.validation.*;
 
 import java.util.function.Function;
 
 /**
- * Проверяет длину строки
+ * Проверяет длину строки.
+ *
+ * РЕФАКТОРИНГ (п. 4.4): Убран ручной null-guard:
+ *   БЫЛО:
+ *     if (fieldValue == null) {
+ *         return success(); // null проверяется другим валидатором
+ *     }
+ *   СТАЛО: skipIfNull=true в конструкторе AbstractFieldValidator.
  */
-public class StringLengthValidator<T> extends FieldValidationRule<T, String> {
+public class StringLengthValidator<T> extends AbstractFieldValidator<T, String> {
 
     private final Integer minLength;
     private final Integer maxLength;
@@ -20,16 +26,14 @@ public class StringLengthValidator<T> extends FieldValidationRule<T, String> {
                                  Integer minLength,
                                  Integer maxLength,
                                  Function<T, String> fieldExtractor) {
-        super(fieldName, fieldExtractor, 30);
+        super(fieldName, fieldExtractor, 30, true); // skipIfNull=true
         this.minLength = minLength;
         this.maxLength = maxLength;
     }
 
     @Override
-    protected ValidationResult validateField(String fieldValue, ValidationContext context) {
-        if (fieldValue == null) {
-            return success(); // null проверяется другим валидатором
-        }
+    protected ValidationResult doValidateField(String fieldValue, ValidationContext context) {
+        // При skipIfNull=true этот метод вызывается только с ненулевым значением
 
         int length = fieldValue.length();
 

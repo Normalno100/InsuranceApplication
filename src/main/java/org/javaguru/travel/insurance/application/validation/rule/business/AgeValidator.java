@@ -4,14 +4,28 @@ import org.javaguru.travel.insurance.application.validation.AbstractValidationRu
 import org.javaguru.travel.insurance.application.validation.ValidationContext;
 import org.javaguru.travel.insurance.application.validation.ValidationError;
 import org.javaguru.travel.insurance.application.validation.ValidationResult;
-import org.javaguru.travel.insurance.application.validation.*;
 import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 
 import java.time.LocalDate;
 import java.time.Period;
 
 /**
- * Проверяет что возраст в допустимых пределах (0-80 лет)
+ * Проверяет что возраст в допустимых пределах (0-80 лет).
+ *
+ * РЕФАКТОРИНГ (п. 4.4): Убраны ручные null-гварды.
+ *   БЫЛО:
+ *     if (birthDate == null || agreementDateFrom == null) {
+ *         return success();
+ *     }
+ *   СТАЛО: ConditionalValidator.when() в TravelCalculatePremiumRequestValidator
+ *   гарантирует вызов только при ненулевых датах:
+ *
+ *     .addRule(ConditionalValidator.when(
+ *         req -> req.getPersonBirthDate() != null && req.getAgreementDateFrom() != null,
+ *         new AgeValidator()
+ *     ))
+ *
+ * Для безопасности прямого вызова оставляем минимальную защиту внутри.
  */
 public class AgeValidator extends AbstractValidationRule<TravelCalculatePremiumRequest> {
 
@@ -19,7 +33,7 @@ public class AgeValidator extends AbstractValidationRule<TravelCalculatePremiumR
     private static final int MAX_AGE = 80;
 
     public AgeValidator() {
-        super("AgeValidator", 130); // Order = 130
+        super("AgeValidator", 130);
     }
 
     @Override
@@ -28,14 +42,13 @@ public class AgeValidator extends AbstractValidationRule<TravelCalculatePremiumR
         LocalDate birthDate = request.getPersonBirthDate();
         LocalDate agreementDateFrom = request.getAgreementDateFrom();
 
-        // Если даты null, пропускаем
+        // Минимальная защита для прямого вызова вне CompositeValidator.
+        // При использовании через ConditionalValidator этот guard не срабатывает.
         if (birthDate == null || agreementDateFrom == null) {
             return success();
         }
 
         int age = Period.between(birthDate, agreementDateFrom).getYears();
-
-        // Сохраняем возраст в контекст для других валидаторов
         context.setAttribute("personAge", age);
 
         ValidationResult.Builder resultBuilder = ValidationResult.builder();

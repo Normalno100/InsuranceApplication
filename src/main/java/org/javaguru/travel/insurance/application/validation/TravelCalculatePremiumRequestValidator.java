@@ -11,9 +11,31 @@ import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumReque
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
- * Главный валидатор для TravelCalculatePremiumRequest.*/
+ * Главный валидатор для TravelCalculatePremiumRequest.
+ *
+ * РЕФАКТОРИНГ (п. 4.4): Устранение дублирования null-проверок в валидаторах.
+ *
+ * ПОДХОД:
+ *   1. Валидаторы одного поля (DateInPastValidator, IsoCodeValidator,
+ *      StringLengthValidator) наследуются от AbstractFieldValidator
+ *      с skipIfNull=true — ручные null-guard убраны из их кода.
+ *
+ *   2. Валидаторы двух полей (DateRangeValidator, TripDurationValidator,
+ *      AgeValidator, AgreementDateFromNotTooFarValidator) оборачиваются
+ *      в ConditionalValidator.when(...) прямо здесь — условие проверяет
+ *      ненулевость всех нужных полей перед вызовом правила.
+ *
+ *   3. FutureTripWarningValidator уже работает корректно (skipIfNull-аналог
+ *      через явную проверку dateFrom == null → success()); оставлен без изменений.
+ *
+ * РЕЗУЛЬТАТ: ~10 дублирующихся null-guard'ов удалены из валидаторов.
+ *   Логика "пропустить если null" централизована в двух местах:
+ *   - AbstractFieldValidator.validateField() — для single-field валидаторов
+ *   - ConditionalValidator.when() — для multi-field валидаторов
+ */
 @Component
 public class TravelCalculatePremiumRequestValidator {
 
@@ -65,6 +87,7 @@ public class TravelCalculatePremiumRequestValidator {
                         TravelCalculatePremiumRequest::getPersonFirstName))
                 .addRule(new NotBlankValidator<>("personFirstName",
                         TravelCalculatePremiumRequest::getPersonFirstName))
+                // StringLengthValidator теперь с skipIfNull=true → null-guard не нужен
                 .addRule(new StringLengthValidator<>("personFirstName", 1, 100,
                         TravelCalculatePremiumRequest::getPersonFirstName))
 
@@ -93,13 +116,14 @@ public class TravelCalculatePremiumRequestValidator {
                         TravelCalculatePremiumRequest::getCountryIsoCode))
                 .addRule(new NotBlankValidator<>("countryIsoCode",
                         TravelCalculatePremiumRequest::getCountryIsoCode))
+                // IsoCodeValidator теперь с skipIfNull=true → null-guard не нужен
                 .addRule(new IsoCodeValidator<>("countryIsoCode", 2,
                         TravelCalculatePremiumRequest::getCountryIsoCode))
-                // Обязателен только в режиме MEDICAL_LEVEL (useCountryDefaultPremium = false/null).
-                // В режиме COUNTRY_DEFAULT (useCountryDefaultPremium = true) — необязателен.
+
+                // medicalRiskLimitLevel (условная обязательность по режиму расчёта)
                 .addRule(new ConditionalMedicalRiskLimitLevelValidator())
 
-                // selectedRisks (опциональное поле, но если есть - элементы не пустые)
+                // selectedRisks (опциональное поле)
                 .addRule(new CollectionElementsNotBlankValidator<>("selectedRisks",
                         TravelCalculatePremiumRequest::getSelectedRisks))
 
@@ -107,25 +131,78 @@ public class TravelCalculatePremiumRequestValidator {
                 // LEVEL 2: BUSINESS RULES (Order: 100-199)
                 // ==========================================
 
+                // РЕФАКТОРИНГ 4.4: DateInPastValidator теперь с skipIfNull=true —
+                // null-guard удалён из кода валидатора.
                 .addRule(new DateInPastValidator<>("personBirthDate",
-                        TravelCalculatePremiumRequest::getPersonBirthDate))     // 110
-                .addRule(new DateRangeValidator())                              // 120
-                .addRule(new AgeValidator())                                    // 130
-                .addRule(new TripDurationValidator())                           // 140
-                .addRule(new AgreementDateFromNotTooFarValidator())             // 145
-                .addRule(new FutureTripWarningValidator())                      // 150
-                .addRule(new MandatoryRisksValidator())                         // 160
-                .addRule(new DuplicateRisksValidator())                         // 165
+                        TravelCalculatePremiumRequest::getPersonBirthDate))         // 110
+
+                // РЕФАКТОРИНГ 4.4: DateRangeValidator обёрнут в ConditionalValidator —
+                // активируется только когда обе даты ненулевые.
+                // Ручной null-guard "if (dateFrom == null || dateTo == null)" убран из
+                // DateRangeValidator — здесь он теперь не нужен.
+                .addRule(ConditionalValidator.when(
+                        req -> req.getAgreementDateFrom() != null
+                                && req.getAgreementDateTo() != null,
+                        new DateRangeValidator()                                     // 120
+                ))
+
+                // РЕФАКТОРИНГ 4.4: AgeValidator обёрнут в ConditionalValidator —
+                // активируется только когда обе даты ненулевые.
+                .addRule(ConditionalValidator.when(
+                        req -> req.getPersonBirthDate() != null
+                                && req.getAgreementDateFrom() != null,
+                        new AgeValidator()                                           // 130
+                ))
+
+                // РЕФАКТОРИНГ 4.4: TripDurationValidator обёрнут в ConditionalValidator.
+                .addRule(ConditionalValidator.when(
+                        req -> req.getAgreementDateFrom() != null
+                                && req.getAgreementDateTo() != null,
+                        new TripDurationValidator()                                  // 140
+                ))
+
+                // РЕФАКТОРИНГ 4.4: AgreementDateFromNotTooFarValidator обёрнут
+                // в ConditionalValidator — dateFrom != null гарантирован.
+                .addRule(ConditionalValidator.when(
+                        req -> req.getAgreementDateFrom() != null,
+                        new AgreementDateFromNotTooFarValidator()                   // 145
+                ))
+
+                // FutureTripWarningValidator — имеет собственный null-guard
+                // (if dateFrom == null → success()), оставлен без изменений.
+                .addRule(new FutureTripWarningValidator())                           // 150
+
+                .addRule(new MandatoryRisksValidator())                             // 160
+                .addRule(new DuplicateRisksValidator())                             // 165
 
                 // ==========================================
                 // LEVEL 3: REFERENCE DATA (Order: 200-299)
                 // ==========================================
 
-                .addRule(new CountryExistenceValidator(referenceDataPort))                      // 210
-                .addRule(new MedicalRiskLimitLevelExistenceValidator(referenceDataPort))        // 220
-                .addRule(new RiskTypeExistenceValidator(referenceDataPort))                     // 230
-                .addRule(new RiskTypeNotMandatoryValidator(referenceDataPort))                  // 240
-                .addRule(new CurrencySupportValidator())                                        // 250
+                // РЕФАКТОРИНГ 4.4: CountryExistenceValidator обёрнут в ConditionalValidator —
+                // активируется только когда код страны и дата ненулевые.
+                .addRule(ConditionalValidator.when(
+                        req -> Objects.nonNull(req.getCountryIsoCode())
+                                && Objects.nonNull(req.getAgreementDateFrom()),
+                        new CountryExistenceValidator(referenceDataPort)           // 210
+                ))
+
+                // РЕФАКТОРИНГ 4.4: MedicalRiskLimitLevelExistenceValidator уже содержит
+                // проверку useCountryDefaultPremium и null — оставлен без изменений,
+                // т.к. логика сложнее простого null-guard.
+                .addRule(new MedicalRiskLimitLevelExistenceValidator(referenceDataPort)) // 220
+
+                // РЕФАКТОРИНГ 4.4: RiskTypeExistenceValidator обёрнут в ConditionalValidator —
+                // активируется только когда есть выбранные риски и дата.
+                .addRule(ConditionalValidator.when(
+                        req -> req.getSelectedRisks() != null
+                                && !req.getSelectedRisks().isEmpty()
+                                && req.getAgreementDateFrom() != null,
+                        new RiskTypeExistenceValidator(referenceDataPort)          // 230
+                ))
+
+                .addRule(new RiskTypeNotMandatoryValidator(referenceDataPort))     // 240
+                .addRule(new CurrencySupportValidator())                           // 250
 
                 .stopOnCriticalError(true)
                 .build();

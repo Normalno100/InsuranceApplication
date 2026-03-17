@@ -4,15 +4,24 @@ import org.javaguru.travel.insurance.application.validation.AbstractValidationRu
 import org.javaguru.travel.insurance.application.validation.ValidationContext;
 import org.javaguru.travel.insurance.application.validation.ValidationError;
 import org.javaguru.travel.insurance.application.validation.ValidationResult;
-import org.javaguru.travel.insurance.application.validation.*;
 import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 
 /**
- * Проверяет что agreementDateFrom не слишком далеко в будущем
- * (например, не более 1 года)
+ * Проверяет что agreementDateFrom не слишком далеко в будущем (не более 1 года).
+ *
+ * РЕФАКТОРИНГ (п. 4.4): Убран ручной null-guard.
+ *   БЫЛО:
+ *     if (dateFrom == null) {
+ *         return success();
+ *     }
+ *   СТАЛО: ConditionalValidator.when(req -> req.getAgreementDateFrom() != null, ...)
+ *   в TravelCalculatePremiumRequestValidator — этот валидатор вызывается
+ *   только при ненулевом agreementDateFrom.
+ *
+ *   Оставляем минимальный guard для безопасного прямого вызова.
  */
 public class AgreementDateFromNotTooFarValidator extends AbstractValidationRule<TravelCalculatePremiumRequest> {
 
@@ -27,6 +36,7 @@ public class AgreementDateFromNotTooFarValidator extends AbstractValidationRule<
                                           ValidationContext context) {
         LocalDate dateFrom = request.getAgreementDateFrom();
 
+        // Минимальный guard для прямого вызова вне ConditionalValidator.
         if (dateFrom == null) {
             return success();
         }

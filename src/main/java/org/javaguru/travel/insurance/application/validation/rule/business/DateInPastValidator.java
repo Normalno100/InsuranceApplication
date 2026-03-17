@@ -1,29 +1,33 @@
 package org.javaguru.travel.insurance.application.validation.rule.business;
 
-import org.javaguru.travel.insurance.application.validation.FieldValidationRule;
+import org.javaguru.travel.insurance.application.validation.AbstractFieldValidator;
 import org.javaguru.travel.insurance.application.validation.ValidationContext;
 import org.javaguru.travel.insurance.application.validation.ValidationError;
 import org.javaguru.travel.insurance.application.validation.ValidationResult;
-import org.javaguru.travel.insurance.application.validation.*;
 
 import java.time.LocalDate;
 import java.util.function.Function;
 
 /**
- * Проверяет что дата в прошлом (например, дата рождения)
+ * Проверяет что дата в прошлом (например, дата рождения).
+ *
+ * РЕФАКТОРИНГ (п. 4.4): Убран ручной null-guard:
+ *   БЫЛО:
+ *     if (fieldValue == null) {
+ *         return success(); // null проверяется другим валидатором
+ *     }
+ *   СТАЛО: skipIfNull=true в конструкторе — AbstractFieldValidator
+ *          автоматически возвращает success() при null.
  */
-public class DateInPastValidator<T> extends FieldValidationRule<T, LocalDate> {
+public class DateInPastValidator<T> extends AbstractFieldValidator<T, LocalDate> {
 
     public DateInPastValidator(String fieldName, Function<T, LocalDate> fieldExtractor) {
-        super(fieldName, fieldExtractor, 110); // Order = 110 (business)
+        super(fieldName, fieldExtractor, 110, true); // skipIfNull=true
     }
 
     @Override
-    protected ValidationResult validateField(LocalDate fieldValue, ValidationContext context) {
-        if (fieldValue == null) {
-            return success(); // null проверяется другим валидатором
-        }
-
+    protected ValidationResult doValidateField(LocalDate fieldValue, ValidationContext context) {
+        // При skipIfNull=true этот метод вызывается только с ненулевым значением
         LocalDate now = context.getValidationDate();
 
         if (!fieldValue.isBefore(now)) {
