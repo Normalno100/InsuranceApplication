@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!--
+        ИСПРАВЛЕНИЕ (п. 5.3 плана рефакторинга): calculation_config UNIQUE constraint
+        Приоритет: СРЕДНИЙ, P2
+
+        ПРОБЛЕМА:
+          Таблица calculation_config создана в 015-create-calculation-config.xml
+          с UNIQUE constraint только на config_key.
+
+          Но таблица поддерживает temporal validity (поля valid_from, valid_to).
+          При наличии temporal validity нельзя добавить новую версию конфига
+          без удаления старой записи.
+
+        РЕШЕНИЕ:
+          Изменить UNIQUE constraint с (config_key) на (config_key, valid_from).
+    -->
+
+    <changeSet id="020-01-drop-old-calculation-config-unique" author="travel-insurance">
+        <comment>
+            Drop single-column UNIQUE constraint on calculation_config.config_key.
+            It prevents adding versioned (temporal) entries for the same key.
+            Part of refactoring plan p. 5.3.
+        </comment>
+
+        <dropUniqueConstraint
+                tableName="calculation_config"
+                constraintName="uk_calculation_config_key"/>
+
+        <rollback>
+            <addUniqueConstraint
+                    tableName="calculation_config"
+                    columnNames="config_key"
+                    constraintName="uk_calculation_config_key"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="020-02-add-temporal-calculation-config-unique" author="travel-insurance">
+        <comment>
+            Add composite UNIQUE constraint on (config_key, valid_from).
+            Aligns calculation_config with the temporal validity pattern used
+            throughout the project (countries, age_coefficients, etc.).
+        </comment>
+
+        <addUniqueConstraint
+                tableName="calculation_config"
+                columnNames="config_key, valid_from"
+                constraintName="uk_calculation_config_key_valid_from"/>
+
+        <rollback>
+            <dropUniqueConstraint
+                    tableName="calculation_config"
+                    constraintName="uk_calculation_config_key_valid_from"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="020-03-update-calculation-config-comment" author="travel-insurance"
+               dbms="postgresql">
+        <comment>Update table comment to reflect the fixed temporal unique constraint</comment>
+
+        <sql><![CDATA[
+            COMMENT ON TABLE calculation_config IS
+            'Global configuration for premium calculation behaviour.
+
+            UNIQUE CONSTRAINT fixed (refactoring plan p. 5.3):
+            Changed from UNIQUE(config_key) to UNIQUE(config_key, valid_from).
+            Allows versioned (temporal) entries for the same key.
+
+            EXAMPLE:
+              AGE_COEFFICIENT_ENABLED = true  from 2025-01-01 to 2025-12-31
+              AGE_COEFFICIENT_ENABLED = false from 2026-01-01 (open-ended)
+
+            KEYS:
+            AGE_COEFFICIENT_ENABLED controls age-based coefficient (true/false).
+              true  means coefficient from age_coefficients table is applied.
+              false means AgeCoefficient = 1.0 (no age adjustment).';
+        ]]></sql>
+
+        <rollback>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
