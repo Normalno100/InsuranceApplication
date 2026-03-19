@@ -1,4 +1,4 @@
-package org.javaguru.travel.insurance.core.validation;
+package org.javaguru.travel.insurance.application.validation;
 
 import org.javaguru.travel.insurance.application.service.TravelCalculatePremiumService;
 import org.javaguru.travel.insurance.infrastructure.web.error.GlobalExceptionHandler;

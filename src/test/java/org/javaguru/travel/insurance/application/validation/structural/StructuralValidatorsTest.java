@@ -1,4 +1,4 @@
-package org.javaguru.travel.insurance.core.validation.structural;
+package org.javaguru.travel.insurance.application.validation.structural;
 
 import org.javaguru.travel.insurance.application.validation.ValidationContext;
 import org.javaguru.travel.insurance.application.validation.rule.structural.IsoCodeValidator;

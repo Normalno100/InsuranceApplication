@@ -1,4 +1,4 @@
-package org.javaguru.travel.insurance.core.validation.business;
+package org.javaguru.travel.insurance.application.validation.business;
 
 import org.javaguru.travel.insurance.application.validation.ValidationContext;
 import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;

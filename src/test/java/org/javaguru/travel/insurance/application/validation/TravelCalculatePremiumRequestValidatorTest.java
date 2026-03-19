@@ -1,7 +1,5 @@
-package org.javaguru.travel.insurance.core.validation;
+package org.javaguru.travel.insurance.application.validation;
 
-import org.javaguru.travel.insurance.application.validation.TravelCalculatePremiumRequestValidator;
-import org.javaguru.travel.insurance.application.validation.ValidationError;
 import org.javaguru.travel.insurance.infrastructure.persistence.domain.entities.RiskTypeEntity;
 import org.javaguru.travel.insurance.infrastructure.persistence.repositories.CountryRepository;
 import org.javaguru.travel.insurance.infrastructure.persistence.repositories.MedicalRiskLimitLevelRepository;

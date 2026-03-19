@@ -1,6 +1,6 @@
-package org.javaguru.travel.insurance.core.validation.business;
+package org.javaguru.travel.insurance.application.validation.business;
 
-import org.javaguru.travel.insurance.BaseTestFixture;
+import org.javaguru.travel.insurance.TestConstants;
 import org.javaguru.travel.insurance.application.validation.ValidationContext;
 import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 import org.javaguru.travel.insurance.application.validation.rule.business.AgeValidator;
@@ -18,19 +18,26 @@ import java.time.LocalDate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Улучшенные тесты для бизнес-валидаторов
+ * Тесты для бизнес-валидаторов.
  *
- * ЭТО ПРИМЕР ХОРОШИХ UNIT-ТЕСТОВ:
- * - Нет моков (валидаторы не имеют зависимостей)
- * - Явные тестовые данные
- * - Фокус на поведении
- * - Группировка через @Nested
- * - Параметризованные тесты где уместно
+ * ЭТАП 1 (рефакторинг): Фиксация дат через Clock.
+ *
+ * БЫЛО:
+ *   private final ValidationContext context = new ValidationContext();
+ *   LocalDate.now().minusYears(35)  — нестабильно
+ *
+ * СТАЛО:
+ *   private static final LocalDate TODAY = TestConstants.TEST_DATE;  // 2026-03-18
+ *   private final ValidationContext context = new ValidationContext(TestConstants.TEST_CLOCK);
+ *   TODAY.minusYears(35)  — всегда 1991-03-18
  */
 @DisplayName("Business Validators")
-class BusinessValidatorsTest extends BaseTestFixture {
+class BusinessValidatorsTest {
 
-    private final ValidationContext context = new ValidationContext();
+    private static final LocalDate TODAY = TestConstants.TEST_DATE; // 2026-03-18
+
+    private final ValidationContext context =
+            new ValidationContext(TestConstants.TEST_CLOCK);
 
     // ==========================================
     // DATE IN PAST VALIDATOR
@@ -47,33 +54,27 @@ class BusinessValidatorsTest extends BaseTestFixture {
                 );
 
         @Test
-        @DisplayName("Should pass when birth date is 30 years ago")
+        @DisplayName("Должен пройти когда дата рождения 30 лет назад")
         void shouldPassWhenBirthDateInPast() {
-            // Given
             var request = TravelCalculatePremiumRequest.builder()
-                    .personBirthDate(LocalDate.now().minusYears(30))
+                    .personBirthDate(TODAY.minusYears(30)) // 1996-03-18
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then
             assertThat(result.isValid()).isTrue();
             assertThat(result.getErrors()).isEmpty();
         }
 
         @Test
-        @DisplayName("Should fail when birth date is today")
+        @DisplayName("Должен провалиться когда дата рождения сегодня")
         void shouldFailWhenBirthDateIsToday() {
-            // Given
             var request = TravelCalculatePremiumRequest.builder()
-                    .personBirthDate(LocalDate.now())
+                    .personBirthDate(TODAY) // 2026-03-18
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then
             assertThat(result.isValid()).isFalse();
             assertThat(result.getErrors())
                     .hasSize(1)
@@ -85,32 +86,26 @@ class BusinessValidatorsTest extends BaseTestFixture {
         }
 
         @Test
-        @DisplayName("Should fail when birth date is tomorrow")
+        @DisplayName("Должен провалиться когда дата рождения завтра")
         void shouldFailWhenBirthDateInFuture() {
-            // Given
             var request = TravelCalculatePremiumRequest.builder()
-                    .personBirthDate(LocalDate.now().plusDays(1))
+                    .personBirthDate(TODAY.plusDays(1))
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then
             assertThat(result.isValid()).isFalse();
         }
 
         @Test
-        @DisplayName("Should pass when birth date is null (handled by structural validators)")
+        @DisplayName("Должен пройти когда дата рождения null (проверяется другим валидатором)")
         void shouldPassWhenBirthDateIsNull() {
-            // Given
             var request = TravelCalculatePremiumRequest.builder()
                     .personBirthDate(null)
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then - бизнес-валидатор не проверяет null
             assertThat(result.isValid()).isTrue();
         }
     }
@@ -126,78 +121,62 @@ class BusinessValidatorsTest extends BaseTestFixture {
         private final DateRangeValidator validator = new DateRangeValidator();
 
         @Test
-        @DisplayName("Should pass when dateTo is 14 days after dateFrom")
+        @DisplayName("Должен пройти когда dateTo на 14 дней позже dateFrom")
         void shouldPassWhenValidOrder() {
-            // Given
-            LocalDate from = LocalDate.of(2025, 6, 1);
-            LocalDate to = LocalDate.of(2025, 6, 15);
-
             var request = TravelCalculatePremiumRequest.builder()
-                    .agreementDateFrom(from)
-                    .agreementDateTo(to)
+                    .agreementDateFrom(TODAY.plusDays(30))
+                    .agreementDateTo(TODAY.plusDays(44))
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then
             assertThat(result.isValid()).isTrue();
         }
 
         @Test
-        @DisplayName("Should pass when dates are equal (single day trip)")
+        @DisplayName("Должен пройти когда даты совпадают (однодневная поездка)")
         void shouldPassWhenDatesEqual() {
-            // Given - поездка на один день
-            LocalDate date = LocalDate.of(2025, 6, 1);
-
             var request = TravelCalculatePremiumRequest.builder()
-                    .agreementDateFrom(date)
-                    .agreementDateTo(date)
+                    .agreementDateFrom(TODAY.plusDays(30))
+                    .agreementDateTo(TODAY.plusDays(30))
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then
             assertThat(result.isValid()).isTrue();
         }
 
         @Test
-        @DisplayName("Should fail when dateTo is before dateFrom")
+        @DisplayName("Должен провалиться когда dateTo раньше dateFrom")
         void shouldFailWhenInvalidOrder() {
-            // Given - даты в неправильном порядке
             var request = TravelCalculatePremiumRequest.builder()
-                    .agreementDateFrom(LocalDate.of(2025, 6, 15))
-                    .agreementDateTo(LocalDate.of(2025, 6, 1))
+                    .agreementDateFrom(TODAY.plusDays(44))
+                    .agreementDateTo(TODAY.plusDays(30))
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then
             assertThat(result.isValid()).isFalse();
             assertThat(result.getErrors())
                     .hasSize(1)
                     .first()
                     .satisfies(error -> {
                         assertThat(error.getField()).isEqualTo("agreementDateTo");
-                        assertThat(error.getMessage()).contains("agreementDateTo must be greater than or equal to agreementDateFrom!");
+                        assertThat(error.getMessage())
+                                .contains("agreementDateTo must be greater than or equal to agreementDateFrom!");
                     });
         }
 
         @Test
-        @DisplayName("Should pass when one date is null")
+        @DisplayName("Должен пройти когда одна из дат null")
         void shouldPassWhenOneDateNull() {
-            // Given
             var request = TravelCalculatePremiumRequest.builder()
-                    .agreementDateFrom(LocalDate.of(2025, 6, 1))
+                    .agreementDateFrom(TODAY.plusDays(30))
                     .agreementDateTo(null)
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then
             assertThat(result.isValid()).isTrue();
         }
     }
@@ -213,105 +192,99 @@ class BusinessValidatorsTest extends BaseTestFixture {
         private final AgeValidator validator = new AgeValidator();
 
         @Test
-        @DisplayName("Should pass and store age in context for 30-year-old person")
+        @DisplayName("Должен пройти и сохранить возраст в контексте для 35-летнего")
         void shouldPassAndStoreAgeForAdult() {
-            // Given - человек 30 лет
             var request = TravelCalculatePremiumRequest.builder()
-                    .personBirthDate(LocalDate.now().minusYears(30))
-                    .agreementDateFrom(LocalDate.now())
+                    .personBirthDate(TODAY.minusYears(35)) // 1991-03-18
+                    .agreementDateFrom(TODAY.plusDays(30)) // 2026-04-17
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then
             assertThat(result.isValid()).isTrue();
-
-            // Проверяем что возраст сохранен в контексте
             assertThat(context.getAttribute("personAge", Integer.class))
                     .isPresent()
-                    .hasValue(30);
+                    .hasValue(35);
         }
 
         @Test
-        @DisplayName("Should fail when person is not born yet (negative age)")
+        @DisplayName("Должен провалиться когда birthDate позже agreementDateFrom — возраст отрицательный")
         void shouldFailWhenAgeNegative() {
-            // Given - дата рождения в будущем
+            // AgeValidator вычисляет: age = Period.between(birthDate, agreementDateFrom).getYears()
+            // Для отрицательного возраста birthDate должен быть ПОЗЖЕ agreementDateFrom.
+            //
+            // Неверный вариант: TODAY.plusYears(1) vs TODAY.plusDays(30)
+            //   birthDate = 2027-03-18, agreementDateFrom = 2026-04-17
+            //   → birthDate > agreementDateFrom → age отрицательный
+            //   НО: если Period.between возвращает 0 в getYears() (только месяцы/дни),
+            //   то проверка age < 0 не сработает.
+            //
+            // Надёжный вариант: birthDate на несколько лет позже agreementDateFrom:
+            //   birthDate = TODAY + 2 года = 2028-03-18
+            //   agreementDateFrom = TODAY + 30 дней = 2026-04-17
+            //   Period.between(2028-03-18, 2026-04-17).getYears() = -2
             var request = TravelCalculatePremiumRequest.builder()
-                    .personBirthDate(LocalDate.now().plusYears(1))
-                    .agreementDateFrom(LocalDate.now())
+                    .personBirthDate(TODAY.plusYears(2))   // 2028-03-18 — на 2 года позже
+                    .agreementDateFrom(TODAY.plusDays(30)) // 2026-04-17
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then
             assertThat(result.isValid()).isFalse();
             assertThat(result.getErrors())
                     .hasSize(1)
                     .first()
-                    .satisfies(error -> {
-                        assertThat(error.getMessage()).contains("Person age must be at least 0 years!");
-                    });
+                    .satisfies(error ->
+                            assertThat(error.getMessage())
+                                    .contains("Person age must be at least 0 years!"));
         }
 
         @Test
-        @DisplayName("Should fail when age exceeds maximum allowed (80 years)")
+        @DisplayName("Должен провалиться когда возраст превышает максимум (80 лет)")
         void shouldFailWhenAgeTooHigh() {
-            // Given - человек 85 лет (превышает максимум)
             var request = TravelCalculatePremiumRequest.builder()
-                    .personBirthDate(LocalDate.now().minusYears(85))
-                    .agreementDateFrom(LocalDate.now())
+                    .personBirthDate(TODAY.minusYears(85))  // 1941-03-18 — 85 лет
+                    .agreementDateFrom(TODAY.plusDays(30))
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then
             assertThat(result.isValid()).isFalse();
             assertThat(result.getErrors())
                     .hasSize(1)
                     .first()
-                    .satisfies(error -> {
-                        assertThat(error.getMessage()).contains("80");
-                    });
+                    .satisfies(error -> assertThat(error.getMessage()).contains("80"));
         }
 
         @ParameterizedTest
         @ValueSource(ints = {0, 1, 18, 35, 65, 75, 80})
-        @DisplayName("Should pass for all valid ages from 0 to 80")
+        @DisplayName("Должен пройти для всех допустимых возрастов от 0 до 80")
         void shouldPassForValidAges(int age) {
-            // Given
             var request = TravelCalculatePremiumRequest.builder()
-                    .personBirthDate(LocalDate.now().minusYears(age))
-                    .agreementDateFrom(LocalDate.now())
+                    .personBirthDate(TODAY.minusYears(age))
+                    .agreementDateFrom(TODAY.plusDays(30))
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then
             assertThat(result.isValid())
-                    .as("Age %d should be valid", age)
+                    .as("Возраст %d должен быть допустимым", age)
                     .isTrue();
         }
 
         @ParameterizedTest
         @ValueSource(ints = {81, 85, 90, 100})
-        @DisplayName("Should fail for ages above maximum (80)")
+        @DisplayName("Должен провалиться для возрастов выше максимума (80)")
         void shouldFailForInvalidAges(int age) {
-            // Given
             var request = TravelCalculatePremiumRequest.builder()
-                    .personBirthDate(LocalDate.now().minusYears(age))
-                    .agreementDateFrom(LocalDate.now())
+                    .personBirthDate(TODAY.minusYears(age))
+                    .agreementDateFrom(TODAY.plusDays(30))
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then
             assertThat(result.isValid())
-                    .as("Age %d should be invalid", age)
+                    .as("Возраст %d должен быть недопустимым", age)
                     .isFalse();
         }
     }
@@ -327,24 +300,16 @@ class BusinessValidatorsTest extends BaseTestFixture {
         private final TripDurationValidator validator = new TripDurationValidator();
 
         @Test
-        @DisplayName("Should pass and store duration for 14-day trip")
+        @DisplayName("Должен пройти и сохранить длительность для 14-дневной поездки")
         void shouldPassAndStoreDurationForStandardTrip() {
-            // Given - поездка на 14 дней
-            LocalDate from = LocalDate.of(2025, 6, 2);
-            LocalDate to = LocalDate.of(2025, 6, 15);
-
             var request = TravelCalculatePremiumRequest.builder()
-                    .agreementDateFrom(from)
-                    .agreementDateTo(to)
+                    .agreementDateFrom(TODAY.plusDays(30))
+                    .agreementDateTo(TODAY.plusDays(43))
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then
             assertThat(result.isValid()).isTrue();
-
-            // Проверяем что длительность сохранена
             assertThat(context.getAttribute("tripDuration", Long.class))
                     .isPresent()
                     .get()
@@ -355,86 +320,48 @@ class BusinessValidatorsTest extends BaseTestFixture {
         }
 
         @Test
-        @DisplayName("Should pass for single day trip")
+        @DisplayName("Должен пройти для однодневной поездки")
         void shouldPassForSingleDayTrip() {
-            // Given - поездка на 1 день
-            LocalDate date = LocalDate.of(2025, 6, 1);
-
             var request = TravelCalculatePremiumRequest.builder()
-                    .agreementDateFrom(date)
-                    .agreementDateTo(date)
+                    .agreementDateFrom(TODAY.plusDays(30))
+                    .agreementDateTo(TODAY.plusDays(30))
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then
             assertThat(result.isValid()).isTrue();
         }
 
         @Test
-        @DisplayName("Should pass for maximum allowed duration (365 days)")
-        void shouldPassForMaximumDuration() {
-            // Given - поездка ровно на 365 дней
-            LocalDate from = LocalDate.of(2025, 1, 2);
-            LocalDate to = LocalDate.of(2026, 1, 1);
-
-            var request = TravelCalculatePremiumRequest.builder()
-                    .agreementDateFrom(from)
-                    .agreementDateTo(to)
-                    .build();
-
-            // When
-            var result = validator.validate(request, context);
-
-            // Then
-            assertThat(result.isValid()).isTrue();
-        }
-
-        @Test
-        @DisplayName("Should fail when duration exceeds maximum (366 days)")
+        @DisplayName("Должен провалиться когда длительность превышает максимум (366 дней)")
         void shouldFailWhenDurationTooLong() {
-            // Given - поездка больше года
-            LocalDate from = LocalDate.of(2025, 1, 1);
-            LocalDate to = LocalDate.of(2026, 1, 3); // 367 дней
-
             var request = TravelCalculatePremiumRequest.builder()
-                    .agreementDateFrom(from)
-                    .agreementDateTo(to)
+                    .agreementDateFrom(TODAY.plusDays(10))
+                    .agreementDateTo(TODAY.plusDays(10).plusDays(366))
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then
             assertThat(result.isValid()).isFalse();
             assertThat(result.getErrors())
                     .hasSize(1)
                     .first()
-                    .satisfies(error -> {
-                        assertThat(error.getMessage()).contains("365");
-                    });
+                    .satisfies(error -> assertThat(error.getMessage()).contains("365"));
         }
 
         @ParameterizedTest
         @ValueSource(ints = {1, 7, 14, 30, 60, 90, 180, 365})
-        @DisplayName("Should pass for all valid durations from 1 to 365 days")
+        @DisplayName("Должен пройти для всех допустимых длительностей от 1 до 365 дней")
         void shouldPassForValidDurations(int days) {
-            // Given
-            LocalDate from = LocalDate.of(2025, 6, 1);
-            LocalDate to = from.plusDays(days - 1);
-
             var request = TravelCalculatePremiumRequest.builder()
-                    .agreementDateFrom(from)
-                    .agreementDateTo(to)
+                    .agreementDateFrom(TODAY.plusDays(30))
+                    .agreementDateTo(TODAY.plusDays(30).plusDays(days - 1))
                     .build();
 
-            // When
             var result = validator.validate(request, context);
 
-            // Then
             assertThat(result.isValid())
-                    .as("Duration of %d days should be valid", days)
+                    .as("Длительность %d дней должна быть допустимой", days)
                     .isTrue();
         }
     }

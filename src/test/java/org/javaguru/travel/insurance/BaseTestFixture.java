@@ -11,74 +11,95 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Улучшенный базовый класс для тестов.
+ * Базовый класс для тестов с фабричными методами тестовых данных.
  *
- * ПРИНЦИПЫ:
- * 1. Только фабричные методы для создания тестовых данных
- * 2. Никаких моков - моки настраиваются в самих тестах
- * 3. Говорящие имена методов, которые объясняют ЗАЧЕМ нужны эти данные
- * 4. Явные параметры вместо магических значений
+ * ЭТАП 1 (рефакторинг): Фиксация дат через Clock.
+ *
+ * БЫЛО:
+ *   .personBirthDate(LocalDate.now().minusYears(35))   // нестабильно
+ *   .agreementDateFrom(LocalDate.now().plusDays(7))     // нестабильно
+ *
+ * СТАЛО:
+ *   private static final LocalDate REF = TestConstants.TEST_DATE;
+ *   .personBirthDate(REF.minusYears(35))               // всегда 1991-03-18
+ *   .agreementDateFrom(REF.plusDays(30))               // всегда 2026-04-17
+ *
+ * Все даты теперь фиксированы относительно TEST_DATE = 2026-03-18.
  */
 public abstract class BaseTestFixture {
+
+    /**
+     * Фиксированная опорная дата для всех тестовых данных.
+     * Используется вместо LocalDate.now() во всех фабричных методах.
+     */
+    protected static final LocalDate REF = TestConstants.TEST_DATE;
 
     // ========== REQUEST BUILDERS WITH CLEAR INTENT ==========
 
     /**
-     * Базовый запрос для взрослого человека 35 лет
-     * Используется как основа для большинства тестов
+     * Базовый запрос для взрослого человека 35 лет.
+     * Используется как основа для большинства тестов.
+     *
+     * birthDate  = REF - 35 лет = 1991-03-18
+     * dateFrom   = REF + 30 дней = 2026-04-17
+     * dateTo     = REF + 43 дней = 2026-04-30 (14 дней)
      */
     protected TravelCalculatePremiumRequest standardAdultRequest() {
         return TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
-                .personBirthDate(LocalDate.now().minusYears(35))
-                .agreementDateFrom(LocalDate.now().plusDays(7))
-                .agreementDateTo(LocalDate.now().plusDays(21)) // 14 days
-                .countryIsoCode("ES") // Spain - low risk
+                .personBirthDate(REF.minusYears(35))
+                .agreementDateFrom(REF.plusDays(30))
+                .agreementDateTo(REF.plusDays(43))
+                .countryIsoCode("ES")
                 .medicalRiskLimitLevel("50000")
                 .build();
     }
 
     /**
-     * Запрос для пожилого человека (75 лет) - используется для тестов age surcharge
+     * Запрос для пожилого человека (75 лет) — используется для тестов age surcharge.
+     *
+     * birthDate  = REF - 75 лет = 1951-03-18
      */
     protected TravelCalculatePremiumRequest elderlyPersonRequest() {
         return TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
-                .personBirthDate(LocalDate.now().minusYears(75))
-                .agreementDateFrom(LocalDate.now().plusDays(7))
-                .agreementDateTo(LocalDate.now().plusDays(21))
+                .personBirthDate(REF.minusYears(75))
+                .agreementDateFrom(REF.plusDays(30))
+                .agreementDateTo(REF.plusDays(43))
                 .countryIsoCode("ES")
                 .medicalRiskLimitLevel("50000")
                 .build();
     }
 
     /**
-     * Запрос для очень пожилого человека (80 лет) - граничное значение
+     * Запрос для человека 80 лет — граничное значение.
+     *
+     * birthDate  = REF - 80 лет = 1946-03-18
      */
     protected TravelCalculatePremiumRequest maximumAgeRequest() {
         return TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
-                .personBirthDate(LocalDate.now().minusYears(80))
-                .agreementDateFrom(LocalDate.now().plusDays(7))
-                .agreementDateTo(LocalDate.now().plusDays(21))
+                .personBirthDate(REF.minusYears(80))
+                .agreementDateFrom(REF.plusDays(30))
+                .agreementDateTo(REF.plusDays(43))
                 .countryIsoCode("ES")
                 .medicalRiskLimitLevel("50000")
                 .build();
     }
 
     /**
-     * Запрос с выбранными дополнительными рисками
+     * Запрос с выбранными дополнительными рисками.
      */
     protected TravelCalculatePremiumRequest requestWithSelectedRisks(String... riskCodes) {
         return TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
-                .personBirthDate(LocalDate.now().minusYears(35))
-                .agreementDateFrom(LocalDate.now().plusDays(7))
-                .agreementDateTo(LocalDate.now().plusDays(21))
+                .personBirthDate(REF.minusYears(35))
+                .agreementDateFrom(REF.plusDays(30))
+                .agreementDateTo(REF.plusDays(43))
                 .countryIsoCode("ES")
                 .medicalRiskLimitLevel("50000")
                 .selectedRisks(List.of(riskCodes))
@@ -86,15 +107,15 @@ public abstract class BaseTestFixture {
     }
 
     /**
-     * Запрос с промо-кодом
+     * Запрос с промо-кодом.
      */
     protected TravelCalculatePremiumRequest requestWithPromoCode(String promoCode) {
         return TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
-                .personBirthDate(LocalDate.now().minusYears(35))
-                .agreementDateFrom(LocalDate.now().plusDays(7))
-                .agreementDateTo(LocalDate.now().plusDays(21))
+                .personBirthDate(REF.minusYears(35))
+                .agreementDateFrom(REF.plusDays(30))
+                .agreementDateTo(REF.plusDays(43))
                 .countryIsoCode("ES")
                 .medicalRiskLimitLevel("50000")
                 .promoCode(promoCode)
@@ -102,16 +123,15 @@ public abstract class BaseTestFixture {
     }
 
     /**
-     * Запрос с определенной длительностью поездки
+     * Запрос с определённой длительностью поездки.
      */
     protected TravelCalculatePremiumRequest requestWithDuration(int days) {
-        LocalDate from = LocalDate.now().plusDays(7);
         return TravelCalculatePremiumRequest.builder()
                 .personFirstName("John")
                 .personLastName("Doe")
-                .personBirthDate(LocalDate.now().minusYears(35))
-                .agreementDateFrom(from)
-                .agreementDateTo(from.plusDays(days - 1))
+                .personBirthDate(REF.minusYears(35))
+                .agreementDateFrom(REF.plusDays(30))
+                .agreementDateTo(REF.plusDays(30 + days - 1))
                 .countryIsoCode("ES")
                 .medicalRiskLimitLevel("50000")
                 .build();
@@ -120,7 +140,7 @@ public abstract class BaseTestFixture {
     // ========== ENTITY BUILDERS WITH REALISTIC DATA ==========
 
     /**
-     * Испания - страна с низким риском, коэффициент 1.0
+     * Испания — страна с низким риском, коэффициент 1.0.
      */
     protected CountryEntity spainLowRisk() {
         var country = new CountryEntity();
@@ -134,7 +154,7 @@ public abstract class BaseTestFixture {
     }
 
     /**
-     * Таиланд - страна со средним риском, коэффициент 1.3
+     * Таиланд — страна со средним риском, коэффициент 1.3.
      */
     protected CountryEntity thailandMediumRisk() {
         var country = new CountryEntity();
@@ -148,7 +168,7 @@ public abstract class BaseTestFixture {
     }
 
     /**
-     * Афганистан - страна с очень высоким риском, коэффициент 3.0
+     * Афганистан — страна с очень высоким риском, коэффициент 3.0.
      */
     protected CountryEntity afghanistanVeryHighRisk() {
         var country = new CountryEntity();
@@ -162,7 +182,7 @@ public abstract class BaseTestFixture {
     }
 
     /**
-     * Медицинское покрытие 50,000 EUR - стандартный уровень
+     * Медицинское покрытие 50,000 EUR — стандартный уровень.
      */
     protected MedicalRiskLimitLevelEntity medicalLevel50k() {
         var level = new MedicalRiskLimitLevelEntity();
@@ -176,7 +196,7 @@ public abstract class BaseTestFixture {
     }
 
     /**
-     * Медицинское покрытие 100,000 EUR - повышенный уровень
+     * Медицинское покрытие 100,000 EUR — повышенный уровень.
      */
     protected MedicalRiskLimitLevelEntity medicalLevel100k() {
         var level = new MedicalRiskLimitLevelEntity();
@@ -190,21 +210,21 @@ public abstract class BaseTestFixture {
     }
 
     /**
-     * TRAVEL_MEDICAL - обязательный риск
+     * TRAVEL_MEDICAL — обязательный риск.
      */
     protected RiskTypeEntity travelMedicalMandatoryRisk() {
         var risk = new RiskTypeEntity();
         risk.setId(1L);
         risk.setCode("TRAVEL_MEDICAL");
         risk.setNameEn("Medical Coverage");
-        risk.setCoefficient(BigDecimal.ZERO); // Базовый риск, без коэффициента
+        risk.setCoefficient(BigDecimal.ZERO);
         risk.setIsMandatory(true);
         risk.setValidFrom(LocalDate.of(2020, 1, 1));
         return risk;
     }
 
     /**
-     * TRAVEL_BAGGAGE - опциональный риск, коэффициент 0.1
+     * TRAVEL_BAGGAGE — опциональный риск, коэффициент 0.1.
      */
     protected RiskTypeEntity travelBaggageOptionalRisk() {
         var risk = new RiskTypeEntity();
@@ -218,7 +238,7 @@ public abstract class BaseTestFixture {
     }
 
     /**
-     * EXTREME_SPORT - экстремальный спорт, коэффициент 0.5
+     * EXTREME_SPORT — экстремальный спорт, коэффициент 0.5.
      */
     protected RiskTypeEntity extremeSportOptionalRisk() {
         var risk = new RiskTypeEntity();
@@ -234,8 +254,8 @@ public abstract class BaseTestFixture {
     // ========== AGE CALCULATION RESULTS ==========
 
     /**
-     * Результат расчета возраста для взрослого человека (35 лет)
-     * Коэффициент 1.1 согласно бизнес-правилам
+     * Результат расчёта возраста для 35-летнего (REF - 35 лет).
+     * Коэффициент 1.1 — Adults (31–40).
      */
     protected AgeCalculator.AgeCalculationResult ageResult35Years() {
         return new AgeCalculator.AgeCalculationResult(
@@ -246,8 +266,8 @@ public abstract class BaseTestFixture {
     }
 
     /**
-     * Результат расчета возраста для пожилого человека (75 лет)
-     * Коэффициент 2.5 согласно бизнес-правилам
+     * Результат расчёта возраста для 75-летнего (REF - 75 лет).
+     * Коэффициент 2.5 — Very elderly (71–80).
      */
     protected AgeCalculator.AgeCalculationResult ageResult75Years() {
         return new AgeCalculator.AgeCalculationResult(
@@ -258,8 +278,8 @@ public abstract class BaseTestFixture {
     }
 
     /**
-     * Результат расчета возраста для молодого взрослого (25 лет)
-     * Коэффициент 1.0 (базовый) согласно бизнес-правилам
+     * Результат расчёта возраста для 25-летнего (REF - 25 лет).
+     * Коэффициент 1.0 — Young adults (18–30).
      */
     protected AgeCalculator.AgeCalculationResult ageResult25Years() {
         return new AgeCalculator.AgeCalculationResult(
@@ -272,8 +292,8 @@ public abstract class BaseTestFixture {
     // ========== ASSERTION HELPERS ==========
 
     /**
-     * Проверяет что премия находится в разумных пределах
-     * Используется для smoke-тестов, когда точное значение не критично
+     * Проверяет что премия находится в разумных пределах.
+     * Используется для smoke-тестов.
      */
     protected boolean isReasonablePremiumAmount(BigDecimal premium) {
         return premium != null
@@ -283,7 +303,7 @@ public abstract class BaseTestFixture {
     }
 
     /**
-     * Проверяет что значение находится в диапазоне (включительно)
+     * Проверяет что значение находится в диапазоне (включительно).
      */
     protected boolean isInRange(BigDecimal value, BigDecimal min, BigDecimal max) {
         return value.compareTo(min) >= 0 && value.compareTo(max) <= 0;

@@ -1,20 +1,24 @@
 package org.javaguru.travel.insurance.application.validation;
 
+import org.javaguru.travel.insurance.TestConstants;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-
-import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Тесты для AbstractFieldValidator — проверяем механизм skipIfNull.
+ *
+ * ЭТАП 1 (рефакторинг): Фиксация дат через Clock.
+ * ValidationContext теперь создаётся с TestConstants.TEST_CLOCK.
  */
 @DisplayName("AbstractFieldValidator — skipIfNull behavior")
 class AbstractFieldValidatorTest {
 
-    private final ValidationContext context = new ValidationContext();
+    // Фиксированный контекст — не зависит от системного времени
+    private final ValidationContext context =
+            new ValidationContext(TestConstants.TEST_CLOCK);
 
     // ── Test DTO ─────────────────────────────────────────────────────────────
 
@@ -22,10 +26,6 @@ class AbstractFieldValidatorTest {
 
     // ── Конкретный валидатор для тестов ──────────────────────────────────────
 
-    /**
-     * Простой валидатор: проверяет что строка содержит "valid".
-     * Используется для проверки поведения skipIfNull.
-     */
     static class TestStringValidator extends AbstractFieldValidator<TestDto, String> {
 
         private boolean doValidateCalled = false;
@@ -135,17 +135,9 @@ class AbstractFieldValidatorTest {
     class RealValidatorsNullBehavior {
 
         @Test
-        @DisplayName("DateInPastValidator: null → success() (no null-guard in code)")
+        @DisplayName("DateInPastValidator: null → success() (skipIfNull=true)")
         void dateInPastValidatorNullReturnsSuccess() {
             var validator = new org.javaguru.travel.insurance.application.validation.rule.business
-                    .DateInPastValidator<>(
-                    "personBirthDate",
-                    dto -> null // всегда null
-            );
-
-            // Используем анонимный объект как T
-            record Req() {}
-            var validator2 = new org.javaguru.travel.insurance.application.validation.rule.business
                     .DateInPastValidator<org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest>(
                     "personBirthDate",
                     req -> req.getPersonBirthDate()
@@ -153,10 +145,10 @@ class AbstractFieldValidatorTest {
 
             var request = org.javaguru.travel.insurance.application.dto
                     .TravelCalculatePremiumRequest.builder()
-                    .personBirthDate(null) // null
+                    .personBirthDate(null)
                     .build();
 
-            var result = validator2.validate(request, context);
+            var result = validator.validate(request, context);
 
             assertThat(result.isValid())
                     .as("DateInPastValidator with null birthDate should return success()")
@@ -164,7 +156,7 @@ class AbstractFieldValidatorTest {
         }
 
         @Test
-        @DisplayName("IsoCodeValidator: null → success() (no null-guard in code)")
+        @DisplayName("IsoCodeValidator: null → success() (skipIfNull=true)")
         void isoCodeValidatorNullReturnsSuccess() {
             record Dto(String code) {}
             var validator = new org.javaguru.travel.insurance.application.validation.rule.structural
@@ -178,7 +170,7 @@ class AbstractFieldValidatorTest {
         }
 
         @Test
-        @DisplayName("StringLengthValidator: null → success() (no null-guard in code)")
+        @DisplayName("StringLengthValidator: null → success() (skipIfNull=true)")
         void stringLengthValidatorNullReturnsSuccess() {
             record Dto(String name) {}
             var validator = new org.javaguru.travel.insurance.application.validation.rule.structural
