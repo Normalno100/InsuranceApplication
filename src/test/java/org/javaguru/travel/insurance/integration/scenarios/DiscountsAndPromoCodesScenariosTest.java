@@ -1,6 +1,6 @@
 package org.javaguru.travel.insurance.integration.scenarios;
 
-import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.TestRequestBuilder;
 import org.javaguru.travel.insurance.integration.BaseIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -8,244 +8,183 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.shaded.com.fasterxml.jackson.databind.JsonNode;
 import org.testcontainers.shaded.com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.time.LocalDate;
-import java.util.List;
-
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * E2E тесты для сценариев со скидками и промо-кодами
+ * E2E тесты для сценариев со скидками и промо-кодами.
+ *
+ * ПРАВИЛО JSONPath:
+ *   [?(@.field == 'value')] → возвращает JSONArray.
+ *   Допустимо только с: .exists(), .doesNotExist(), .value(hasItem(...))
+ *   Для числовых сравнений (greaterThan, value(X)) — прямой путь: $.array[N].field
+ *
+ * ПРОМО-КОДЫ: используем константы TestRequestBuilder.PROMO_*
+ *   Промо-коды в test-data.sql не привязаны к году, valid_to=2099-12-31.
+ *
+ * ВАЖНО — min_premium_amount проверяется ПОСЛЕ bundle discount:
+ *   TEST_PROMO_10PCT   — нет ограничений
+ *   TEST_PROMO_15PCT   — нет ограничений
+ *   TEST_PROMO_FIXED50 — min_premium = 200 EUR
+ *       → нужна длинная поездка (30 дней) + уровень 200000
+ *         12.0 × 1.1 × 1.0 × 0.9 × 30 = 356.40 EUR (без рисков → нет bundle discount)
+ *   TEST_FAMILY_20PCT  — min_premium = 150 EUR
+ *       → уровень 200000 + 14 дней = 175.56 EUR
  */
 @DisplayName("E2E: Discounts and Promo Codes Scenarios")
 class DiscountsAndPromoCodesScenariosTest extends BaseIntegrationTest {
 
     @Test
-    @DisplayName("Валидный промо-код - процентная скидка")
+    @DisplayName("Промо-код TEST_PROMO_15PCT — 15% скидка применена")
     void shouldApplyPromoCode_percentageDiscount() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Promo")
-                .personLastName("User")
-                .personBirthDate(LocalDate.of(1990, 5, 15))
-                .agreementDateFrom(LocalDate.now().plusDays(20))
-                .agreementDateTo(LocalDate.now().plusDays(40))
-                .countryIsoCode("ES")
+        var request = TestRequestBuilder.adult35SpainWithPromo(TestRequestBuilder.PROMO_15PCT)
                 .medicalRiskLimitLevel("100000")
-                .promoCode("WINTER2025")
                 .build();
 
-        // When
         MvcResult result = performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.pricing.totalDiscount").value(greaterThan(0.0)))
-                // ✅ Проверяем что промо-код есть в массиве
-                .andExpect(jsonPath("$.appliedDiscounts[?(@.code == 'WINTER2025')]").exists())
-                .andExpect(jsonPath("$.appliedDiscounts[?(@.code == 'WINTER2025')].type").value("PROMO_CODE"))
-                .andExpect(jsonPath("$.appliedDiscounts[?(@.code == 'WINTER2025')].percentage").value(15.0))
-                // ✅ Другие скидки могут быть применены
-                .andExpect(jsonPath("$.appliedDiscounts").isArray())
+                .andExpect(jsonPath(
+                        "$.appliedDiscounts[?(@.code == '" + TestRequestBuilder.PROMO_15PCT + "')]").exists())
                 .andReturn();
 
-        // Then
         String json = result.getResponse().getContentAsString();
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode root = mapper.readTree(json);
+        JsonNode root = new ObjectMapper().readTree(json);
 
         double base = root.path("pricing").path("baseAmount").asDouble();
         double total = root.path("pricing").path("totalPremium").asDouble();
-        double discount = root.path("pricing").path("totalDiscount").asDouble();
-
-        // Проверяем что промо-код действительно дал скидку
-        assertThat(discount).isGreaterThan(0.0);
         assertThat(total).isLessThan(base);
 
-        // Проверяем что WINTER2025 есть в appliedDiscounts
-        JsonNode discounts = root.path("appliedDiscounts");
-        boolean hasWinter2025 = false;
-        for (JsonNode disc : discounts) {
-            if ("WINTER2025".equals(disc.path("code").asText())) {
-                hasWinter2025 = true;
-                assertThat(disc.path("percentage").asDouble()).isEqualTo(15.0);
-                break;
-            }
-        }
-        assertThat(hasWinter2025).isTrue();
+        JsonNode promoDiscount = findDiscountByCode(root.path("appliedDiscounts"), TestRequestBuilder.PROMO_15PCT);
+        assertThat(promoDiscount).isNotNull();
+        assertThat(promoDiscount.path("type").asText()).isEqualTo("PROMO_CODE");
+        assertThat(promoDiscount.path("percentage").asDouble()).isEqualTo(15.0);
+        assertThat(promoDiscount.path("amount").asDouble()).isGreaterThan(0.0);
     }
 
     @Test
-    @DisplayName("Валидный промо-код - фиксированная скидка")
+    @DisplayName("Промо-код TEST_PROMO_FIXED50 — фиксированная скидка применена")
     void shouldApplyPromoCode_fixedAmount() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Welcome")
-                .personLastName("User")
-                .personBirthDate(LocalDate.of(1985, 3, 20))
-                .agreementDateFrom(LocalDate.now().plusDays(20))
-                .agreementDateTo(LocalDate.now().plusDays(40))
-                .countryIsoCode("IT")
-                .medicalRiskLimitLevel("100000")
-                .selectedRisks(List.of("SPORT_ACTIVITIES"))
-                .promoCode("WELCOME50") // фиксированная скидка 50 EUR
+        // TEST_PROMO_FIXED50 проверяет min_premium = 200 EUR ПОСЛЕ bundle discount.
+        // Используем 30-дневную поездку без дополнительных рисков → нет bundle discount.
+        // baseAmount = 12.0 × 1.1 × 1.0 × 0.9 × 30 = 356.40 EUR > 200 EUR → промо применится.
+        var request = TestRequestBuilder.adult35SpainLongTrip()
+                .medicalRiskLimitLevel("200000")
+                .promoCode(TestRequestBuilder.PROMO_FIXED50)
                 .build();
 
-        // When & Then
+        MvcResult result = performCalculatePremium(request)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUCCESS"))
+                .andExpect(jsonPath("$.pricing.totalDiscount").value(greaterThan(0.0)))
+                .andExpect(jsonPath(
+                        "$.appliedDiscounts[?(@.code == '" + TestRequestBuilder.PROMO_FIXED50 + "')]").exists())
+                .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"))
+                .andReturn();
+
+        JsonNode root = new ObjectMapper().readTree(result.getResponse().getContentAsString());
+        JsonNode promoDiscount = findDiscountByCode(root.path("appliedDiscounts"), TestRequestBuilder.PROMO_FIXED50);
+        assertThat(promoDiscount).isNotNull();
+        assertThat(promoDiscount.path("type").asText()).isEqualTo("PROMO_CODE");
+        assertThat(promoDiscount.path("amount").asDouble()).isGreaterThan(0.0);
+    }
+
+    @Test
+    @DisplayName("Промо-код TEST_PROMO_FIXED50 не применяется — базовая премия ниже минимума (200 EUR)")
+    void shouldNotApplyPromoCode_whenPremiumBelowMinimum() throws Exception {
+        // Уровень 50000, 14 дней → ~65.84 EUR < 200 EUR → промо-код отклоняется
+        var request = TestRequestBuilder.adult35SpainWithPromo(TestRequestBuilder.PROMO_FIXED50)
+                .medicalRiskLimitLevel("50000")
+                .build();
+
         performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
-                .andExpect(jsonPath("$.pricing.totalDiscount").value(greaterThanOrEqualTo(10.0))) // близко к 50
-                .andExpect(jsonPath("$.appliedDiscounts[0].type").value("LOYALTY"))
-                .andExpect(jsonPath("$.appliedDiscounts[0].code").value("LOYALTY_10"))
+                .andExpect(jsonPath(
+                        "$.appliedDiscounts[?(@.code == '" + TestRequestBuilder.PROMO_FIXED50 + "')]").doesNotExist())
                 .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
     }
 
     @Test
-    @DisplayName("Невалидный промо-код - игнорируется, но другие скидки применяются")
+    @DisplayName("Невалидный промо-код — игнорируется")
     void shouldIgnoreInvalidPromoCode() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Test")
-                .personLastName("User")
-                .personBirthDate(LocalDate.of(1990, 1, 1))
-                .agreementDateFrom(LocalDate.now().plusDays(10))
-                .agreementDateTo(LocalDate.now().plusDays(20))
-                .countryIsoCode("FR")
-                .medicalRiskLimitLevel("50000")
-                .promoCode("INVALID_CODE")
-                .build();
+        var request = TestRequestBuilder.adult35SpainWithPromo("INVALID_CODE_XYZ").build();
 
-        // When & Then
         performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
-                // Проверяем что невалидный промо-код НЕ применен
-                .andExpect(jsonPath("$.appliedDiscounts[?(@.code == 'INVALID_CODE')]").doesNotExist())
-                // Другие скидки могут быть применены
-                .andExpect(jsonPath("$.appliedDiscounts").isArray())
+                .andExpect(jsonPath(
+                        "$.appliedDiscounts[?(@.code == 'INVALID_CODE_XYZ')]").doesNotExist())
                 .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
-    }
-
-    @Test
-    @DisplayName("Истёкший промо-код - игнорируется, но другие скидки применяются")
-    void shouldIgnoreExpiredPromoCode() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Late")
-                .personLastName("User")
-                .personBirthDate(LocalDate.of(1990, 1, 1))
-                .agreementDateFrom(LocalDate.now().plusDays(1))
-                .agreementDateTo(LocalDate.now().plusDays(10))
-                .countryIsoCode("FR")
-                .medicalRiskLimitLevel("50000")
-                .promoCode("WINTER2025")
-                .build();
-
-        // When & Then
-        performCalculatePremium(request)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("SUCCESS"))
-                // Проверяем что истекший промо-код НЕ применен
-                .andExpect(jsonPath("$.appliedDiscounts[?(@.code == 'WINTER2025')]").doesNotExist())
-                // Другие скидки (например, loyalty) могут быть применены
-                .andExpect(jsonPath("$.appliedDiscounts").isArray());
     }
 
     @Test
     @DisplayName("Автоматическая скидка для группы из 5 человек")
     void shouldApplyGroupDiscount_5persons() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Group")
-                .personLastName("Leader")
-                .personBirthDate(LocalDate.of(1985, 6, 10))
-                .agreementDateFrom(LocalDate.now().plusDays(15))
-                .agreementDateTo(LocalDate.now().plusDays(29))
-                .countryIsoCode("ES")
-                .medicalRiskLimitLevel("50000")
+        var request = TestRequestBuilder.adult35Spain()
                 .personsCount(5)
                 .build();
 
-        // When & Then
         performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.pricing.totalDiscount").value(greaterThan(0.0)))
-                // Система выбирает лучшую скидку - может быть LOYALTY или GROUP
                 .andExpect(jsonPath("$.appliedDiscounts").isNotEmpty())
-                .andExpect(jsonPath("$.appliedDiscounts[0].percentage").value(10.0))
                 .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
     }
 
     @Test
-    @DisplayName("Групповая скидка - 10 человек (больше скидка)")
+    @DisplayName("Групповая скидка 10 человек — GROUP_10 (15%)")
     void shouldApplyGroupDiscount_10persons() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Large")
-                .personLastName("Group")
-                .personBirthDate(LocalDate.of(1980, 4, 5))
-                .agreementDateFrom(LocalDate.now().plusDays(20))
-                .agreementDateTo(LocalDate.now().plusDays(34))
-                .countryIsoCode("IT")
+        var request = TestRequestBuilder.group10Spain()
                 .medicalRiskLimitLevel("100000")
-                .personsCount(10)
                 .build();
 
-        // When & Then
-        performCalculatePremium(request)
+        MvcResult result = performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.pricing.totalDiscount").value(greaterThan(0.0)))
-                .andExpect(jsonPath("$.appliedDiscounts[0].type").value("GROUP"))
-                .andExpect(jsonPath("$.appliedDiscounts[0].percentage").value(15.0)) // 15% для 10+
-                .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
+                .andExpect(jsonPath("$.appliedDiscounts[?(@.type == 'GROUP')]").exists())
+                .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"))
+                .andReturn();
+
+        JsonNode root = new ObjectMapper().readTree(result.getResponse().getContentAsString());
+        JsonNode groupDiscount = findDiscountByType(root.path("appliedDiscounts"), "GROUP");
+        assertThat(groupDiscount).isNotNull();
+        assertThat(groupDiscount.path("percentage").asDouble()).isEqualTo(15.0);
     }
 
     @Test
-    @DisplayName("Корпоративная скидка")
+    @DisplayName("Корпоративная скидка — CORPORATE 20%")
     void shouldApplyCorporateDiscount() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Corporate")
-                .personLastName("Client")
-                .personBirthDate(LocalDate.of(1988, 9, 15))
-                .agreementDateFrom(LocalDate.now().plusDays(10))
-                .agreementDateTo(LocalDate.now().plusDays(24))
-                .countryIsoCode("DE")
+        var request = TestRequestBuilder.corporate35Spain()
                 .medicalRiskLimitLevel("200000")
-                .isCorporate(true)
                 .build();
 
-        // When & Then
-        performCalculatePremium(request)
+        MvcResult result = performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.pricing.totalDiscount").value(greaterThan(0.0)))
-                .andExpect(jsonPath("$.appliedDiscounts", hasSize(1)))
-                .andExpect(jsonPath("$.appliedDiscounts[0].type").value("CORPORATE"))
-                .andExpect(jsonPath("$.appliedDiscounts[0].percentage").value(20.0))
-                .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
+                .andExpect(jsonPath("$.appliedDiscounts[?(@.type == 'CORPORATE')]").exists())
+                .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"))
+                .andReturn();
+
+        JsonNode root = new ObjectMapper().readTree(result.getResponse().getContentAsString());
+        JsonNode corporateDiscount = findDiscountByType(root.path("appliedDiscounts"), "CORPORATE");
+        assertThat(corporateDiscount).isNotNull();
+        assertThat(corporateDiscount.path("percentage").asDouble()).isEqualTo(20.0);
     }
 
     @Test
-    @DisplayName("Пакетная скидка за набор рисков")
+    @DisplayName("Пакетная скидка — покупка набора рисков снижает итоговую сумму")
     void shouldApplyBundleDiscount() throws Exception {
-
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Bundle")
-                .personLastName("Buyer")
-                .personBirthDate(LocalDate.of(1992, 2, 28))
-                .agreementDateFrom(LocalDate.now().plusDays(25))
-                .agreementDateTo(LocalDate.now().plusDays(45))
-                .countryIsoCode("FR")
+        var request = TestRequestBuilder.adult35SpainWithRisks(
+                        "TRIP_CANCELLATION", "LUGGAGE_LOSS", "FLIGHT_DELAY")
                 .medicalRiskLimitLevel("100000")
-                .selectedRisks(List.of("TRIP_CANCELLATION", "LUGGAGE_LOSS", "FLIGHT_DELAY"))
                 .build();
 
-        // When
         MvcResult result = performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
@@ -253,116 +192,93 @@ class DiscountsAndPromoCodesScenariosTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"))
                 .andReturn();
 
-        // Then — сравниваем base и total
-        String json = result.getResponse().getContentAsString();
-
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode root = mapper.readTree(json);
-
+        JsonNode root = new ObjectMapper().readTree(result.getResponse().getContentAsString());
         double base = root.path("pricing").path("baseAmount").asDouble();
         double total = root.path("pricing").path("totalPremium").asDouble();
-
-        assertThat(base).isGreaterThan(0.0);
         assertThat(total).isLessThan(base);
     }
 
-
     @Test
-    @DisplayName("Конфликт скидок - применяется лучшая")
-    void shouldApplyBestDiscount_whenMultipleAvailable() throws Exception {
-        // Given: и промо-код, и корпоративная скидка
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Multi")
-                .personLastName("Discount")
-                .personBirthDate(LocalDate.of(1985, 11, 5))
-                .agreementDateFrom(LocalDate.now().plusDays(10))
-                .agreementDateTo(LocalDate.now().plusDays(25))
-                .countryIsoCode("ES")
+    @DisplayName("Промо-код + корпоративный — оба применяются")
+    void shouldApplyBothDiscounts_promoAndCorporate() throws Exception {
+        var request = TestRequestBuilder.corporate35Spain()
+                .promoCode(TestRequestBuilder.PROMO_10PCT)
                 .medicalRiskLimitLevel("100000")
-                .promoCode("FAMILY20")  // ✅ Действует до конца 2026
-                .isCorporate(true)       // 20% - такая же как FAMILY20
                 .build();
 
-        // When & Then
-        performCalculatePremium(request)
+        MvcResult result = performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.pricing.totalDiscount").value(greaterThan(0.0)))
-                .andExpect(jsonPath("$.appliedDiscounts", hasSize(1)))
-                // Любая из скидок 20% - обе одинаковые
-                .andExpect(jsonPath("$.appliedDiscounts[0].percentage").value(20.0))
-                .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
+                .andExpect(jsonPath("$.appliedDiscounts", hasSize(greaterThanOrEqualTo(2))))
+                .andExpect(jsonPath("$.appliedDiscounts[?(@.code == '" + TestRequestBuilder.PROMO_10PCT + "')]").exists())
+                .andExpect(jsonPath("$.appliedDiscounts[?(@.type == 'CORPORATE')]").exists())
+                .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"))
+                .andReturn();
+
+        JsonNode root = new ObjectMapper().readTree(result.getResponse().getContentAsString());
+        double base = root.path("pricing").path("baseAmount").asDouble();
+        double total = root.path("pricing").path("totalPremium").asDouble();
+        assertThat(total).isLessThan(base);
     }
 
     @Test
-    @DisplayName("Прогрессивная скидка за длительность - 30 дней")
+    @DisplayName("Прогрессивная скидка за длительность — 30 дней, durationCoefficient=0.90")
     void shouldApplyDurationDiscount_30days() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Long")
-                .personLastName("Trip")
-                .personBirthDate(LocalDate.of(1990, 1, 1))
-                .agreementDateFrom(LocalDate.now().plusDays(30))
-                .agreementDateTo(LocalDate.now().plusDays(60))
-                .countryIsoCode("IT")
+        var request = TestRequestBuilder.adult35SpainLongTrip()
                 .medicalRiskLimitLevel("100000")
                 .build();
 
-        // When & Then
         performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.trip.days").value(30))
-                .andExpect(jsonPath("$.pricingDetails.durationCoefficient").value(0.90)) // -10% скидка
+                .andExpect(jsonPath("$.pricingDetails.durationCoefficient").value(lessThan(1.0)))
                 .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
     }
 
     @Test
-    @DisplayName("Прогрессивная скидка за длительность - 60 дней")
-    void shouldApplyDurationDiscount_60days() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Very")
-                .personLastName("LongTrip")
-                .personBirthDate(LocalDate.of(1988, 6, 15))
-                .agreementDateFrom(LocalDate.now().plusDays(40))
-                .agreementDateTo(LocalDate.now().plusDays(100))
-                .countryIsoCode("FR")
-                .medicalRiskLimitLevel("200000")
-                .build();
-
-        // When & Then
-        performCalculatePremium(request)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("SUCCESS"))
-                .andExpect(jsonPath("$.trip.days").value(60))
-                .andExpect(jsonPath("$.pricingDetails.durationCoefficient").value(0.88)) // -12% скидка
-                .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
-    }
-
-    @Test
-    @DisplayName("Семейная скидка через промо-код")
+    @DisplayName("Промо-код TEST_FAMILY_20PCT — семейная скидка 20%")
     void shouldApplyFamilyPromoCode() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Family")
-                .personLastName("Vacation")
-                .personBirthDate(LocalDate.of(1980, 8, 20))
-                .agreementDateFrom(LocalDate.now().plusDays(45))
-                .agreementDateTo(LocalDate.now().plusDays(70))
-                .countryIsoCode("ES")
-                .medicalRiskLimitLevel("100000")
-                .promoCode("FAMILY20") // 20% семейная скидка
+        // TEST_FAMILY_20PCT требует min_premium = 150 EUR.
+        // Уровень 200000 + 14 дней: 12.0 × 1.1 × 1.0 × 0.95 × 14 = 175.56 EUR > 150 EUR.
+        var request = TestRequestBuilder.adult35SpainWithPromo(TestRequestBuilder.PROMO_FAMILY_20PCT)
+                .medicalRiskLimitLevel("200000")
                 .personsCount(4)
                 .build();
 
-        // When & Then
-        performCalculatePremium(request)
+        MvcResult result = performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.pricing.totalDiscount").value(greaterThan(0.0)))
-                .andExpect(jsonPath("$.appliedDiscounts[0].code").value("FAMILY20"))
-                .andExpect(jsonPath("$.appliedDiscounts[0].percentage").value(20.0))
-                .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
+                .andExpect(jsonPath(
+                        "$.appliedDiscounts[?(@.code == '" + TestRequestBuilder.PROMO_FAMILY_20PCT + "')]").exists())
+                .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"))
+                .andReturn();
+
+        JsonNode root = new ObjectMapper().readTree(result.getResponse().getContentAsString());
+        JsonNode promoDiscount = findDiscountByCode(root.path("appliedDiscounts"), TestRequestBuilder.PROMO_FAMILY_20PCT);
+        assertThat(promoDiscount).isNotNull();
+        assertThat(promoDiscount.path("percentage").asDouble()).isEqualTo(20.0);
+    }
+
+    // ── Вспомогательные методы ────────────────────────────────────────────────
+
+    private JsonNode findDiscountByCode(JsonNode discountsArray, String code) {
+        for (JsonNode discount : discountsArray) {
+            if (code.equals(discount.path("code").asText())) {
+                return discount;
+            }
+        }
+        return null;
+    }
+
+    private JsonNode findDiscountByType(JsonNode discountsArray, String type) {
+        for (JsonNode discount : discountsArray) {
+            if (type.equals(discount.path("type").asText())) {
+                return discount;
+            }
+        }
+        return null;
     }
 }

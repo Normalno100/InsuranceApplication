@@ -13,15 +13,39 @@ import org.springframework.test.web.servlet.ResultActions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
- * Базовый класс для всех E2E интеграционных тестов
+ * Базовый класс для всех E2E интеграционных тестов.
  *
- * Тестовые данные загружаются автоматически через @Sql аннотацию
- * BEFORE_TEST_CLASS означает что данные загрузятся один раз перед всеми тестами в классе
+ * ЭТАП 3 (рефакторинг): Изоляция интеграционных тестов.
+ *
+ * БЫЛО:
+ *   @Sql(scripts = "/db/test-data.sql",
+ *        executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
+ *
+ *   Данные загружались один раз на весь класс. Тесты, изменяющие состояние
+ *   (например, инкремент current_usage_count у промо-кода), влияли на все
+ *   последующие тесты. Порядок выполнения тестов имел значение.
+ *
+ * СТАЛО:
+ *   @Sql(scripts = {"/db/clean.sql", "/db/test-data.sql"},
+ *        executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+ *
+ *   Перед каждым тестом:
+ *   1. clean.sql  — полностью очищает тестовые таблицы
+ *   2. test-data.sql — загружает свежие данные
+ *
+ *   Преимущества:
+ *   - Каждый тест изолирован и независим
+ *   - Порядок выполнения тестов не важен
+ *   - Промо-коды с лимитом использований не "засоряются" между тестами
+ *   - CI зелёный при любом порядке запуска
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Sql(scripts = "/db/test-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
+@Sql(
+        scripts = {"/db/clean.sql", "/db/test-data.sql"},
+        executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD
+)
 public abstract class BaseIntegrationTest {
 
     @Autowired
@@ -33,7 +57,7 @@ public abstract class BaseIntegrationTest {
     protected static final String API_ENDPOINT = "/insurance/travel/calculate";
 
     /**
-     * Выполняет POST запрос на расчёт премии
+     * Выполняет POST запрос на расчёт премии.
      */
     protected ResultActions performCalculatePremium(Object request) throws Exception {
         return mockMvc.perform(post(API_ENDPOINT)
@@ -42,7 +66,7 @@ public abstract class BaseIntegrationTest {
     }
 
     /**
-     * Выполняет POST запрос с параметром includeDetails
+     * Выполняет POST запрос с параметром includeDetails.
      */
     protected ResultActions performCalculatePremium(Object request, boolean includeDetails) throws Exception {
         return mockMvc.perform(post(API_ENDPOINT)

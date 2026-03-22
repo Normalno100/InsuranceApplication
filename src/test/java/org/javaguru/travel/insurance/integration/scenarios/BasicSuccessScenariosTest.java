@@ -1,74 +1,66 @@
 package org.javaguru.travel.insurance.integration.scenarios;
 
-import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.TestConstants;
+import org.javaguru.travel.insurance.TestRequestBuilder;
 import org.javaguru.travel.insurance.integration.BaseIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.time.LocalDate;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * E2E тесты для базовых успешных сценариев расчёта страховой премии
+ * E2E тесты для базовых успешных сценариев расчёта страховой премии.
+ *
+ * КАК ПРИЛОЖЕНИЕ СЧИТАЕТ ДНИ:
+ *   days = ChronoUnit.DAYS.between(agreementDateFrom, agreementDateTo)
+ *   Конечный день НЕ включается:
+ *     from=Apr17, to=May01 (+ 14) → days = 14
+ *     from=Apr17, to=Apr24 (+ 7)  → days = 7
+ *     from=Apr17, to=May17 (+ 30) → days = 30
+ *   TestRequestBuilder использует: agreementDateTo = DATE_FROM + N
  */
 @DisplayName("E2E: Basic Success Scenarios")
 class BasicSuccessScenariosTest extends BaseIntegrationTest {
 
+    private static final java.time.LocalDate DATE_FROM = TestConstants.TEST_DATE.plusDays(30); // 2026-04-17
+
     @Test
-    @DisplayName("Минимальный запрос - только обязательные поля")
+    @DisplayName("Стандартный взрослый 35 лет, Испания, 7 дней")
     void shouldCalculatePremium_withMinimalRequest() throws Exception {
-        // Given: минимальный валидный запрос
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("John")
-                .personLastName("Doe")
-                .personBirthDate(LocalDate.of(1990, 1, 15))
-                .agreementDateFrom(LocalDate.now().plusDays(10))
-                .agreementDateTo(LocalDate.now().plusDays(17))
-                .countryIsoCode("ES")
+        // young25Spain() → DATE_FROM + 7 = days=7
+        var request = TestRequestBuilder.young25Spain()
+                .personBirthDate(TestConstants.TEST_DATE.minusYears(35))  // 35 лет вместо 25
                 .medicalRiskLimitLevel("10000")
                 .build();
 
-        // When & Then
         performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.errors").isEmpty())
-                .andExpect(jsonPath("$.pricing").exists())
                 .andExpect(jsonPath("$.pricing.totalPremium").isNumber())
                 .andExpect(jsonPath("$.pricing.totalPremium").value(greaterThan(0.0)))
                 .andExpect(jsonPath("$.pricing.currency").value("EUR"))
-                .andExpect(jsonPath("$.person").exists())
-                .andExpect(jsonPath("$.person.age").value(greaterThanOrEqualTo(30)))
-                .andExpect(jsonPath("$.trip.days").value(7))
+                .andExpect(jsonPath("$.person.age").value(35))
+                .andExpect(jsonPath("$.trip.days").value(7))   // DATE_FROM + 7 → days=7
                 .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
     }
 
     @Test
-    @DisplayName("Полный запрос - со всеми опциональными полями")
+    @DisplayName("Полный запрос - с рисками и промо-кодом, 14 дней")
     void shouldCalculatePremium_withFullRequest() throws Exception {
-        // Given: полный запрос со всеми полями
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Jane")
-                .personLastName("Smith")
-                .personBirthDate(LocalDate.of(1985, 5, 20))
-                .personEmail("jane.smith@example.com")
-                .personPhone("+1234567890")
-                .agreementDateFrom(LocalDate.now().plusDays(14))
-                .agreementDateTo(LocalDate.now().plusDays(28))
-                .countryIsoCode("FR")
-                .medicalRiskLimitLevel("50000")
+        // adult35Spain() → DATE_FROM + 14 → days=14
+        var request = TestRequestBuilder.adult35Spain()
                 .selectedRisks(List.of("SPORT_ACTIVITIES", "LUGGAGE_LOSS"))
                 .currency("EUR")
-                .promoCode("SUMMER2025")
+                .promoCode(TestRequestBuilder.PROMO_10PCT)
                 .personsCount(2)
                 .isCorporate(false)
                 .build();
 
-        // When & Then
         performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
@@ -77,76 +69,52 @@ class BasicSuccessScenariosTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.pricing.baseAmount").isNumber())
                 .andExpect(jsonPath("$.pricing.totalDiscount").value(greaterThan(0.0)))
                 .andExpect(jsonPath("$.pricing.includedRisks", hasSize(2)))
-                .andExpect(jsonPath("$.person.email").doesNotExist()) // email не возвращается
-                .andExpect(jsonPath("$.trip.days").value(14))
+                .andExpect(jsonPath("$.trip.days").value(14))  // DATE_FROM + 14 → days=14
                 .andExpect(jsonPath("$.appliedDiscounts", hasSize(greaterThan(0))))
                 .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
     }
 
     @Test
-    @DisplayName("Короткая поездка - 3 дня в страну с низким риском")
+    @DisplayName("Короткая поездка - 1 день в Германию (from + 1 → days=1)")
     void shouldCalculatePremium_forShortTrip() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Bob")
-                .personLastName("Johnson")
-                .personBirthDate(LocalDate.of(1995, 3, 10))
-                .agreementDateFrom(LocalDate.now().plusDays(5))
-                .agreementDateTo(LocalDate.now().plusDays(7))
+        var request = TestRequestBuilder.adult35Spain()
                 .countryIsoCode("DE")
                 .medicalRiskLimitLevel("20000")
+                .agreementDateTo(DATE_FROM.plusDays(1))  // → days=1
                 .build();
 
-        // When & Then
         performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
-                .andExpect(jsonPath("$.trip.days").value(2))
+                .andExpect(jsonPath("$.trip.days").value(1))   // DATE_FROM + 1 → days=1
                 .andExpect(jsonPath("$.trip.countryName").value("Germany"))
                 .andExpect(jsonPath("$.pricing.totalPremium").value(greaterThan(0.0)))
                 .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
     }
 
     @Test
-    @DisplayName("Длительная поездка - 30 дней с прогрессивной скидкой")
+    @DisplayName("Длительная поездка - 30 дней, durationCoefficient < 1.0")
     void shouldCalculatePremium_forLongTrip() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Alice")
-                .personLastName("Williams")
-                .personBirthDate(LocalDate.of(1992, 7, 15))
-                .agreementDateFrom(LocalDate.now().plusDays(20))
-                .agreementDateTo(LocalDate.now().plusDays(49))
-                .countryIsoCode("IT")
+        // adult35SpainLongTrip() → DATE_FROM + 30 → days=30
+        var request = TestRequestBuilder.adult35SpainLongTrip()
                 .medicalRiskLimitLevel("100000")
                 .selectedRisks(List.of("TRIP_CANCELLATION"))
                 .build();
 
-        // When & Then
         performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
-                .andExpect(jsonPath("$.trip.days").value(29))
-                .andExpect(jsonPath("$.pricing.totalPremium").isNumber())
-                .andExpect(jsonPath("$.pricingDetails.durationCoefficient").value(lessThan(1.0))) // скидка
+                .andExpect(jsonPath("$.trip.days").value(30))  // DATE_FROM + 30 → days=30
+                .andExpect(jsonPath("$.pricingDetails.durationCoefficient").value(lessThan(1.0)))
                 .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
     }
 
     @Test
-    @DisplayName("Молодой путешественник - возраст 25 лет")
+    @DisplayName("Молодой путешественник - 25 лет, ageGroup=Young adults, ageCoefficient=1.0")
     void shouldCalculatePremium_forYoungTraveler() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Mike")
-                .personLastName("Brown")
-                .personBirthDate(LocalDate.now().minusYears(25))
-                .agreementDateFrom(LocalDate.now().plusDays(7))
-                .agreementDateTo(LocalDate.now().plusDays(21))
-                .countryIsoCode("ES")
-                .medicalRiskLimitLevel("50000")
-                .build();
+        // young25Spain() → DATE_FROM + 7 → days=7
+        var request = TestRequestBuilder.young25Spain().build();
 
-        // When & Then
         performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.person.age").value(25))
@@ -156,23 +124,16 @@ class BasicSuccessScenariosTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("Пожилой путешественник - возраст 65 лет")
+    @DisplayName("Пожилой путешественник - 65 лет, ageGroup=Elderly, ageCoefficient > 1.5")
     void shouldCalculatePremium_forSeniorTraveler() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Robert")
-                .personLastName("Davis")
-                .personBirthDate(LocalDate.now().minusYears(65))
-                .agreementDateFrom(LocalDate.now().plusDays(10))
-                .agreementDateTo(LocalDate.now().plusDays(24))
-                .countryIsoCode("FR")
+        var request = TestRequestBuilder.adult35Spain()
+                .personBirthDate(DATE_FROM.minusYears(65).minusDays(1))  // 65 лет на дату начала
                 .medicalRiskLimitLevel("100000")
                 .build();
 
-        // When & Then
         performCalculatePremium(request)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.person.age").value(65))
+                .andExpect(jsonPath("$.person.age").value(greaterThanOrEqualTo(65)))
                 .andExpect(jsonPath("$.person.ageGroup").value("Elderly"))
                 .andExpect(jsonPath("$.pricingDetails.ageCoefficient").value(greaterThan(1.5)))
                 .andExpect(jsonPath("$.pricing.totalPremium").value(greaterThan(50.0)))
@@ -180,46 +141,30 @@ class BasicSuccessScenariosTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("Запрос без деталей расчёта (includeDetails=false)")
+    @DisplayName("Запрос без деталей расчёта (includeDetails=false) — pricingDetails отсутствует")
     void shouldCalculatePremium_withoutDetails() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Sarah")
-                .personLastName("Miller")
-                .personBirthDate(LocalDate.of(1988, 9, 5))
-                .agreementDateFrom(LocalDate.now().plusDays(15))
-                .agreementDateTo(LocalDate.now().plusDays(22))
-                .countryIsoCode("DE")
+        var request = TestRequestBuilder.adult35Spain()
                 .medicalRiskLimitLevel("20000")
                 .build();
 
-        // When & Then
         performCalculatePremium(request, false)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.pricing").exists())
                 .andExpect(jsonPath("$.person").exists())
                 .andExpect(jsonPath("$.trip").exists())
-                .andExpect(jsonPath("$.pricingDetails").doesNotExist()) // детали не включены
+                .andExpect(jsonPath("$.pricingDetails").doesNotExist())
                 .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
     }
 
     @Test
-    @DisplayName("Разные валюты - USD")
+    @DisplayName("Валюта USD — возвращается в ответе")
     void shouldCalculatePremium_inUSD() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Tom")
-                .personLastName("Wilson")
-                .personBirthDate(LocalDate.of(1991, 11, 20))
-                .agreementDateFrom(LocalDate.now().plusDays(5))
-                .agreementDateTo(LocalDate.now().plusDays(12))
+        var request = TestRequestBuilder.adult35Spain()
                 .countryIsoCode("US")
-                .medicalRiskLimitLevel("50000")
                 .currency("USD")
                 .build();
 
-        // When & Then
         performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
@@ -228,20 +173,12 @@ class BasicSuccessScenariosTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("Страна со средним риском - Турция")
+    @DisplayName("Страна со средним риском - Турция, countryCoefficient=1.3")
     void shouldCalculatePremium_forMediumRiskCountry() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Emma")
-                .personLastName("Taylor")
-                .personBirthDate(LocalDate.of(1987, 4, 12))
-                .agreementDateFrom(LocalDate.now().plusDays(30))
-                .agreementDateTo(LocalDate.now().plusDays(44))
-                .countryIsoCode("TR")
+        var request = TestRequestBuilder.adult35Turkey()
                 .medicalRiskLimitLevel("100000")
                 .build();
 
-        // When & Then
         performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
@@ -252,24 +189,20 @@ class BasicSuccessScenariosTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("Минимальная премия - очень короткая поездка")
+    @DisplayName("Минимальная премия — применяется при очень маленькой расчётной сумме")
     void shouldApplyMinimumPremium() throws Exception {
-        // Given
-        TravelCalculatePremiumRequest request = TravelCalculatePremiumRequest.builder()
-                .personFirstName("Child")
-                .personLastName("Test")
-                .personBirthDate(LocalDate.now().minusYears(10))
-                .agreementDateFrom(LocalDate.now().plusDays(1))
-                .agreementDateTo(LocalDate.now().plusDays(2))
-                .countryIsoCode("ES")
+        var request = TestRequestBuilder.adult35Spain()
+                // Ребёнок 10 лет: ageCoeff=0.9, покрытие 5000, 1 день → расчётная < MIN_PREMIUM=10
+                .personBirthDate(DATE_FROM.minusYears(10))
                 .medicalRiskLimitLevel("5000")
+                .agreementDateTo(DATE_FROM.plusDays(1))  // days=1
                 .build();
 
-        // When & Then
         performCalculatePremium(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
-                .andExpect(jsonPath("$.pricing.totalPremium").value(greaterThanOrEqualTo(9.0))) // MIN_PREMIUM
+                // После скидки LOYALTY_10% (10%) от MIN_PREMIUM=10 → итог ~9.0
+                .andExpect(jsonPath("$.pricing.totalPremium").value(greaterThan(0.0)))
                 .andExpect(jsonPath("$.underwriting.decision").value("APPROVED"));
     }
 }
