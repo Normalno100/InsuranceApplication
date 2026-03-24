@@ -1,17 +1,35 @@
 package org.javaguru.travel.insurance.infrastructure.persistence.domain.entities;
 
-import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.Type;
+import org.javaguru.travel.insurance.infrastructure.persistence.converter.JsonStringConverter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+/**
+ * JPA Entity для пакетов рисков.
+ *
+ * task_133: Заменён @Type(JsonBinaryType.class) на @Convert(converter = JsonStringConverter.class)
+ * для совместимости с H2 в тестах.
+ *
+ * БЫЛО:
+ *   @Type(JsonBinaryType.class)
+ *   @Column(name = "required_risks", columnDefinition = "jsonb", nullable = false)
+ *
+ * СТАЛО:
+ *   @Convert(converter = JsonStringConverter.class)
+ *   @Column(name = "required_risks", columnDefinition = "jsonb", nullable = false)
+ *
+ * columnDefinition = "jsonb" сохранён, чтобы:
+ *   1. В PostgreSQL (production) schema validation проходил без ошибок.
+ *   2. В H2 (tests) — H2 в режиме MODE=PostgreSQL понимает jsonb как OTHER/VARCHAR.
+ *      Hibernate создаёт колонку с типом jsonb, H2 транслирует это в VARCHAR.
+ */
 @Entity
 @Table(name = "risk_bundles")
 @Getter
@@ -40,10 +58,14 @@ public class RiskBundleEntity implements TemporallyValid {
     private BigDecimal discountPercentage;
 
     /**
-     * JSON массив требуемых рисков
+     * JSON массив требуемых рисков.
      * Например: ["SPORT_ACTIVITIES", "ACCIDENT_COVERAGE"]
+     *
+     * task_133: @Type(JsonBinaryType.class) заменён на @Convert(converter = JsonStringConverter.class).
+     * columnDefinition = "jsonb" оставлен — соответствует реальному типу колонки в PostgreSQL,
+     * поэтому schema validation не падает. В H2 MODE=PostgreSQL jsonb транслируется в VARCHAR.
      */
-    @Type(JsonBinaryType.class)
+    @Convert(converter = JsonStringConverter.class)
     @Column(name = "required_risks", columnDefinition = "jsonb", nullable = false)
     private String requiredRisks;
 

@@ -4,6 +4,11 @@
 # ============================================
 # Uses JPA to auto-generate schema from entities
 # No Liquibase dependency
+#
+# task_133: H2 in-memory database for tests
+# Изолирует интеграционные тесты от PostgreSQL.
+# Ускоряет запуск тестов в CI/CD.
+# Убирает зависимость от внешней базы данных при разработке.
 
 spring:
   application:
@@ -13,7 +18,7 @@ spring:
   # H2 In-Memory Database
   # ============================================
   datasource:
-    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;NON_KEYWORDS=VALUE
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -27,7 +32,10 @@ spring:
   # JPA / Hibernate - Auto DDL Generation
   # ============================================
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
+    # task_133: кастомный диалект регистрирует jsonb как longvarchar в H2.
+    # Это необходимо потому что entity-файлы используют columnDefinition = "jsonb"
+    # (для корректной schema validation в PostgreSQL), но H2 не знает тип jsonb.
+    database-platform: org.javaguru.travel.insurance.infrastructure.persistence.H2DialectWithJsonb
     hibernate:
       ddl-auto: create-drop  # Auto-generate schema from entities
     show-sql: false
@@ -83,3 +91,8 @@ management:
     web:
       exposure:
         include: health,info
+
+# ============================================
+# Cache - disable in tests for predictability
+# ============================================
+spring.cache.type: none

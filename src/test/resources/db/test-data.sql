@@ -3,7 +3,9 @@
 -- ============================================
 -- H2-compatible version with INSERT statements
 -- Uses exact table names from JPA entities
-
+--
+-- task_133: Добавлены данные для age_coefficients и calculation_config
+-- Убраны PostgreSQL-специфичные конструкции (::uuid касты, jsonb типы и т.д.)
 -- Note: This script runs AFTER JPA creates tables via ddl-auto=create-drop
 -- All valid_from dates are 2020-01-01 so data is active for tests in any year
 -- CLEAN ALL TABLES (order matters because of FK)
@@ -12,6 +14,9 @@ DELETE FROM age_risk_coefficients;
 DELETE FROM underwriting_rules_config;
 DELETE FROM risk_bundles;
 DELETE FROM trip_duration_coefficients;
+DELETE FROM age_coefficients;
+DELETE FROM calculation_config;
+DELETE FROM discounts;
 DELETE FROM risk_types;
 DELETE FROM medical_risk_limit_levels;
 DELETE FROM promo_codes;
@@ -87,15 +92,38 @@ INSERT INTO promo_codes (code, description, discount_type, discount_value, min_p
 -- 5. TRIP DURATION COEFFICIENTS
 -- ============================================
 INSERT INTO trip_duration_coefficients (days_from, days_to, coefficient, description, valid_from, created_at) VALUES
-(1,  7,   1.00, 'Short trip (1 week)',                    '2020-01-01', CURRENT_TIMESTAMP),
-(8,  14,  0.95, 'Medium trip (2 weeks) - 5% discount',   '2020-01-01', CURRENT_TIMESTAMP),
-(15, 30,  0.90, 'Long trip (1 month) - 10% discount',    '2020-01-01', CURRENT_TIMESTAMP),
+(1,  7,   1.00, 'Short trip (1 week)',                     '2020-01-01', CURRENT_TIMESTAMP),
+(8,  14,  0.95, 'Medium trip (2 weeks) - 5% discount',    '2020-01-01', CURRENT_TIMESTAMP),
+(15, 30,  0.90, 'Long trip (1 month) - 10% discount',     '2020-01-01', CURRENT_TIMESTAMP),
 (31, 60,  0.88, 'Extended trip (2 months) - 12% discount','2020-01-01', CURRENT_TIMESTAMP),
 (61, 90,  0.85, 'Very long trip (3 months) - 15% discount','2020-01-01', CURRENT_TIMESTAMP),
 (91, 365, 0.82, 'Ultra long trip (3+ months) - 18% discount','2020-01-01', CURRENT_TIMESTAMP);
 
 -- ============================================
--- 6. RISK BUNDLES
+-- 6. AGE COEFFICIENTS
+-- task_133: Добавлены данные для таблицы age_coefficients.
+-- Необходимы для AgeCalculator, который читает коэффициенты из БД.
+-- ============================================
+INSERT INTO age_coefficients (age_from, age_to, coefficient, description, valid_from, created_at) VALUES
+(0,  5,  1.10, 'Infants and toddlers',    '2020-01-01', CURRENT_TIMESTAMP),
+(6,  17, 0.90, 'Children and teenagers', '2020-01-01', CURRENT_TIMESTAMP),
+(18, 30, 1.00, 'Young adults',           '2020-01-01', CURRENT_TIMESTAMP),
+(31, 40, 1.10, 'Adults',                 '2020-01-01', CURRENT_TIMESTAMP),
+(41, 50, 1.30, 'Middle-aged',            '2020-01-01', CURRENT_TIMESTAMP),
+(51, 60, 1.60, 'Senior',                 '2020-01-01', CURRENT_TIMESTAMP),
+(61, 70, 2.00, 'Elderly',               '2020-01-01', CURRENT_TIMESTAMP),
+(71, 80, 2.50, 'Very elderly',           '2020-01-01', CURRENT_TIMESTAMP);
+
+-- ============================================
+-- 7. CALCULATION CONFIG
+-- task_133: Добавлены данные для таблицы calculation_config.
+-- Необходимы для CalculationConfigService (AGE_COEFFICIENT_ENABLED).
+-- ============================================
+INSERT INTO calculation_config (config_key, config_value, description, valid_from, is_active, created_at) VALUES
+('AGE_COEFFICIENT_ENABLED', 'true', 'Enable age-based premium coefficient', '2020-01-01', true, CURRENT_TIMESTAMP);
+
+-- ============================================
+-- 8. RISK BUNDLES
 -- ============================================
 INSERT INTO risk_bundles (code, name_en, name_ru, description, discount_percentage, required_risks, valid_from, is_active, created_at) VALUES
 ('ACTIVE_TRAVELER',  'Active Traveler Package',  'Пакет Активный путешественник', 'For sports enthusiasts', 15.00, '["SPORT_ACTIVITIES", "ACCIDENT_COVERAGE"]',                  '2020-01-01', true, CURRENT_TIMESTAMP),
@@ -103,7 +131,7 @@ INSERT INTO risk_bundles (code, name_en, name_ru, description, discount_percenta
 ('EXTREME_ADVENTURE','Extreme Adventure',        'Экстремальное приключение',      'For adrenaline junkies',  18.00, '["EXTREME_SPORT", "ACCIDENT_COVERAGE", "CHRONIC_DISEASES"]',  '2020-01-01', true, CURRENT_TIMESTAMP);
 
 -- ============================================
--- 7. AGE RISK COEFFICIENTS
+-- 9. AGE RISK COEFFICIENTS
 -- ============================================
 INSERT INTO age_risk_coefficients (risk_type_code, age_from, age_to, coefficient_modifier, description, valid_from, created_at) VALUES
 ('EXTREME_SPORT',    18, 35, 1.00, 'Standard rate for young adults', '2020-01-01', CURRENT_TIMESTAMP),
@@ -119,35 +147,33 @@ INSERT INTO age_risk_coefficients (risk_type_code, age_from, age_to, coefficient
 ('CHRONIC_DISEASES', 71, 80, 2.50, '+150% for elderly',              '2020-01-01', CURRENT_TIMESTAMP);
 
 -- ============================================
--- 8. UNDERWRITING RULES CONFIG
+-- 10. UNDERWRITING RULES CONFIG
 -- ============================================
 INSERT INTO underwriting_rules_config (rule_name, parameter_name, parameter_value, description, valid_from, is_active, created_at) VALUES
-('AgeRule',              'MAX_AGE',                    '80',     'Maximum allowed age',              '2020-01-01', true, CURRENT_TIMESTAMP),
-('AgeRule',              'REVIEW_AGE_THRESHOLD',       '75',     'Age threshold for review',         '2020-01-01', true, CURRENT_TIMESTAMP),
-('AdditionalRisksRule',  'MAX_AGE_FOR_EXTREME_SPORT',  '70',     'Max age for extreme sport',        '2020-01-01', true, CURRENT_TIMESTAMP),
-('AdditionalRisksRule',  'REVIEW_AGE_FOR_EXTREME_SPORT','60',    'Review age for extreme sport',     '2020-01-01', true, CURRENT_TIMESTAMP),
-('TripDurationRule',     'MAX_DAYS',                   '180',    'Maximum trip duration',            '2020-01-01', true, CURRENT_TIMESTAMP),
-('TripDurationRule',     'REVIEW_DAYS_THRESHOLD',      '90',     'Days requiring review',            '2020-01-01', true, CURRENT_TIMESTAMP),
-('MedicalCoverageRule',  'REVIEW_AGE',                 '70',     'Age for medical review',           '2020-01-01', true, CURRENT_TIMESTAMP),
-('MedicalCoverageRule',  'BLOCKING_AGE',               '75',     'Age blocking high coverage',       '2020-01-01', true, CURRENT_TIMESTAMP),
-('MedicalCoverageRule',  'REVIEW_COVERAGE_THRESHOLD',  '100000', 'Coverage requiring review',        '2020-01-01', true, CURRENT_TIMESTAMP),
-('MedicalCoverageRule',  'BLOCKING_COVERAGE_THRESHOLD','200000', 'Max coverage for elderly',         '2020-01-01', true, CURRENT_TIMESTAMP);
+('AgeRule',              'MAX_AGE',                     '80',     'Maximum allowed age',              '2020-01-01', true, CURRENT_TIMESTAMP),
+('AgeRule',              'REVIEW_AGE_THRESHOLD',        '75',     'Age threshold for review',         '2020-01-01', true, CURRENT_TIMESTAMP),
+('AdditionalRisksRule',  'MAX_AGE_FOR_EXTREME_SPORT',   '70',     'Max age for extreme sport',        '2020-01-01', true, CURRENT_TIMESTAMP),
+('AdditionalRisksRule',  'REVIEW_AGE_FOR_EXTREME_SPORT','60',     'Review age for extreme sport',     '2020-01-01', true, CURRENT_TIMESTAMP),
+('TripDurationRule',     'MAX_DAYS',                    '180',    'Maximum trip duration',            '2020-01-01', true, CURRENT_TIMESTAMP),
+('TripDurationRule',     'REVIEW_DAYS_THRESHOLD',       '90',     'Days requiring review',            '2020-01-01', true, CURRENT_TIMESTAMP),
+('MedicalCoverageRule',  'REVIEW_AGE',                  '70',     'Age for medical review',           '2020-01-01', true, CURRENT_TIMESTAMP),
+('MedicalCoverageRule',  'BLOCKING_AGE',                '75',     'Age blocking high coverage',       '2020-01-01', true, CURRENT_TIMESTAMP),
+('MedicalCoverageRule',  'REVIEW_COVERAGE_THRESHOLD',   '100000', 'Coverage requiring review',        '2020-01-01', true, CURRENT_TIMESTAMP),
+('MedicalCoverageRule',  'BLOCKING_COVERAGE_THRESHOLD', '200000', 'Max coverage for elderly',         '2020-01-01', true, CURRENT_TIMESTAMP);
 
 -- ============================================
--- 9. DISCOUNTS
+-- 11. DISCOUNTS
 -- ============================================
-DELETE FROM discounts;
-
 INSERT INTO discounts (code, name, description, discount_type, discount_percentage, min_persons_count, min_premium_amount, valid_from, is_active, created_at) VALUES
 -- Групповые скидки
-('GROUP_5',       'Group discount 5 persons',  'Discount for groups of 5+',  'GROUP',    10, 5,  NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
-('GROUP_10',      'Group discount 10 persons', 'Discount for groups of 10+', 'GROUP',    15, 10, NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
-('GROUP_20',      'Group discount 20 persons', 'Discount for groups of 20+', 'GROUP',    20, 20, NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
+('GROUP_5',       'Group discount 5 persons',  'Discount for groups of 5+',      'GROUP',    10, 5,  NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
+('GROUP_10',      'Group discount 10 persons', 'Discount for groups of 10+',     'GROUP',    15, 10, NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
+('GROUP_20',      'Group discount 20 persons', 'Discount for groups of 20+',     'GROUP',    20, 20, NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
 -- Корпоративная скидка
 ('CORPORATE',     'Corporate discount',        'Discount for corporate clients', 'CORPORATE', 20, 1, 100, '2020-01-01', true, CURRENT_TIMESTAMP),
 -- Программа лояльности
-('LOYALTY_5',     'Loyalty 5%',               'Loyalty program discount 5%',  'LOYALTY', 5,  1, NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
-('LOYALTY_10',    'Loyalty 10%',              'Loyalty program discount 10%', 'LOYALTY', 10, 1, NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
+('LOYALTY_5',     'Loyalty 5%',               'Loyalty program discount 5%',    'LOYALTY', 5,  1, NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
+('LOYALTY_10',    'Loyalty 10%',              'Loyalty program discount 10%',   'LOYALTY', 10, 1, NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
 -- Сезонные скидки (вечные для тестов — нет привязки к реальным датам сезона)
-('WINTER_SEASON', 'Winter season discount',   'Winter seasonal discount',     'SEASONAL', 8, 1, NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
-('SUMMER_SEASON', 'Summer season discount',   'Summer seasonal discount',     'SEASONAL', 5, 1, NULL, '2020-01-01', true, CURRENT_TIMESTAMP);
+('WINTER_SEASON', 'Winter season discount',   'Winter seasonal discount',       'SEASONAL', 8, 1, NULL, '2020-01-01', true, CURRENT_TIMESTAMP),
+('SUMMER_SEASON', 'Summer season discount',   'Summer seasonal discount',       'SEASONAL', 5, 1, NULL, '2020-01-01', true, CURRENT_TIMESTAMP);

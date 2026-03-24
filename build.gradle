@@ -45,6 +45,10 @@ dependencies {
 
 	implementation 'com.fasterxml.jackson.core:jackson-databind'
 
+	// task_133: hypersistence-utils оставлен в зависимостях для обратной совместимости
+	// (используется в других местах проекта), но @Type(JsonBinaryType.class)
+	// убран из RiskBundleEntity и UnderwritingDecisionEntity —
+	// заменён на @Convert(converter = JsonStringConverter.class)
 	implementation "io.hypersistence:hypersistence-utils-hibernate-63:3.7.3"
 
 	implementation 'org.springframework.retry:spring-retry'
@@ -60,6 +64,7 @@ dependencies {
 	}
 
 	// --- H2 ---
+	// task_133: H2 используется для изоляции тестов от PostgreSQL
 	testRuntimeOnly 'com.h2database:h2'
 
 	// --- Testcontainers ---

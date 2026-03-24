@@ -236,7 +236,7 @@ class CountryDefaultCalcTest extends BaseIntegrationTest {
         }
 
         @Test
-        @DisplayName("должна присутствовать formула расчёта")
+        @DisplayName("должна присутствовать фoрмула расчёта")
         void shouldIncludeCalculationFormula() throws Exception {
             var request = TestRequestBuilder.adult35Spain().build();
 

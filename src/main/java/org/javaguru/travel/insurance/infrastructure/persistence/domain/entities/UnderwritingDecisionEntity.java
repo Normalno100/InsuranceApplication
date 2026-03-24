@@ -1,19 +1,36 @@
 package org.javaguru.travel.insurance.infrastructure.persistence.domain.entities;
 
-import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.Type;
+import org.javaguru.travel.insurance.infrastructure.persistence.converter.JsonStringConverter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Сущность решения андеррайтинга
+ * Сущность решения андеррайтинга.
+ *
+ * task_133: Заменён @Type(JsonBinaryType.class) на @Convert(converter = JsonStringConverter.class)
+ * для совместимости с H2 в тестах.
+ *
+ * БЫЛО:
+ *   @Type(JsonBinaryType.class)
+ *   @Column(name = "rule_results", columnDefinition = "jsonb")
+ *   @Type(JsonBinaryType.class)
+ *   @Column(name = "request_data", columnDefinition = "jsonb")
+ *
+ * СТАЛО:
+ *   @Convert(converter = JsonStringConverter.class)
+ *   @Column(name = "rule_results", columnDefinition = "jsonb")
+ *   @Convert(converter = JsonStringConverter.class)
+ *   @Column(name = "request_data", columnDefinition = "jsonb")
+ *
+ * columnDefinition = "jsonb" сохранён для корректной schema validation в PostgreSQL.
+ * В H2 MODE=PostgreSQL jsonb транслируется в VARCHAR — совместимость обеспечена.
  */
 @Entity
 @Table(name = "underwriting_decisions")
@@ -60,12 +77,22 @@ public class UnderwritingDecisionEntity {
     @Column(name = "review_reason", columnDefinition = "TEXT")
     private String reviewReason;
 
-    // JSON поля
-    @Type(JsonBinaryType.class)
+    /**
+     * JSON с результатами применения правил андеррайтинга.
+     *
+     * task_133: @Type(JsonBinaryType.class) заменён на @Convert(converter = JsonStringConverter.class).
+     * columnDefinition = "jsonb" оставлен — соответствует реальному типу колонки в PostgreSQL.
+     */
+    @Convert(converter = JsonStringConverter.class)
     @Column(name = "rule_results", columnDefinition = "jsonb")
     private String ruleResults;
 
-    @Type(JsonBinaryType.class)
+    /**
+     * JSON с исходными данными запроса.
+     *
+     * task_133: Аналогичная замена @Type(JsonBinaryType.class) → @Convert.
+     */
+    @Convert(converter = JsonStringConverter.class)
     @Column(name = "request_data", columnDefinition = "jsonb")
     private String requestData;
 
