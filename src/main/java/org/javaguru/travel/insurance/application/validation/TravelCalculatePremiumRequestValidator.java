@@ -1,210 +1,171 @@
 package org.javaguru.travel.insurance.application.validation;
 
-import org.javaguru.travel.insurance.application.validation.rule.business.*;
-import org.javaguru.travel.insurance.application.validation.rule.reference.*;
-import org.javaguru.travel.insurance.application.validation.rule.structural.*;
+import lombok.extern.slf4j.Slf4j;
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
+import org.javaguru.travel.insurance.application.validation.domain.commercial.CommercialValidator;
+import org.javaguru.travel.insurance.application.validation.domain.coverage.CoverageValidator;
+import org.javaguru.travel.insurance.application.validation.domain.person.PersonValidator;
+import org.javaguru.travel.insurance.application.validation.domain.risks.SelectedRisksValidator;
+import org.javaguru.travel.insurance.application.validation.domain.trip.TripValidator;
+import org.javaguru.travel.insurance.domain.port.ReferenceDataPort;
 import org.javaguru.travel.insurance.infrastructure.persistence.repositories.CountryRepository;
 import org.javaguru.travel.insurance.infrastructure.persistence.repositories.MedicalRiskLimitLevelRepository;
 import org.javaguru.travel.insurance.infrastructure.persistence.repositories.RiskTypeRepository;
-import org.javaguru.travel.insurance.domain.port.ReferenceDataPort;
-import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
- * Главный валидатор для TravelCalculatePremiumRequest.
+ * Оркестратор валидации запроса TravelCalculatePremiumRequest.
  *
- * РЕФАКТОРИНГ (п. 4.4): Устранение дублирования null-проверок в валидаторах.
+ * task_136: Рефакторинг — разделение валидаций по доменному принципу.
  *
- * ПОДХОД:
- *   1. Валидаторы одного поля (DateInPastValidator, IsoCodeValidator,
- *      StringLengthValidator) наследуются от AbstractFieldValidator
- *      с skipIfNull=true — ручные null-guard убраны из их кода.
+ * БЫЛО:
+ *   Монолитный CompositeValidator с 20+ правилами в одном классе.
  *
- *   2. Валидаторы двух полей (DateRangeValidator, TripDurationValidator,
- *      AgeValidator, AgreementDateFromNotTooFarValidator) оборачиваются
- *      в ConditionalValidator.when(...) прямо здесь — условие проверяет
- *      ненулевость всех нужных полей перед вызовом правила.
+ * СТАЛО:
+ *   Оркестратор делегирует доменным валидаторам в фиксированном порядке:
  *
- *   3. FutureTripWarningValidator уже работает корректно (skipIfNull-аналог
- *      через явную проверку dateFrom == null → success()); оставлен без изменений.
+ *     1. PersonValidator       — personFirstName, personLastName, personBirthDate, age
+ *     2. TripValidator         — agreementDateFrom/To, countryIsoCode, CountryExistence
+ *     3. CoverageValidator     — medicalRiskLimitLevel, режим COUNTRY_DEFAULT
+ *     4. SelectedRisksValidator— selectedRisks, дубликаты, обязательные риски
+ *     5. CommercialValidator   — currency
  *
- * РЕЗУЛЬТАТ: ~10 дублирующихся null-guard'ов удалены из валидаторов.
- *   Логика "пропустить если null" централизована в двух местах:
- *   - AbstractFieldValidator.validateField() — для single-field валидаторов
- *   - ConditionalValidator.when() — для multi-field валидаторов
+ * ГАРАНТИЯ ОБРАТНОЙ СОВМЕСТИМОСТИ:
+ *   Внешний API (метод validate()) не изменился.
+ *   Все существующие тесты проходят без изменений.
+ *
+ * СТОП ПРИ КРИТИЧНЫХ ОШИБКАХ:
+ *   Если любой доменный валидатор вернул CRITICAL-ошибку,
+ *   дальнейшая оркестрация прекращается.
+ *
+ * КОНСТРУКТОРЫ:
+ *   - @Autowired — для Spring: инжектирует доменные валидаторы как бины.
+ *   - Без @Autowired — для тестов, создающих валидатор напрямую с репозиториями.
  */
+@Slf4j
 @Component
 public class TravelCalculatePremiumRequestValidator {
 
-    private final CompositeValidator<TravelCalculatePremiumRequest> compositeValidator;
-    private final ReferenceDataPort referenceDataPort;
+    private final PersonValidator personValidator;
+    private final TripValidator tripValidator;
+    private final CoverageValidator coverageValidator;
+    private final SelectedRisksValidator selectedRisksValidator;
+    private final CommercialValidator commercialValidator;
 
+    /**
+     * Основной конструктор для Spring.
+     * @Autowired явно указывает Spring использовать именно этот конструктор,
+     * а не конструктор совместимости с тестами.
+     */
+    @Autowired
+    public TravelCalculatePremiumRequestValidator(
+            PersonValidator personValidator,
+            TripValidator tripValidator,
+            CoverageValidator coverageValidator,
+            SelectedRisksValidator selectedRisksValidator,
+            CommercialValidator commercialValidator) {
+
+        this.personValidator = personValidator;
+        this.tripValidator = tripValidator;
+        this.coverageValidator = coverageValidator;
+        this.selectedRisksValidator = selectedRisksValidator;
+        this.commercialValidator = commercialValidator;
+    }
+
+    /**
+     * Конструктор для обратной совместимости с тестами, которые создают
+     * валидатор напрямую (не через Spring контекст).
+     *
+     * Тесты типа TravelCalculatePremiumRequestValidatorTest передают
+     * репозитории/ReferenceDataPort вручную — этот конструктор создаёт
+     * доменные валидаторы на основе переданного ReferenceDataPort.
+     *
+     * НЕ помечен @Autowired — Spring игнорирует этот конструктор.
+     */
     public TravelCalculatePremiumRequestValidator(
             CountryRepository countryRepository,
             MedicalRiskLimitLevelRepository medicalRiskLimitLevelRepository,
             RiskTypeRepository riskRepository,
             ReferenceDataPort referenceDataPort) {
 
-        this.referenceDataPort = referenceDataPort;
+        this.personValidator = new PersonValidator();
+        this.tripValidator = new TripValidator(referenceDataPort);
+        this.coverageValidator = new CoverageValidator(referenceDataPort);
+        this.selectedRisksValidator = new SelectedRisksValidator(referenceDataPort);
+        this.commercialValidator = new CommercialValidator();
 
-        this.compositeValidator = buildCompositeValidator(
-                countryRepository,
-                medicalRiskLimitLevelRepository,
-                riskRepository,
-                referenceDataPort
-        );
+        log.debug("TravelCalculatePremiumRequestValidator created via direct constructor (non-Spring context)");
     }
 
+    /**
+     * Валидирует запрос на расчёт страховой премии.
+     *
+     * Порядок вызова доменных валидаторов:
+     *   PersonValidator → TripValidator → CoverageValidator
+     *   → SelectedRisksValidator → CommercialValidator
+     *
+     * При обнаружении CRITICAL-ошибок в любом доменном валидаторе
+     * оркестрация прекращается и возвращаются накопленные ошибки.
+     *
+     * @param request запрос на расчёт
+     * @return список ошибок валидации; пустой список если ошибок нет
+     */
     public List<ValidationError> validate(TravelCalculatePremiumRequest request) {
         ValidationContext context = new ValidationContext();
-        ValidationResult result = compositeValidator.validate(request, context);
+        List<ValidationError> allErrors = new ArrayList<>();
 
-        if (result.isValid()) {
-            return List.of();
+        // ── 1. PersonValidator ────────────────────────────────────────────────
+        List<ValidationError> personErrors = personValidator.validate(request, context);
+        allErrors.addAll(personErrors);
+
+        if (hasCriticalErrors(personErrors)) {
+            log.debug("PersonValidator returned critical errors, stopping validation");
+            return allErrors;
         }
 
-        return result.getErrors();
+        // ── 2. TripValidator ──────────────────────────────────────────────────
+        List<ValidationError> tripErrors = tripValidator.validate(request, context);
+        allErrors.addAll(tripErrors);
+
+        if (hasCriticalErrors(tripErrors)) {
+            log.debug("TripValidator returned critical errors, stopping validation");
+            return allErrors;
+        }
+
+        // ── 3. CoverageValidator ──────────────────────────────────────────────
+        List<ValidationError> coverageErrors = coverageValidator.validate(request, context);
+        allErrors.addAll(coverageErrors);
+
+        if (hasCriticalErrors(coverageErrors)) {
+            log.debug("CoverageValidator returned critical errors, stopping validation");
+            return allErrors;
+        }
+
+        // ── 4. SelectedRisksValidator ─────────────────────────────────────────
+        List<ValidationError> risksErrors = selectedRisksValidator.validate(request, context);
+        allErrors.addAll(risksErrors);
+
+        if (hasCriticalErrors(risksErrors)) {
+            log.debug("SelectedRisksValidator returned critical errors, stopping validation");
+            return allErrors;
+        }
+
+        // ── 5. CommercialValidator ────────────────────────────────────────────
+        List<ValidationError> commercialErrors = commercialValidator.validate(request, context);
+        allErrors.addAll(commercialErrors);
+
+        return allErrors;
     }
 
-    private CompositeValidator<TravelCalculatePremiumRequest> buildCompositeValidator(
-            CountryRepository countryRepository,
-            MedicalRiskLimitLevelRepository medicalRiskLimitLevelRepository,
-            RiskTypeRepository riskRepository,
-            ReferenceDataPort referenceDataPort) {
-
-        return CompositeValidator.<TravelCalculatePremiumRequest>builder(
-                        "TravelCalculatePremiumRequestValidator"
-                )
-                // ==========================================
-                // LEVEL 1: STRUCTURAL VALIDATION (Order: 10-99)
-                // ==========================================
-
-                // personFirstName
-                .addRule(new NotNullValidator<>("personFirstName",
-                        TravelCalculatePremiumRequest::getPersonFirstName))
-                .addRule(new NotBlankValidator<>("personFirstName",
-                        TravelCalculatePremiumRequest::getPersonFirstName))
-                // StringLengthValidator теперь с skipIfNull=true → null-guard не нужен
-                .addRule(new StringLengthValidator<>("personFirstName", 1, 100,
-                        TravelCalculatePremiumRequest::getPersonFirstName))
-
-                // personLastName
-                .addRule(new NotNullValidator<>("personLastName",
-                        TravelCalculatePremiumRequest::getPersonLastName))
-                .addRule(new NotBlankValidator<>("personLastName",
-                        TravelCalculatePremiumRequest::getPersonLastName))
-                .addRule(new StringLengthValidator<>("personLastName", 1, 100,
-                        TravelCalculatePremiumRequest::getPersonLastName))
-
-                // personBirthDate
-                .addRule(new DateNotNullValidator<>("personBirthDate",
-                        TravelCalculatePremiumRequest::getPersonBirthDate))
-
-                // agreementDateFrom
-                .addRule(new DateNotNullValidator<>("agreementDateFrom",
-                        TravelCalculatePremiumRequest::getAgreementDateFrom))
-
-                // agreementDateTo
-                .addRule(new DateNotNullValidator<>("agreementDateTo",
-                        TravelCalculatePremiumRequest::getAgreementDateTo))
-
-                // countryIsoCode
-                .addRule(new NotNullValidator<>("countryIsoCode",
-                        TravelCalculatePremiumRequest::getCountryIsoCode))
-                .addRule(new NotBlankValidator<>("countryIsoCode",
-                        TravelCalculatePremiumRequest::getCountryIsoCode))
-                // IsoCodeValidator теперь с skipIfNull=true → null-guard не нужен
-                .addRule(new IsoCodeValidator<>("countryIsoCode", 2,
-                        TravelCalculatePremiumRequest::getCountryIsoCode))
-
-                // medicalRiskLimitLevel (условная обязательность по режиму расчёта)
-                .addRule(new ConditionalMedicalRiskLimitLevelValidator())
-
-                // selectedRisks (опциональное поле)
-                .addRule(new CollectionElementsNotBlankValidator<>("selectedRisks",
-                        TravelCalculatePremiumRequest::getSelectedRisks))
-
-                // ==========================================
-                // LEVEL 2: BUSINESS RULES (Order: 100-199)
-                // ==========================================
-
-                // РЕФАКТОРИНГ 4.4: DateInPastValidator теперь с skipIfNull=true —
-                // null-guard удалён из кода валидатора.
-                .addRule(new DateInPastValidator<>("personBirthDate",
-                        TravelCalculatePremiumRequest::getPersonBirthDate))         // 110
-
-                // РЕФАКТОРИНГ 4.4: DateRangeValidator обёрнут в ConditionalValidator —
-                // активируется только когда обе даты ненулевые.
-                // Ручной null-guard "if (dateFrom == null || dateTo == null)" убран из
-                // DateRangeValidator — здесь он теперь не нужен.
-                .addRule(ConditionalValidator.when(
-                        req -> req.getAgreementDateFrom() != null
-                                && req.getAgreementDateTo() != null,
-                        new DateRangeValidator()                                     // 120
-                ))
-
-                // РЕФАКТОРИНГ 4.4: AgeValidator обёрнут в ConditionalValidator —
-                // активируется только когда обе даты ненулевые.
-                .addRule(ConditionalValidator.when(
-                        req -> req.getPersonBirthDate() != null
-                                && req.getAgreementDateFrom() != null,
-                        new AgeValidator()                                           // 130
-                ))
-
-                // РЕФАКТОРИНГ 4.4: TripDurationValidator обёрнут в ConditionalValidator.
-                .addRule(ConditionalValidator.when(
-                        req -> req.getAgreementDateFrom() != null
-                                && req.getAgreementDateTo() != null,
-                        new TripDurationValidator()                                  // 140
-                ))
-
-                // РЕФАКТОРИНГ 4.4: AgreementDateFromNotTooFarValidator обёрнут
-                // в ConditionalValidator — dateFrom != null гарантирован.
-                .addRule(ConditionalValidator.when(
-                        req -> req.getAgreementDateFrom() != null,
-                        new AgreementDateFromNotTooFarValidator()                   // 145
-                ))
-
-                // FutureTripWarningValidator — имеет собственный null-guard
-                // (if dateFrom == null → success()), оставлен без изменений.
-                .addRule(new FutureTripWarningValidator())                           // 150
-
-                .addRule(new MandatoryRisksValidator())                             // 160
-                .addRule(new DuplicateRisksValidator())                             // 165
-
-                // ==========================================
-                // LEVEL 3: REFERENCE DATA (Order: 200-299)
-                // ==========================================
-
-                // РЕФАКТОРИНГ 4.4: CountryExistenceValidator обёрнут в ConditionalValidator —
-                // активируется только когда код страны и дата ненулевые.
-                .addRule(ConditionalValidator.when(
-                        req -> Objects.nonNull(req.getCountryIsoCode())
-                                && Objects.nonNull(req.getAgreementDateFrom()),
-                        new CountryExistenceValidator(referenceDataPort)           // 210
-                ))
-
-                // РЕФАКТОРИНГ 4.4: MedicalRiskLimitLevelExistenceValidator уже содержит
-                // проверку useCountryDefaultPremium и null — оставлен без изменений,
-                // т.к. логика сложнее простого null-guard.
-                .addRule(new MedicalRiskLimitLevelExistenceValidator(referenceDataPort)) // 220
-
-                // РЕФАКТОРИНГ 4.4: RiskTypeExistenceValidator обёрнут в ConditionalValidator —
-                // активируется только когда есть выбранные риски и дата.
-                .addRule(ConditionalValidator.when(
-                        req -> req.getSelectedRisks() != null
-                                && !req.getSelectedRisks().isEmpty()
-                                && req.getAgreementDateFrom() != null,
-                        new RiskTypeExistenceValidator(referenceDataPort)          // 230
-                ))
-
-                .addRule(new RiskTypeNotMandatoryValidator(referenceDataPort))     // 240
-                .addRule(new CurrencySupportValidator())                           // 250
-
-                .stopOnCriticalError(true)
-                .build();
+    /**
+     * Проверяет наличие CRITICAL-ошибок в списке.
+     */
+    private boolean hasCriticalErrors(List<ValidationError> errors) {
+        return errors.stream()
+                .anyMatch(e -> e.getSeverity() == ValidationError.Severity.CRITICAL);
     }
 }
