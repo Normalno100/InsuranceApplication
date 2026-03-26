@@ -17,10 +17,6 @@ import java.util.stream.Collectors;
 
 /**
  * Assembler для сборки Response DTO.
- *
- * РЕФАКТОРИНГ (п. 4.2 плана): Метод buildFormula() вынесен в FormulaBuilder.
- * РЕФАКТОРИНГ (п. 4.3 плана): Обновлён для работы с декомпозированным
- * PremiumCalculationResult — читает поля через вложенные records.
  */
 @Slf4j
 @Component
@@ -163,7 +159,6 @@ public class ResponseAssembler {
             TravelCalculatePremiumRequest request,
             MedicalRiskPremiumCalculator.PremiumCalculationResult details) {
 
-        // РЕФАКТОРИНГ (п. 4.3): читаем через вложенный record ageDetails
         Integer age = details != null ? details.ageDetails().age() : null;
         String ageGroup = details != null ? details.ageDetails().ageGroupDescription() : null;
 
@@ -180,7 +175,6 @@ public class ResponseAssembler {
             TravelCalculatePremiumRequest request,
             MedicalRiskPremiumCalculator.PremiumCalculationResult details) {
 
-        // РЕФАКТОРИНГ (п. 4.3): читаем через вложенные records
         boolean isCountryDefaultMode = details != null
                 && details.calculationMode() == MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT;
 
@@ -197,7 +191,6 @@ public class ResponseAssembler {
                         ? details.countryDetails().countryDefaultDayPremium()
                         : null)
                 .calculationMode(details != null ? details.calculationMode().name() : null)
-                // task_117
                 .medicalPayoutLimit(details != null
                         ? details.payoutLimitDetails().medicalPayoutLimit()
                         : null)
@@ -212,7 +205,6 @@ public class ResponseAssembler {
             return TravelCalculatePremiumResponse.PricingDetails.builder().build();
         }
 
-        // РЕФАКТОРИНГ (п. 4.3): читаем через вложенные records
         boolean isCountryDefault = details.calculationMode()
                 == MedicalRiskPremiumCalculator.CalculationMode.COUNTRY_DEFAULT;
 
@@ -224,10 +216,8 @@ public class ResponseAssembler {
                 .countryDefaultDayPremium(isCountryDefault
                         ? details.countryDetails().countryDefaultDayPremium()
                         : null)
-                // task_117
                 .appliedPayoutLimit(details.payoutLimitDetails().appliedPayoutLimit())
                 .payoutLimitApplied(details.payoutLimitDetails().payoutLimitApplied())
-                // делегируем построение формулы в FormulaBuilder
                 .calculationFormula(formulaBuilder.build(details));
 
         builder.countryInfo(buildCountryInfo(details));
@@ -262,7 +252,6 @@ public class ResponseAssembler {
     private TravelCalculatePremiumResponse.CountryInfo buildCountryInfo(
             MedicalRiskPremiumCalculator.PremiumCalculationResult details) {
 
-        // РЕФАКТОРИНГ (п. 4.3): читаем через вложенный record countryDetails
         boolean hasDefaultPremium = details.countryDetails().countryDefaultDayPremiumForInfo() != null;
 
         return TravelCalculatePremiumResponse.CountryInfo.builder()

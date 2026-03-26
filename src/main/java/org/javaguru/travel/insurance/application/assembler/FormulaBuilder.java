@@ -7,18 +7,6 @@ import java.math.BigDecimal;
 
 /**
  * Утилитный компонент для построения строки формулы расчёта премии.
- *
- * РЕФАКТОРИНГ (п. 4.2 плана):
- *   Логика buildFormula централизована здесь.
- *   CountryDefaultDayPremiumService.buildFormula() был dead code — удалён.
- *
- * РЕФАКТОРИНГ (п. 4.3 плана):
- *   Обновлён для работы с декомпозированным PremiumCalculationResult.
- *   Вместо прямых полей используются вложенные records:
- *     result.ageDetails().ageCoefficient()
- *     result.countryDetails().countryCoefficient()
- *     result.tripDetails().durationCoefficient()
- *     и т.д.
  */
 @Component
 public class FormulaBuilder {

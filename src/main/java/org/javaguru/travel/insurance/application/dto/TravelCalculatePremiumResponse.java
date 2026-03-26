@@ -13,10 +13,6 @@ import java.util.UUID;
 
 /**
  * Ответ на расчет страховой премии.
- *
- * ИЗМЕНЕНИЯ task_117:
- * - TripSummary: добавлено поле medicalPayoutLimit (лимит выплат для информации)
- * - PricingDetails: добавлены appliedPayoutLimit, payoutLimitApplied
  */
 @Getter
 @Setter
@@ -95,11 +91,6 @@ public class TravelCalculatePremiumResponse {
 
     /**
      * Краткая информация о поездке.
-     *
-     * ИЗМЕНЕНИЯ task_117:
-     * - medicalPayoutLimit — лимит страховых выплат по медицинскому риску.
-     *   Заполняется в режиме MEDICAL_LEVEL.
-     *   null в режиме COUNTRY_DEFAULT (нет привязки к уровню покрытия).
      */
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class TripSummary {
@@ -122,7 +113,7 @@ public class TravelCalculatePremiumResponse {
         private BigDecimal coverageAmount;
 
         /**
-         * task_117: Лимит страховых выплат по медицинскому риску.
+         * Лимит страховых выплат по медицинскому риску.
          * Заполняется в режиме MEDICAL_LEVEL.
          * Если payoutLimitApplied=true — этот лимит меньше coverageAmount и была применена корректировка.
          */
@@ -141,10 +132,6 @@ public class TravelCalculatePremiumResponse {
 
     /**
      * Детальная информация о ценообразовании.
-     *
-     * ИЗМЕНЕНИЯ task_117:
-     * - appliedPayoutLimit — фактически применённый лимит выплат
-     * - payoutLimitApplied — true если премия была скорректирована
      */
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class PricingDetails {
@@ -176,14 +163,14 @@ public class TravelCalculatePremiumResponse {
         private List<CalculationStep> steps = List.of();
 
         /**
-         * task_117: Фактически применённый лимит страховых выплат.
+         * Фактически применённый лимит страховых выплат.
          * null в режиме COUNTRY_DEFAULT или если лимит не применялся.
          */
         @JsonFormat(shape = JsonFormat.Shape.NUMBER, pattern = "0.00")
         private BigDecimal appliedPayoutLimit;
 
         /**
-         * task_117: Флаг — была ли применена корректировка премии из-за лимита выплат.
+         * Флаг — была ли применена корректировка премии из-за лимита выплат.
          * false = лимит не применялся (maxPayoutAmount >= coverageAmount или COUNTRY_DEFAULT режим).
          * true  = премия была уменьшена пропорционально лимиту.
          */
