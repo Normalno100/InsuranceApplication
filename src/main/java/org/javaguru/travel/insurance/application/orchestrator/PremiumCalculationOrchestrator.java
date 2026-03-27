@@ -3,6 +3,7 @@ package org.javaguru.travel.insurance.application.orchestrator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.javaguru.travel.insurance.application.service.DiscountApplicationService;
+import org.javaguru.travel.insurance.application.service.GroupPremiumResult;
 import org.javaguru.travel.insurance.application.service.PremiumCalculationService;
 import org.javaguru.travel.insurance.application.service.UnderwritingApplicationService;
 import org.javaguru.travel.insurance.application.assembler.ResponseAssembler;
@@ -15,16 +16,19 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * Оркестратор расчета премии
+ * Оркестратор расчета премии.
  *
- * ЦЕЛЬ: Координация процесса расчета без знания деталей реализации
+ * ЦЕЛЬ: Координация процесса расчета без знания деталей реализации.
+ *
+ * task_134: Оркестратор обновлён для поддержки GroupPremiumResult.
+ * V2 API использует MultiPersonPremiumCalculationService через адаптер
+ * (одна персона → группа из одной персоны).
  *
  * ОБЯЗАННОСТИ:
  * 1. Валидация запроса
- * 2. Проверка андеррайтинга
- * 3. Координация расчета премии
- * 4. Применение скидок
- * 5. Сборка финального ответа
+ * 2. Расчёт групповой премии (включая андеррайтинг каждой персоны)
+ * 3. Применение скидок к итоговой сумме
+ * 4. Сборка финального ответа
  */
 @Slf4j
 @Service
@@ -38,10 +42,15 @@ public class PremiumCalculationOrchestrator {
     private final ResponseAssembler responseAssembler;
 
     /**
-     * Главный метод оркестрации расчета премии
+     * Главный метод оркестрации расчета премии.
+     *
+     * task_134: Поток изменён — андеррайтинг теперь выполняется внутри
+     * GroupPremiumResult (MultiPersonPremiumCalculationService обходит
+     * каждую персону и агрегирует наиболее строгое решение).
      *
      * Поток:
-     * 1. Validate → 2. Underwrite → 3. Calculate → 4. Apply Discounts → 5. Assemble Response
+     * 1. Validate → 2. Calculate (includes underwriting per person) → 3. Check group decision
+     * → 4. Apply Discounts → 5. Assemble Response
      */
     public TravelCalculatePremiumResponse process(TravelCalculatePremiumRequest request, boolean includeDetails) {
         log.info("Starting premium calculation orchestration for {} {}",
@@ -54,40 +63,48 @@ public class PremiumCalculationOrchestrator {
             return responseAssembler.buildValidationErrorResponse(validationErrors);
         }
 
-        // STEP 2: Андеррайтинг
-        var underwritingResult = underwritingService.evaluate(request);
-
-        if (underwritingResult.isDeclined()) {
-            log.warn("Application declined: {}", underwritingResult.getDeclineReason());
-            return responseAssembler.buildDeclinedResponse(request, underwritingResult);
-        }
-
-        if (underwritingResult.requiresManualReview()) {
-            log.info("Manual review required: {}", underwritingResult.getDeclineReason());
-            return responseAssembler.buildReviewRequiredResponse(request, underwritingResult);
-        }
-
-        // STEP 3: Расчет премии
+        // STEP 2: Расчёт премии с андеррайтингом через GroupPremiumResult
+        GroupPremiumResult groupResult;
         try {
-            var calculationResult = premiumCalculationService.calculate(request);
+            groupResult = premiumCalculationService.calculateSinglePersonAsGroup(request);
+        } catch (Exception e) {
+            log.error("Premium calculation failed", e);
+            return responseAssembler.buildSystemErrorResponse(e.getMessage());
+        }
 
-            // STEP 4: Применение скидок
+        // STEP 3: Проверка решения андеррайтинга группы
+        if (groupResult.isDeclined()) {
+            log.warn("Application declined: {}", groupResult.groupUnderwriting().getDeclineReason());
+            return responseAssembler.buildDeclinedResponse(request, groupResult.groupUnderwriting());
+        }
+
+        if (groupResult.requiresReview()) {
+            log.info("Manual review required: {}", groupResult.groupUnderwriting().getDeclineReason());
+            return responseAssembler.buildReviewRequiredResponse(request, groupResult.groupUnderwriting());
+        }
+
+        // STEP 4: Применение скидок к итоговой сумме полиса
+        try {
             var discountResult = discountApplicationService.applyDiscounts(
                     request,
-                    calculationResult.premium()
+                    groupResult.totalPremium()
             );
 
-            // STEP 5: Сборка ответа
+            // STEP 5: Сборка ответа с данными GroupPremiumResult
             return responseAssembler.buildSuccessResponse(
                     request,
-                    calculationResult,
+                    // Оборачиваем в PremiumCalculationResult для совместимости с ResponseAssembler
+                    new PremiumCalculationService.PremiumCalculationResult(
+                            groupResult.totalPremium(),
+                            groupResult.firstPersonDetails()
+                    ),
                     discountResult,
-                    underwritingResult,
+                    groupResult.groupUnderwriting(),
                     includeDetails
             );
 
         } catch (Exception e) {
-            log.error("Premium calculation failed", e);
+            log.error("Discount application or response assembly failed", e);
             return responseAssembler.buildSystemErrorResponse(e.getMessage());
         }
     }
