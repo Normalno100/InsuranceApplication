@@ -17,10 +17,10 @@ import java.util.Map;
 /**
  * Конфигурация OpenAPI (Swagger) для Travel Insurance API.
  *
- * ДОБАВЛЕНО в task_111:
- * - Описание API с двумя режимами расчёта (MEDICAL_LEVEL / COUNTRY_DEFAULT)
- * - Примеры запросов для Swagger UI
- * - Документация поля personBirthDate и возрастных коэффициентов
+ * ОБНОВЛЕНО в task_135:
+ * - Добавлены теги и примеры для V3 API (multi-person)
+ * - Обновлена версия API до 3.0
+ * - Добавлены примеры V3 запросов
  *
  * Доступ к Swagger UI: http://localhost:8080/swagger-ui.html
  * OpenAPI JSON:        http://localhost:8080/v3/api-docs
@@ -40,11 +40,22 @@ public class OpenApiConfig {
     private Info buildApiInfo() {
         return new Info()
                 .title("Travel Insurance API")
-                .version("2.1")
+                .version("3.0")
                 .description("""
                         ## Travel Insurance Premium Calculation API
                         
                         Сервис расчёта страховых премий для туристических поездок.
+                        
+                        ### API Versions
+                        
+                        **V2 (legacy)** — `/insurance/travel/calculate`
+                        - Одна застрахованная персона
+                        - Поля: personFirstName, personLastName, personBirthDate
+                        
+                        **V3 (current)** — `/insurance/travel/v3/calculate`
+                        - Несколько застрахованных персон
+                        - Поле: persons[] с InduredPerson объектами
+                        - Ответ содержит personPremiums[] с индивидуальными расчётами
                         
                         ### Два режима расчёта
                         
@@ -65,6 +76,15 @@ public class OpenApiConfig {
                         - Источник ставки: таблица `country_default_day_premiums`
                         - CountryCoeff уже включён в DefaultDayPremium
                         
+                        ### HTTP-статусы (V2 и V3)
+                        
+                        | Статус | Описание |
+                        |--------|----------|
+                        | 200 OK | SUCCESS — расчёт успешен |
+                        | 400 Bad Request | VALIDATION_ERROR — ошибки валидации |
+                        | 202 Accepted | REQUIRES_REVIEW — требуется ручная проверка |
+                        | 422 Unprocessable Entity | DECLINED — заявка отклонена |
+                        
                         ### Возрастные коэффициенты (AgeCoefficient)
                         
                         | Возраст    | Коэффициент | Группа              |
@@ -77,14 +97,6 @@ public class OpenApiConfig {
                         | 51 – 60   | 1.6         | Senior              |
                         | 61 – 70   | 2.0         | Elderly             |
                         | 71 – 80   | 2.5         | Very elderly        |
-                        
-                        ### Андеррайтинг
-                        - Возраст 75–80 лет → `REQUIRES_REVIEW`
-                        - Возраст > 80 лет → `VALIDATION_ERROR`
-                        - EXTREME_SPORT для 60–70 лет → `REQUIRES_REVIEW`
-                        - EXTREME_SPORT для 70+ лет → `DECLINED`
-                        - Страны с рейтингом HIGH → `REQUIRES_REVIEW`
-                        - Страны с рейтингом VERY_HIGH → `DECLINED`
                         """)
                 .contact(new Contact()
                         .name("JavaGuru Travel Insurance Team")
@@ -103,8 +115,11 @@ public class OpenApiConfig {
     private List<Tag> buildTags() {
         return List.of(
                 new Tag()
-                        .name("Premium Calculation")
-                        .description("Расчёт страховой премии с андеррайтингом и применением скидок"),
+                        .name("Premium Calculation V2")
+                        .description("V2 API: расчёт страховой премии для одной персоны (legacy)"),
+                new Tag()
+                        .name("Premium Calculation V3")
+                        .description("V3 API: расчёт страховой премии для нескольких персон (current)"),
                 new Tag()
                         .name("Health")
                         .description("Проверка состояния сервиса")
@@ -114,20 +129,23 @@ public class OpenApiConfig {
     private Components buildComponents() {
         return new Components()
                 .examples(Map.of(
+                        // V2 примеры
                         "MedicalLevelRequest", buildMedicalLevelExample(),
                         "CountryDefaultRequest", buildCountryDefaultExample(),
                         "ElderlyRequest", buildElderlyExample(),
-                        "WithDiscountsRequest", buildWithDiscountsExample()
+                        "WithDiscountsRequest", buildWithDiscountsExample(),
+                        // V3 примеры
+                        "V3SinglePersonRequest", buildV3SinglePersonExample(),
+                        "V3MultiPersonRequest", buildV3MultiPersonExample(),
+                        "V3WithDiscountsRequest", buildV3WithDiscountsExample()
                 ));
     }
 
-    // ──────────────────────────────────────────────────────────
-    // Примеры запросов для Swagger UI
-    // ──────────────────────────────────────────────────────────
+    // ── V2 примеры ────────────────────────────────────────────────────────────
 
     private Example buildMedicalLevelExample() {
         return new Example()
-                .summary("Стандартный запрос (MEDICAL_LEVEL)")
+                .summary("[V2] Стандартный запрос (MEDICAL_LEVEL)")
                 .description("Расчёт через уровень медицинского покрытия. medicalRiskLimitLevel обязателен.")
                 .value("""
                         {
@@ -147,11 +165,10 @@ public class OpenApiConfig {
 
     private Example buildCountryDefaultExample() {
         return new Example()
-                .summary("COUNTRY_DEFAULT режим (без medicalRiskLimitLevel)")
+                .summary("[V2] COUNTRY_DEFAULT режим")
                 .description("""
                         Расчёт через дефолтную дневную ставку страны.
                         При useCountryDefaultPremium=true поле medicalRiskLimitLevel не требуется.
-                        AgeCoefficient для 39 лет: 1.1 (Adults: 31–40).
                         """)
                 .value("""
                         {
@@ -169,11 +186,8 @@ public class OpenApiConfig {
 
     private Example buildElderlyExample() {
         return new Example()
-                .summary("Пожилой застрахованный (REQUIRES_REVIEW)")
-                .description("""
-                        Возраст 77 лет → AgeCoefficient 2.5 (Very elderly).
-                        Ожидаемый результат: REQUIRES_REVIEW (age 77 >= reviewThreshold 75).
-                        """)
+                .summary("[V2] Пожилой застрахованный (REQUIRES_REVIEW)")
+                .description("Возраст 77 лет → AgeCoefficient 2.5 (Very elderly). Ожидаемый результат: REQUIRES_REVIEW.")
                 .value("""
                         {
                           "personFirstName": "Nikolai",
@@ -190,12 +204,8 @@ public class OpenApiConfig {
 
     private Example buildWithDiscountsExample() {
         return new Example()
-                .summary("С промо-кодом и групповой скидкой")
-                .description("""
-                        Возраст 24 года → AgeCoefficient 1.0 (Young adults: 18–30).
-                        Промо-код SUMMER2025 + групповая скидка (10 человек = −15%).
-                        Применяется наибольшая скидка.
-                        """)
+                .summary("[V2] С промо-кодом и групповой скидкой")
+                .description("Промо-код SUMMER2025 + групповая скидка (10 человек).")
                 .value("""
                         {
                           "personFirstName": "Olga",
@@ -210,6 +220,128 @@ public class OpenApiConfig {
                           "promoCode": "SUMMER2025",
                           "personsCount": 10,
                           "isCorporate": false
+                        }
+                        """);
+    }
+
+    // ── V3 примеры ────────────────────────────────────────────────────────────
+
+    private Example buildV3SinglePersonExample() {
+        return new Example()
+                .summary("[V3] Одна персона — базовый запрос")
+                .description("""
+                        Минимальный V3 запрос с одной персоной.
+                        Аналогичен V2 запросу, но использует поле persons[].
+                        """)
+                .value("""
+                        {
+                          "persons": [
+                            {
+                              "personFirstName": "Ivan",
+                              "personLastName": "Petrov",
+                              "personBirthDate": "1990-05-15"
+                            }
+                          ],
+                          "agreementDateFrom": "2025-06-01",
+                          "agreementDateTo": "2025-06-15",
+                          "countryIsoCode": "ES",
+                          "medicalRiskLimitLevel": "50000",
+                          "currency": "EUR"
+                        }
+                        """);
+    }
+
+    private Example buildV3MultiPersonExample() {
+        return new Example()
+                .summary("[V3] Несколько персон — семейный полис")
+                .description("""
+                        V3 запрос для трёх персон разного возраста.
+                        Каждая персона получает индивидуальный расчёт с учётом возраста.
+                        Итоговая премия = сумма индивидуальных премий − скидки.
+                        
+                        Ошибки валидации адресуются с индексом:
+                          persons[0].personBirthDate — Must not be empty
+                        """)
+                .value("""
+                        {
+                          "persons": [
+                            {
+                              "personFirstName": "Ivan",
+                              "personLastName": "Petrov",
+                              "personBirthDate": "1985-05-15",
+                              "applyAgeCoefficient": null
+                            },
+                            {
+                              "personFirstName": "Anna",
+                              "personLastName": "Petrova",
+                              "personBirthDate": "1988-11-20",
+                              "applyAgeCoefficient": null
+                            },
+                            {
+                              "personFirstName": "Alex",
+                              "personLastName": "Petrov",
+                              "personBirthDate": "2015-03-10",
+                              "applyAgeCoefficient": null
+                            }
+                          ],
+                          "agreementDateFrom": "2025-07-01",
+                          "agreementDateTo": "2025-07-14",
+                          "countryIsoCode": "ES",
+                          "medicalRiskLimitLevel": "50000",
+                          "selectedRisks": ["SPORT_ACTIVITIES"],
+                          "currency": "EUR",
+                          "personsCount": 3
+                        }
+                        """);
+    }
+
+    private Example buildV3WithDiscountsExample() {
+        return new Example()
+                .summary("[V3] Корпоративный клиент — 5 сотрудников")
+                .description("""
+                        V3 запрос для корпоративного клиента с 5 застрахованными.
+                        Применяется корпоративная скидка 20%.
+                        
+                        Каждая персона может иметь отдельное управление возрастным коэффициентом
+                        через поле applyAgeCoefficient.
+                        """)
+                .value("""
+                        {
+                          "persons": [
+                            {
+                              "personFirstName": "Alexei",
+                              "personLastName": "Ivanov",
+                              "personBirthDate": "1982-03-15"
+                            },
+                            {
+                              "personFirstName": "Elena",
+                              "personLastName": "Smirnova",
+                              "personBirthDate": "1990-07-22"
+                            },
+                            {
+                              "personFirstName": "Dmitry",
+                              "personLastName": "Volkov",
+                              "personBirthDate": "1975-12-01",
+                              "applyAgeCoefficient": false
+                            },
+                            {
+                              "personFirstName": "Olga",
+                              "personLastName": "Kozlova",
+                              "personBirthDate": "1995-04-18"
+                            },
+                            {
+                              "personFirstName": "Sergei",
+                              "personLastName": "Nikitin",
+                              "personBirthDate": "1988-09-10"
+                            }
+                          ],
+                          "agreementDateFrom": "2025-09-01",
+                          "agreementDateTo": "2025-09-10",
+                          "countryIsoCode": "DE",
+                          "medicalRiskLimitLevel": "100000",
+                          "currency": "EUR",
+                          "isCorporate": true,
+                          "personsCount": 5
                         }
                         """);
     }

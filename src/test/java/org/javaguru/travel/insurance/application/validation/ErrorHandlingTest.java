@@ -1,6 +1,7 @@
 package org.javaguru.travel.insurance.application.validation;
 
 import org.javaguru.travel.insurance.application.service.TravelCalculatePremiumService;
+import org.javaguru.travel.insurance.application.service.TravelCalculatePremiumServiceV3;
 import org.javaguru.travel.insurance.infrastructure.web.error.GlobalExceptionHandler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,9 @@ class ErrorHandlingTest {
 
     @MockBean
     private TravelCalculatePremiumService travelCalculatePremiumService;
+
+    @MockBean
+    private TravelCalculatePremiumServiceV3 service;
 
     @Test
     @DisplayName("Should return 400 for malformed JSON")
