@@ -1,13 +1,13 @@
 package org.javaguru.travel.insurance.application.validation.rule.business;
 
+import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 import org.javaguru.travel.insurance.application.validation.AbstractValidationRule;
 import org.javaguru.travel.insurance.application.validation.ValidationContext;
 import org.javaguru.travel.insurance.application.validation.ValidationError;
 import org.javaguru.travel.insurance.application.validation.ValidationResult;
-import org.javaguru.travel.insurance.application.validation.*;
-import org.javaguru.travel.insurance.application.dto.TravelCalculatePremiumRequest;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -33,17 +33,17 @@ public class MandatoryRisksValidator extends AbstractValidationRule<TravelCalcul
 
         ValidationResult.Builder resultBuilder = ValidationResult.builder();
 
-        for (String risk : selectedRisks) {
-            if (MANDATORY_RISKS.contains(risk)) {
-                resultBuilder.addError(
+        // Используем Stream API для фильтрации null и проверки на вхождение в Set
+        selectedRisks.stream()
+                .filter(Objects::nonNull) // Ключевое исправление: игнорируем null элементы
+                .filter(MANDATORY_RISKS::contains)
+                .forEach(risk -> resultBuilder.addError(
                         ValidationError.error(
                                         "selectedRisks",
                                         String.format("Risk '%s' is mandatory and cannot be in selectedRisks!", risk)
                                 )
                                 .withParameter("risk", risk)
-                );
-            }
-        }
+                ));
 
         return resultBuilder.build();
     }
