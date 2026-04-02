@@ -17,18 +17,34 @@ import java.time.LocalDateTime;
  * task_133: Заменён @Type(JsonBinaryType.class) на @Convert(converter = JsonStringConverter.class)
  * для совместимости с H2 в тестах.
  *
- * БЫЛО:
- *   @Type(JsonBinaryType.class)
- *   @Column(name = "required_risks", columnDefinition = "jsonb", nullable = false)
+ * ИСПРАВЛЕНИЕ: columnDefinition изменён с "jsonb" на "TEXT".
  *
- * СТАЛО:
+ * ПРОБЛЕМА (было):
  *   @Convert(converter = JsonStringConverter.class)
  *   @Column(name = "required_risks", columnDefinition = "jsonb", nullable = false)
  *
- * columnDefinition = "jsonb" сохранён, чтобы:
- *   1. В PostgreSQL (production) schema validation проходил без ошибок.
- *   2. В H2 (tests) — H2 в режиме MODE=PostgreSQL понимает jsonb как OTHER/VARCHAR.
- *      Hibernate создаёт колонку с типом jsonb, H2 транслирует это в VARCHAR.
+ *   При INSERT PostgreSQL отказывался принять VARCHAR в jsonb-колонку:
+ *     ERROR: column "required_risks" is of type jsonb
+ *            but expression is of type character varying
+ *
+ * РЕШЕНИЕ (стало):
+ *   @Convert(converter = JsonStringConverter.class)
+ *   @Column(name = "required_risks", columnDefinition = "TEXT", nullable = false)
+ *
+ *   JsonStringConverter хранит JSON как обычную строку.
+ *   PostgreSQL принимает TEXT без дополнительного приведения типов.
+ *   RiskBundleService использует ObjectMapper для десериализации строки —
+ *   поведение при чтении не меняется.
+ *
+ *   ПРИМЕЧАНИЕ ПО СХЕМЕ:
+ *   Реальная колонка в БД была создана Liquibase с типом jsonb (009-create-advanced-pricing-tables.xml).
+ *   Для production PostgreSQL нужна Liquibase-миграция:
+ *     ALTER TABLE risk_bundles
+ *       ALTER COLUMN required_risks TYPE TEXT USING required_risks::TEXT;
+ *
+ *   Также при смене типа потребуется удалить GIN-индекс (idx_bundle_risks),
+ *   созданный в changeSet 009-02, так как GIN-индексация TEXT без явного оператора
+ *   gin_trgm_ops не поддерживается стандартно.
  */
 @Entity
 @Table(name = "risk_bundles")
@@ -61,12 +77,12 @@ public class RiskBundleEntity implements TemporallyValid {
      * JSON массив требуемых рисков.
      * Например: ["SPORT_ACTIVITIES", "ACCIDENT_COVERAGE"]
      *
-     * task_133: @Type(JsonBinaryType.class) заменён на @Convert(converter = JsonStringConverter.class).
-     * columnDefinition = "jsonb" оставлен — соответствует реальному типу колонки в PostgreSQL,
-     * поэтому schema validation не падает. В H2 MODE=PostgreSQL jsonb транслируется в VARCHAR.
+     * ИСПРАВЛЕНО: columnDefinition = "TEXT" вместо "jsonb".
+     * JsonStringConverter сериализует List<String> в JSON-строку через ObjectMapper
+     * в RiskBundleService.parseRequiredRisks() — поведение при чтении не изменилось.
      */
     @Convert(converter = JsonStringConverter.class)
-    @Column(name = "required_risks", columnDefinition = "jsonb", nullable = false)
+    @Column(name = "required_risks", columnDefinition = "TEXT", nullable = false)
     private String requiredRisks;
 
     @Column(name = "valid_from", nullable = false)

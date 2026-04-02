@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TravelGuard — Calculation Result</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+        --navy:   #0d1b2a;
+        --ink:    #1a2b3c;
+        --teal:   #00897b;
+        --teal-l: #00a896;
+        --sand:   #f5f0e8;
+        --cream:  #fdfbf7;
+        --warm:   #e8e0d0;
+        --error:  #c0392b;
+        --warn:   #e67e22;
+        --success:#27ae60;
+        --review: #2980b9;
+        --declined:#c0392b;
+        --text:   #2c3e50;
+        --muted:  #7f8c8d;
+        --border: #d4cfc6;
+        --shadow: 0 4px 24px rgba(13,27,42,.08);
+        --shadow-lg: 0 16px 48px rgba(13,27,42,.14);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+        font-family: 'DM Sans', sans-serif;
+        background: var(--sand);
+        color: var(--text);
+        min-height: 100vh;
+        font-size: 15px;
+        line-height: 1.6;
+    }
+
+    /* ─── HEADER ─── */
+    header {
+        background: var(--navy);
+        color: white;
+        padding: 0 2rem;
+        display: flex;
+        align-items: stretch;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: 0 2px 20px rgba(0,0,0,.3);
+    }
+    .header-brand {
+        display: flex; align-items: center; gap: 12px;
+        padding: 1rem 0; text-decoration: none; color: inherit;
+    }
+    .header-logo {
+        width: 38px; height: 38px; background: var(--teal);
+        border-radius: 8px; display: flex; align-items: center;
+        justify-content: center; font-size: 18px;
+    }
+    .header-title { font-family: 'DM Serif Display', serif; font-size: 1.25rem; }
+    .header-subtitle { font-size: 0.7rem; color: rgba(255,255,255,.5); letter-spacing: .1em; text-transform: uppercase; margin-top: 1px; }
+    .header-nav { margin-left: auto; display: flex; align-items: center; gap: 1.5rem; }
+    .header-nav a { color: rgba(255,255,255,.6); text-decoration: none; font-size: .82rem; letter-spacing: .05em; text-transform: uppercase; font-weight: 500; transition: color .2s; }
+    .header-nav a:hover { color: var(--teal-l); }
+
+    /* ─── STATUS BANNER ─── */
+    .status-banner {
+        padding: 2.5rem 2rem;
+        text-align: center;
+        color: white;
+    }
+    .status-banner.success { background: linear-gradient(135deg, #006d60 0%, var(--teal) 100%); }
+    .status-banner.review  { background: linear-gradient(135deg, #1a5276 0%, var(--review) 100%); }
+    .status-banner.declined { background: linear-gradient(135deg, #7b241c 0%, var(--declined) 100%); }
+    .status-banner.validation_error { background: linear-gradient(135deg, #6e2b0e 0%, var(--warn) 100%); }
+
+    .status-icon {
+        width: 60px; height: 60px; border-radius: 50%;
+        background: rgba(255,255,255,.15);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 26px; margin: 0 auto 1rem;
+        border: 2px solid rgba(255,255,255,.3);
+    }
+    .status-label {
+        font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase;
+        color: rgba(255,255,255,.65); margin-bottom: 0.5rem;
+    }
+    .status-title {
+        font-family: 'DM Serif Display', serif;
+        font-size: clamp(1.5rem, 4vw, 2.2rem);
+        margin-bottom: 0.4rem;
+    }
+    .status-sub { font-size: 0.9rem; color: rgba(255,255,255,.65); }
+
+    /* ─── PREMIUM DISPLAY ─── */
+    .premium-amount {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.35rem;
+        margin: 0.75rem 0;
+    }
+    .premium-value {
+        font-family: 'DM Serif Display', serif;
+        font-size: clamp(2.5rem, 8vw, 4.5rem);
+        line-height: 1;
+        color: white;
+    }
+    .premium-currency {
+        font-size: 1.3rem;
+        font-weight: 300;
+        color: rgba(255,255,255,.7);
+    }
+
+    /* ─── CONTAINER ─── */
+    .container { max-width: 900px; margin: 0 auto; padding: 0 1.5rem; }
+    .main-content { padding: 2rem 0 4rem; }
+
+    /* ─── CARDS ─── */
+    .card {
+        background: white;
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        margin-bottom: 1.25rem;
+    }
+    .card-header {
+        padding: 0.9rem 1.5rem;
+        border-bottom: 1px solid var(--warm);
+        display: flex; align-items: center; gap: 0.65rem;
+        background: var(--cream);
+    }
+    .card-header h2 {
+        font-size: 0.82rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+    }
+    .card-header svg { color: var(--teal); }
+    .card-body { padding: 1.5rem; }
+
+    /* ─── DATA GRID ─── */
+    .data-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 1.25rem;
+    }
+    .data-item {}
+    .data-label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted);
+        font-weight: 600;
+        margin-bottom: 0.2rem;
+    }
+    .data-value {
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: var(--ink);
+    }
+    .data-value.large {
+        font-family: 'DM Serif Display', serif;
+        font-size: 1.6rem;
+    }
+    .data-value.accent { color: var(--teal); }
+    .data-sub { font-size: 0.78rem; color: var(--muted); margin-top: 0.1rem; }
+
+    /* ─── PRICING ROW ─── */
+    .pricing-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 0.65rem 0;
+        border-bottom: 1px solid var(--warm);
+        font-size: 0.9rem;
+    }
+    .pricing-row:last-child { border-bottom: none; }
+    .pricing-row-label { color: var(--text); }
+    .pricing-row-value { font-weight: 600; color: var(--ink); }
+    .pricing-row.total {
+        padding-top: 1rem; margin-top: 0.5rem;
+        border-top: 2px solid var(--warm); border-bottom: none;
+    }
+    .pricing-row.total .pricing-row-label {
+        font-size: 0.85rem; font-weight: 600; color: var(--ink);
+    }
+    .pricing-row.total .pricing-row-value {
+        font-family: 'DM Serif Display', serif;
+        font-size: 1.5rem; color: var(--teal);
+    }
+    .discount-badge {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        background: #edfbf7; color: var(--teal);
+        padding: 0.15rem 0.5rem; border-radius: 4px;
+        font-size: 0.75rem; font-weight: 600;
+    }
+
+    /* ─── COEFFICIENT TABLE ─── */
+    .coeff-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 1rem;
+    }
+    .coeff-item {
+        background: var(--sand);
+        border-radius: 10px;
+        padding: 1rem;
+        text-align: center;
+    }
+    .coeff-num {
+        font-family: 'DM Serif Display', serif;
+        font-size: 1.6rem;
+        color: var(--ink);
+        line-height: 1;
+    }
+    .coeff-label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted);
+        margin-top: 0.3rem;
+    }
+
+    /* ─── STEPS TABLE ─── */
+    .steps-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .steps-table th {
+        text-align: left; font-size: 0.7rem; text-transform: uppercase;
+        letter-spacing: 0.1em; color: var(--muted); font-weight: 600;
+        padding: 0 0.75rem 0.65rem; border-bottom: 2px solid var(--warm);
+    }
+    .steps-table td {
+        padding: 0.6rem 0.75rem;
+        border-bottom: 1px solid var(--warm);
+        vertical-align: middle;
+    }
+    .steps-table tr:last-child td { border-bottom: none; }
+    .steps-table .step-num {
+        width: 28px; height: 28px; background: var(--navy); color: white;
+        border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        font-size: 0.75rem; font-weight: 600; flex-shrink: 0;
+    }
+    .steps-table td:first-child { width: 50px; }
+    .steps-formula { color: var(--muted); font-size: 0.78rem; font-family: monospace; }
+    .steps-result { font-weight: 600; color: var(--teal); text-align: right; }
+
+    /* ─── RISKS LIST ─── */
+    .risks-list { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .risk-tag {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        background: var(--sand); border: 1px solid var(--warm);
+        padding: 0.3rem 0.65rem; border-radius: 6px;
+        font-size: 0.8rem; color: var(--ink);
+    }
+    .risk-mandatory {
+        background: #e8f5f3; border-color: rgba(0,137,123,.3);
+        color: var(--teal);
+    }
+
+    /* ─── UNDERWRITING ─── */
+    .uw-decision {
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        padding: 0.4rem 0.85rem; border-radius: 20px;
+        font-size: 0.82rem; font-weight: 600;
+    }
+    .uw-approved { background: #edfbf7; color: var(--success); }
+    .uw-review   { background: #eaf4fc; color: var(--review); }
+    .uw-declined { background: #fdf2f2; color: var(--declined); }
+
+    .uw-rules { margin-top: 1rem; }
+    .uw-rule {
+        display: flex; align-items: flex-start; gap: 0.65rem;
+        padding: 0.5rem 0; border-bottom: 1px solid var(--warm);
+        font-size: 0.83rem;
+    }
+    .uw-rule:last-child { border-bottom: none; }
+    .uw-rule-sev {
+        font-size: 0.65rem; text-transform: uppercase; letter-spacing: .08em;
+        padding: 0.15rem 0.4rem; border-radius: 4px; flex-shrink: 0; font-weight: 600;
+    }
+    .sev-pass     { background: #edfbf7; color: var(--success); }
+    .sev-warning  { background: #fef9e7; color: var(--warn); }
+    .sev-review   { background: #eaf4fc; color: var(--review); }
+    .sev-blocking { background: #fdf2f2; color: var(--declined); }
+
+    /* ─── DISCOUNTS ─── */
+    .discount-row {
+        display: flex; align-items: center; gap: 0.75rem;
+        padding: 0.75rem 0; border-bottom: 1px solid var(--warm);
+    }
+    .discount-row:last-child { border-bottom: none; }
+    .discount-type-badge {
+        font-size: 0.65rem; text-transform: uppercase; letter-spacing: .08em;
+        padding: 0.2rem 0.45rem; border-radius: 4px;
+        background: var(--sand); color: var(--muted); font-weight: 600;
+        flex-shrink: 0;
+    }
+    .discount-desc { flex: 1; font-size: 0.85rem; }
+    .discount-amount { font-weight: 600; color: var(--success); font-size: 0.9rem; }
+
+    /* ─── ACTION BUTTONS ─── */
+    .actions {
+        display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.75rem;
+    }
+    .btn-new {
+        background: var(--teal); color: white; border: none;
+        height: 46px; padding: 0 1.75rem; border-radius: 10px;
+        font-size: 0.92rem; font-weight: 600; font-family: 'DM Sans', sans-serif;
+        cursor: pointer; text-decoration: none;
+        display: inline-flex; align-items: center; gap: 0.55rem;
+        transition: background .2s, transform .1s; box-shadow: 0 4px 14px rgba(0,137,123,.25);
+    }
+    .btn-new:hover { background: var(--teal-l); transform: translateY(-1px); }
+    .btn-print {
+        background: transparent; color: var(--muted);
+        border: 1.5px solid var(--border); height: 46px; padding: 0 1.25rem;
+        border-radius: 10px; font-size: 0.88rem; font-family: 'DM Sans', sans-serif;
+        cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem;
+        transition: border-color .15s, color .15s;
+    }
+    .btn-print:hover { border-color: var(--muted); color: var(--text); }
+
+    /* ─── FORMULA ─── */
+    .formula-box {
+        background: var(--navy); color: rgba(255,255,255,.85);
+        border-radius: 10px; padding: 1rem 1.25rem;
+        font-family: monospace; font-size: 0.82rem; line-height: 1.7;
+        overflow-x: auto; word-break: break-all;
+    }
+
+    /* ─── ERROR/REVIEW DETAILS ─── */
+    .alert-box {
+        border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem;
+    }
+    .alert-box.error { background: #fdf2f2; border: 1px solid #f5c6c6; border-left: 4px solid var(--error); }
+    .alert-box.review { background: #eaf4fc; border: 1px solid #aed6f1; border-left: 4px solid var(--review); }
+    .alert-box h3 { font-size: 0.88rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .alert-box.error h3 { color: var(--error); }
+    .alert-box.review h3 { color: var(--review); }
+    .alert-box p, .alert-box li { font-size: 0.85rem; color: var(--text); }
+    .alert-box ul { padding-left: 1.1rem; }
+
+    /* ─── FOOTER ─── */
+    footer { background: var(--navy); color: rgba(255,255,255,.4); text-align: center; padding: 1.5rem; font-size: .78rem; }
+    footer a { color: rgba(255,255,255,.5); text-decoration: none; }
+    footer a:hover { color: var(--teal-l); }
+
+    @media print {
+        header, footer, .actions { display: none !important; }
+        .card { box-shadow: none; border: 1px solid #ddd; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <a class="header-brand" href="/">
+    <div class="header-logo">✈</div>
+    <div>
+      <div class="header-title">TravelGuard</div>
+      <div class="header-subtitle">Insurance Platform</div>
+    </div>
+  </a>
+  <nav class="header-nav">
+    <a href="/">Calculator</a>
+    <a href="/swagger-ui.html" target="_blank">API Docs</a>
+  </nav>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════
+     SUCCESS RESULT
+═══════════════════════════════════════════════════════════ -->
+<div th:if="${response.status.name() == 'SUCCESS'}">
+
+  <div class="status-banner success">
+    <div class="status-icon">✓</div>
+    <div class="status-label">Calculation Complete</div>
+    <div class="premium-amount">
+            <span class="premium-value"
+                  th:text="${#numbers.formatDecimal(response.pricing.totalPremium, 1, 2)}">69.30</span>
+      <span class="premium-currency"
+            th:text="${response.pricing.currency != null ? response.pricing.currency : 'EUR'}">EUR</span>
+    </div>
+    <div class="status-sub"
+         th:if="${response.person != null}"
+         th:text="'for ' + ${response.person.firstName} + ' ' + ${response.person.lastName}
+                       + ', age ' + ${response.person.age}">for Ivan Petrov, age 35</div>
+  </div>
+
+  <div class="container">
+    <div class="main-content">
+
+      <!-- ─── PRICING SUMMARY ─── -->
+      <div class="card">
+        <div class="card-header">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <h2>Pricing Summary</h2>
+        </div>
+        <div class="card-body">
+          <div class="pricing-row">
+            <span class="pricing-row-label">Base premium (before discounts)</span>
+            <span class="pricing-row-value"
+                  th:text="${#numbers.formatDecimal(response.pricing.baseAmount, 1, 2)}
+                                        + ' ' + ${response.pricing.currency != null ? response.pricing.currency : 'EUR'}">69.30 EUR</span>
+          </div>
+          <div class="pricing-row" th:if="${response.appliedDiscounts != null and !response.appliedDiscounts.isEmpty()}"
+               th:each="disc : ${response.appliedDiscounts}">
+                        <span class="pricing-row-label">
+                            <span class="discount-badge">–</span>&nbsp;
+                            <span th:text="${disc.description != null ? disc.description : disc.type}">Discount</span>
+                        </span>
+            <span class="pricing-row-value" style="color:var(--success);"
+                  th:text="'–' + ${#numbers.formatDecimal(disc.amount, 1, 2)}
+                                        + ' ' + ${response.pricing.currency != null ? response.pricing.currency : 'EUR'}">–5.00 EUR</span>
+          </div>
+          <div class="pricing-row total">
+            <span class="pricing-row-label">Total Premium</span>
+            <span class="pricing-row-value"
+                  th:text="${#numbers.formatDecimal(response.pricing.totalPremium, 1, 2)}
+                                        + ' ' + ${response.pricing.currency != null ? response.pricing.currency : 'EUR'}">69.30 EUR</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.25rem;">
+
+        <!-- ─── PERSON ─── -->
+        <div class="card">
+          <div class="card-header">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+            <h2>Insured Person</h2>
+          </div>
+          <div class="card-body" th:if="${response.person != null}">
+            <div class="data-grid">
+              <div class="data-item">
+                <div class="data-label">Full Name</div>
+                <div class="data-value"
+                     th:text="${response.person.firstName + ' ' + response.person.lastName}">Ivan Petrov</div>
+              </div>
+              <div class="data-item">
+                <div class="data-label">Age</div>
+                <div class="data-value large accent"
+                     th:text="${response.person.age}">35</div>
+              </div>
+              <div class="data-item">
+                <div class="data-label">Age Group</div>
+                <div class="data-value"
+                     th:text="${response.person.ageGroup}">Adults</div>
+              </div>
+              <div class="data-item">
+                <div class="data-label">Date of Birth</div>
+                <div class="data-value"
+                     th:text="${#temporals.format(response.person.birthDate, 'dd MMM yyyy')}">15 May 1989</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── TRIP ─── -->
+        <div class="card">
+          <div class="card-header">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064"/>
+            </svg>
+            <h2>Trip Details</h2>
+          </div>
+          <div class="card-body" th:if="${response.trip != null}">
+            <div class="data-grid">
+              <div class="data-item">
+                <div class="data-label">Country</div>
+                <div class="data-value"
+                     th:text="${response.trip.countryName != null ? response.trip.countryName : response.trip.countryCode}">Spain</div>
+              </div>
+              <div class="data-item">
+                <div class="data-label">Duration</div>
+                <div class="data-value large accent"
+                     th:text="${response.trip.days + ' days'}">14 days</div>
+              </div>
+              <div class="data-item">
+                <div class="data-label">From</div>
+                <div class="data-value"
+                     th:text="${#temporals.format(response.trip.dateFrom, 'dd MMM yyyy')}">01 Jun 2025</div>
+              </div>
+              <div class="data-item">
+                <div class="data-label">Until</div>
+                <div class="data-value"
+                     th:text="${#temporals.format(response.trip.dateTo, 'dd MMM yyyy')}">14 Jun 2025</div>
+              </div>
+              <div class="data-item"
+                   th:if="${response.trip.coverageAmount != null}">
+                <div class="data-label">Medical Coverage</div>
+                <div class="data-value"
+                     th:text="${#numbers.formatDecimal(response.trip.coverageAmount, 1, 0) + ' EUR'}">50,000 EUR</div>
+              </div>
+              <div class="data-item"
+                   th:if="${response.trip.calculationMode != null}">
+                <div class="data-label">Mode</div>
+                <div class="data-value" style="font-size:.85rem;"
+                     th:text="${response.trip.calculationMode}">MEDICAL_LEVEL</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── PRICING DETAILS (coefficients) ─── -->
+      <div class="card" th:if="${response.pricingDetails != null}">
+        <div class="card-header">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/>
+          </svg>
+          <h2>Calculation Coefficients</h2>
+        </div>
+        <div class="card-body">
+          <div class="coeff-grid">
+            <div class="coeff-item" th:if="${response.pricingDetails.baseRate != null}">
+              <div class="coeff-num"
+                   th:text="${#numbers.formatDecimal(response.pricingDetails.baseRate, 1, 2)}">4.50</div>
+              <div class="coeff-label">Base Rate / day</div>
+            </div>
+            <div class="coeff-item" th:if="${response.pricingDetails.ageCoefficient != null}">
+              <div class="coeff-num"
+                   th:text="${#numbers.formatDecimal(response.pricingDetails.ageCoefficient, 1, 4)}">1.1000</div>
+              <div class="coeff-label">Age Coefficient</div>
+            </div>
+            <div class="coeff-item" th:if="${response.pricingDetails.countryCoefficient != null}">
+              <div class="coeff-num"
+                   th:text="${#numbers.formatDecimal(response.pricingDetails.countryCoefficient, 1, 4)}">1.0000</div>
+              <div class="coeff-label">Country Risk</div>
+            </div>
+            <div class="coeff-item" th:if="${response.pricingDetails.durationCoefficient != null}">
+              <div class="coeff-num"
+                   th:text="${#numbers.formatDecimal(response.pricingDetails.durationCoefficient, 1, 4)}">0.9500</div>
+              <div class="coeff-label">Duration</div>
+            </div>
+          </div>
+
+          <!-- Formula -->
+          <div style="margin-top:1.25rem;" th:if="${response.pricingDetails.calculationFormula != null}">
+            <div class="data-label" style="margin-bottom:0.5rem;">Calculation Formula</div>
+            <div class="formula-box" th:text="${response.pricingDetails.calculationFormula}">Formula</div>
+          </div>
+
+          <!-- Calculation steps -->
+          <div style="margin-top:1.25rem;"
+               th:if="${response.pricingDetails.steps != null and !response.pricingDetails.steps.isEmpty()}">
+            <div class="data-label" style="margin-bottom:0.65rem;">Step-by-Step Breakdown</div>
+            <table class="steps-table">
+              <thead>
+              <tr>
+                <th>#</th>
+                <th>Description</th>
+                <th>Formula</th>
+                <th style="text-align:right;">Result</th>
+              </tr>
+              </thead>
+              <tbody>
+              <tr th:each="step : ${response.pricingDetails.steps}">
+                <td>
+                  <div class="step-num" th:text="${step.stepNumber}">1</div>
+                </td>
+                <td th:text="${step.description}">Description</td>
+                <td class="steps-formula" th:text="${step.formula}">formula</td>
+                <td class="steps-result"
+                    th:text="${#numbers.formatDecimal(step.result, 1, 2)}">0.00</td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Risk breakdown -->
+          <div style="margin-top:1.25rem;"
+               th:if="${response.pricingDetails.riskBreakdown != null and !response.pricingDetails.riskBreakdown.isEmpty()}">
+            <div class="data-label" style="margin-bottom:0.65rem;">Risk Breakdown</div>
+            <div class="risks-list">
+                            <span class="risk-tag risk-mandatory">
+                                ✓ TRAVEL_MEDICAL (mandatory)
+                            </span>
+              <span class="risk-tag"
+                    th:each="rb : ${response.pricingDetails.riskBreakdown}"
+                    th:unless="${rb.riskCode == 'TRAVEL_MEDICAL'}">
+                                <span th:text="${rb.riskCode}">SPORT</span>
+                                <span style="color:var(--muted);"
+                                      th:text="'(' + ${#numbers.formatDecimal(rb.premium, 1, 2)} + ' EUR)'">0.00</span>
+                            </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── APPLIED DISCOUNTS ─── -->
+      <div class="card"
+           th:if="${response.appliedDiscounts != null and !response.appliedDiscounts.isEmpty()}">
+        <div class="card-header">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+          </svg>
+          <h2>Applied Discounts</h2>
+        </div>
+        <div class="card-body">
+          <div class="discount-row" th:each="disc : ${response.appliedDiscounts}">
+            <span class="discount-type-badge" th:text="${disc.type}">GROUP</span>
+            <span class="discount-desc"
+                  th:text="${disc.description != null ? disc.description : disc.code}">Group discount</span>
+            <span th:if="${disc.percentage != null}"
+                  style="font-size:.8rem;color:var(--muted);margin-right:.5rem;"
+                  th:text="${#numbers.formatDecimal(disc.percentage, 1, 0) + '%'}">10%</span>
+            <span class="discount-amount"
+                  th:text="'–' + ${#numbers.formatDecimal(disc.amount, 1, 2)} + ' EUR'">–5.00 EUR</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── UNDERWRITING ─── -->
+      <div class="card" th:if="${response.underwriting != null}">
+        <div class="card-header">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+          </svg>
+          <h2>Underwriting Decision</h2>
+        </div>
+        <div class="card-body">
+          <div>
+                        <span class="uw-decision uw-approved"
+                              th:if="${response.underwriting.decision == 'APPROVED'}">
+                            ✓ Approved automatically
+                        </span>
+            <span class="uw-decision uw-review"
+                  th:if="${response.underwriting.decision == 'REQUIRES_MANUAL_REVIEW'}">
+                            ⟳ Requires Manual Review
+                        </span>
+            <span class="uw-decision uw-declined"
+                  th:if="${response.underwriting.decision == 'DECLINED'}">
+                            ✕ Declined
+                        </span>
+          </div>
+          <div class="uw-rules"
+               th:if="${response.underwriting.evaluatedRules != null and !response.underwriting.evaluatedRules.isEmpty()}">
+            <div class="uw-rule"
+                 th:each="rule : ${response.underwriting.evaluatedRules}">
+                            <span class="uw-rule-sev"
+                                  th:classappend="${'sev-' + rule.severity.toLowerCase()}"
+                                  th:text="${rule.severity}">PASS</span>
+              <span>
+                                <span style="font-weight:600;font-size:.82rem;"
+                                      th:text="${rule.ruleName}">Rule</span>
+                                <span th:if="${rule.message != null and rule.message != 'Rule passed'}"
+                                      style="color:var(--muted);font-size:.8rem;"
+                                      th:text="' — ' + ${rule.message}"></span>
+                            </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── ACTIONS ─── -->
+      <div class="actions">
+        <a class="btn-new" href="/">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+          </svg>
+          New Calculation
+        </a>
+        <button class="btn-print" onclick="window.print()">
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+          </svg>
+          Print / Save PDF
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     REQUIRES REVIEW
+═══════════════════════════════════════════════════════════ -->
+<div th:if="${response.status.name() == 'REQUIRES_REVIEW'}">
+  <div class="status-banner review">
+    <div class="status-icon">⟳</div>
+    <div class="status-label">Underwriting</div>
+    <div class="status-title">Manual Review Required</div>
+    <div class="status-sub"
+         th:if="${response.underwriting != null and response.underwriting.reason != null}"
+         th:text="${response.underwriting.reason}">Review reason</div>
+  </div>
+  <div class="container">
+    <div class="main-content">
+      <div class="alert-box review">
+        <h3>⚠ Application Requires Manual Review</h3>
+        <p th:if="${response.underwriting != null and response.underwriting.reason != null}"
+           th:text="${response.underwriting.reason}">Reason</p>
+        <p th:if="${response.underwriting == null or response.underwriting.reason == null}">
+          Your application requires additional review by an underwriter.
+          Please contact our office for assistance.
+        </p>
+      </div>
+      <div class="actions">
+        <a class="btn-new" href="/">← New Calculation</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     DECLINED
+═══════════════════════════════════════════════════════════ -->
+<div th:if="${response.status.name() == 'DECLINED'}">
+  <div class="status-banner declined">
+    <div class="status-icon">✕</div>
+    <div class="status-label">Underwriting Decision</div>
+    <div class="status-title">Application Declined</div>
+    <div class="status-sub"
+         th:if="${response.underwriting != null and response.underwriting.reason != null}"
+         th:text="${response.underwriting.reason}">Decline reason</div>
+  </div>
+  <div class="container">
+    <div class="main-content">
+      <div class="alert-box error">
+        <h3>Application Declined</h3>
+        <p th:if="${response.underwriting != null and response.underwriting.reason != null}"
+           th:text="${response.underwriting.reason}">Reason</p>
+        <ul th:if="${response.errors != null and !response.errors.isEmpty()}"
+            style="margin-top:.5rem;">
+          <li th:each="err : ${response.errors}"
+              th:text="${err.message}">Error</li>
+        </ul>
+      </div>
+      <div class="actions">
+        <a class="btn-new" href="/">← New Calculation</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     VALIDATION ERROR (fallback — shown in form normally)
+═══════════════════════════════════════════════════════════ -->
+<div th:if="${response.status.name() == 'VALIDATION_ERROR'}">
+  <div class="status-banner validation_error">
+    <div class="status-icon">!</div>
+    <div class="status-label">Input Error</div>
+    <div class="status-title">Validation Failed</div>
+    <div class="status-sub">Please correct the errors and try again.</div>
+  </div>
+  <div class="container">
+    <div class="main-content">
+      <div class="alert-box error">
+        <h3>Validation Errors</h3>
+        <ul>
+          <li th:each="err : ${response.errors}"
+              th:text="${err.field + ': ' + err.message}">Error</li>
+        </ul>
+      </div>
+      <div class="actions">
+        <a class="btn-new" href="/">← Back to Form</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  TravelGuard Insurance Platform &nbsp;·&nbsp;
+  <a href="/">New Calculation</a> &nbsp;·&nbsp;
+  <a href="/swagger-ui.html" target="_blank">REST API</a>
+</footer>
+
+</body>
+</html>

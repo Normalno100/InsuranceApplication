@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!--
+        ИСПРАВЛЕНИЕ: Конвертация jsonb-колонок в TEXT для совместимости
+        с JsonStringConverter (task_133).
+
+        ПРИЧИНА ОШИБКИ:
+          JsonStringConverter реализует AttributeConverter<String, String> —
+          он передаёт в JDBC обычную Java-строку (тип character varying).
+          PostgreSQL отказывается вставлять VARCHAR в колонку типа jsonb
+          без явного каста:
+            ERROR: column "request_data" is of type jsonb
+                   but expression is of type character varying
+
+        ПОЧЕМУ НЕ ИСПРАВИТЬ В JDBC-ДРАЙВЕРЕ:
+          Изменение columnDefinition в Entity с "jsonb" на "TEXT" решает проблему
+          только для ddl-auto=create (тесты с H2). Для production PostgreSQL
+          (ddl-auto=validate/none) нужно изменить реальную схему БД.
+
+        ИЗМЕНЕНИЯ В ЭТОЙ МИГРАЦИИ:
+
+          1. underwriting_decisions.rule_results  : jsonb → TEXT
+          2. underwriting_decisions.request_data  : jsonb → TEXT
+          3. risk_bundles.required_risks           : jsonb → TEXT
+             + удаление GIN-индекса idx_bundle_risks (несовместим с TEXT без trgm)
+
+        СОВМЕСТИМОСТЬ ДАННЫХ:
+          Все существующие jsonb-значения корректно конвертируются в TEXT
+          оператором ::TEXT — данные не теряются.
+
+        ПОТЕРИ ФУНКЦИОНАЛЬНОСТИ:
+          - GIN-индекс на risk_bundles.required_risks удаляется.
+            Поиск по содержимому JSON через @> или ? становится невозможен.
+            RiskBundleService читает все активные бандлы и фильтрует в Java —
+            это работало до миграции и продолжит работать после.
+          - jsonb-индексы на underwriting_decisions не создавались ранее,
+            поэтому их потеря не влияет на производительность.
+    -->
+
+    <!-- ================================================================ -->
+    <!-- 022-01: underwriting_decisions.rule_results: jsonb → TEXT        -->
+    <!-- ================================================================ -->
+    <changeSet id="022-01-underwriting-rule-results-jsonb-to-text"
+               author="travel-insurance"
+               dbms="postgresql">
+
+        <comment>
+            Convert underwriting_decisions.rule_results from jsonb to TEXT.
+            Required for JsonStringConverter compatibility (task_133).
+        </comment>
+
+        <sql>
+            ALTER TABLE underwriting_decisions
+            ALTER COLUMN rule_results TYPE TEXT USING rule_results::TEXT;
+        </sql>
+
+        <rollback>
+            <sql>
+                ALTER TABLE underwriting_decisions
+                ALTER COLUMN rule_results TYPE JSONB USING rule_results::JSONB;
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ================================================================ -->
+    <!-- 022-02: underwriting_decisions.request_data: jsonb → TEXT        -->
+    <!-- ================================================================ -->
+    <changeSet id="022-02-underwriting-request-data-jsonb-to-text"
+               author="travel-insurance"
+               dbms="postgresql">
+
+        <comment>
+            Convert underwriting_decisions.request_data from jsonb to TEXT.
+            Required for JsonStringConverter compatibility (task_133).
+        </comment>
+
+        <sql>
+            ALTER TABLE underwriting_decisions
+            ALTER COLUMN request_data TYPE TEXT USING request_data::TEXT;
+        </sql>
+
+        <rollback>
+            <sql>
+                ALTER TABLE underwriting_decisions
+                ALTER COLUMN request_data TYPE JSONB USING request_data::JSONB;
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ================================================================ -->
+    <!-- 022-03: Удалить GIN-индекс idx_bundle_risks                      -->
+    <!--         (несовместим с TEXT без gin_trgm_ops)                    -->
+    <!-- ================================================================ -->
+    <changeSet id="022-03-drop-gin-index-bundle-risks"
+               author="travel-insurance"
+               dbms="postgresql">
+
+        <comment>
+            Drop GIN index idx_bundle_risks before converting required_risks to TEXT.
+            GIN index on jsonb is incompatible with TEXT type.
+            RiskBundleService loads all active bundles into memory and filters in Java,
+            so this index was not used for application queries.
+        </comment>
+
+        <sql>
+            DROP INDEX IF EXISTS idx_bundle_risks;
+        </sql>
+
+        <rollback>
+            <sql>
+                CREATE INDEX idx_bundle_risks ON risk_bundles USING GIN (required_risks::jsonb);
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ================================================================ -->
+    <!-- 022-04: risk_bundles.required_risks: jsonb → TEXT                -->
+    <!-- ================================================================ -->
+    <changeSet id="022-04-risk-bundles-required-risks-jsonb-to-text"
+               author="travel-insurance"
+               dbms="postgresql">
+
+        <comment>
+            Convert risk_bundles.required_risks from jsonb to TEXT.
+            Required for JsonStringConverter compatibility (task_133).
+            GIN index was removed in 022-03.
+        </comment>
+
+        <sql>
+            ALTER TABLE risk_bundles
+            ALTER COLUMN required_risks TYPE TEXT USING required_risks::TEXT;
+        </sql>
+
+        <rollback>
+            <sql>
+                ALTER TABLE risk_bundles
+                ALTER COLUMN required_risks TYPE JSONB USING required_risks::JSONB;
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ================================================================ -->
+    <!-- 022-05: Обновление комментариев к колонкам                       -->
+    <!-- ================================================================ -->
+    <changeSet id="022-05-update-column-comments"
+               author="travel-insurance"
+               dbms="postgresql">
+
+        <comment>Update column comments to reflect the type change</comment>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN underwriting_decisions.rule_results IS
+            'JSON-строка с результатами применения правил андеррайтинга.
+            Тип изменён с jsonb на TEXT (миграция 022) для совместимости
+            с JsonStringConverter (task_133). Данные хранятся как JSON-текст.';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN underwriting_decisions.request_data IS
+            'JSON-строка с исходными данными запроса на расчёт премии.
+            Тип изменён с jsonb на TEXT (миграция 022) для совместимости
+            с JsonStringConverter (task_133). Данные хранятся как JSON-текст.';
+        ]]></sql>
+
+        <sql><![CDATA[
+            COMMENT ON COLUMN risk_bundles.required_risks IS
+            'JSON-массив кодов рисков, входящих в пакет.
+            Пример: ["SPORT_ACTIVITIES", "ACCIDENT_COVERAGE"]
+            Тип изменён с jsonb на TEXT (миграция 022) для совместимости
+            с JsonStringConverter (task_133). Парсинг выполняется в RiskBundleService.';
+        ]]></sql>
+
+        <rollback>
+            <!-- Комментарии не требуют отката -->
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

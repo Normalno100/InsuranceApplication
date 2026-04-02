@@ -41,3 +41,5 @@ databaseChangeLog:
       file: db/changelog/changes/020-fix-calculation-config-unique-constraint.xml
   - include:
       file: db/changelog/changes/021-fix-promo-code-usage-counters.xml
+  - include:
+      file: db/changelog/changes/022-convert-jsonb-columns-to-text.xml

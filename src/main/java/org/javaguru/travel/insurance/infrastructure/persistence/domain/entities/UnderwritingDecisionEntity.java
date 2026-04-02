@@ -17,20 +17,39 @@ import java.util.UUID;
  * task_133: Заменён @Type(JsonBinaryType.class) на @Convert(converter = JsonStringConverter.class)
  * для совместимости с H2 в тестах.
  *
- * БЫЛО:
- *   @Type(JsonBinaryType.class)
- *   @Column(name = "rule_results", columnDefinition = "jsonb")
- *   @Type(JsonBinaryType.class)
- *   @Column(name = "request_data", columnDefinition = "jsonb")
+ * ИСПРАВЛЕНИЕ: columnDefinition изменён с "jsonb" на "TEXT".
  *
- * СТАЛО:
+ * ПРОБЛЕМА (было):
  *   @Convert(converter = JsonStringConverter.class)
  *   @Column(name = "rule_results", columnDefinition = "jsonb")
- *   @Convert(converter = JsonStringConverter.class)
- *   @Column(name = "request_data", columnDefinition = "jsonb")
  *
- * columnDefinition = "jsonb" сохранён для корректной schema validation в PostgreSQL.
- * В H2 MODE=PostgreSQL jsonb транслируется в VARCHAR — совместимость обеспечена.
+ *   JsonStringConverter сериализует значение как обычную Java-строку (VARCHAR/TEXT).
+ *   PostgreSQL отказывался принять её в колонку типа jsonb без явного каста:
+ *     ERROR: column "request_data" is of type jsonb
+ *            but expression is of type character varying
+ *
+ * РЕШЕНИЕ (стало):
+ *   @Convert(converter = JsonStringConverter.class)
+ *   @Column(name = "rule_results", columnDefinition = "TEXT")
+ *
+ *   В PostgreSQL TEXT — это обычная строка без проверки JSON-структуры.
+ *   Данные хранятся идентично (UTF-8 текст), индексирование через GIN недоступно,
+ *   но для аудит-лога решений это приемлемо.
+ *
+ *   ПРИМЕЧАНИЕ ПО СХЕМЕ:
+ *   Реальные колонки в БД были созданы Liquibase с типом jsonb (007-create-underwriting-tables.xml).
+ *   Изменение columnDefinition в Entity не меняет существующую схему в PostgreSQL —
+ *   оно используется только при ddl-auto=create/create-drop (тесты с H2) и
+ *   при schema validation (hibernate.ddl-auto=validate).
+ *
+ *   Для production PostgreSQL нужна отдельная Liquibase-миграция,
+ *   изменяющая тип колонки с jsonb на text:
+ *     ALTER TABLE underwriting_decisions
+ *       ALTER COLUMN rule_results TYPE TEXT USING rule_results::TEXT,
+ *       ALTER COLUMN request_data TYPE TEXT USING request_data::TEXT;
+ *
+ *   ИЛИ (если менять схему нежелательно) — убрать columnDefinition совсем,
+ *   тогда Hibernate использует стандартный тип TEXT/VARCHAR(255) в зависимости от диалекта.
  */
 @Entity
 @Table(name = "underwriting_decisions")
@@ -80,20 +99,20 @@ public class UnderwritingDecisionEntity {
     /**
      * JSON с результатами применения правил андеррайтинга.
      *
-     * task_133: @Type(JsonBinaryType.class) заменён на @Convert(converter = JsonStringConverter.class).
-     * columnDefinition = "jsonb" оставлен — соответствует реальному типу колонки в PostgreSQL.
+     * ИСПРАВЛЕНО: columnDefinition = "TEXT" вместо "jsonb".
+     * JsonStringConverter хранит строку — PostgreSQL принимает TEXT без приведения типов.
      */
     @Convert(converter = JsonStringConverter.class)
-    @Column(name = "rule_results", columnDefinition = "jsonb")
+    @Column(name = "rule_results", columnDefinition = "TEXT")
     private String ruleResults;
 
     /**
      * JSON с исходными данными запроса.
      *
-     * task_133: Аналогичная замена @Type(JsonBinaryType.class) → @Convert.
+     * ИСПРАВЛЕНО: columnDefinition = "TEXT" вместо "jsonb".
      */
     @Convert(converter = JsonStringConverter.class)
-    @Column(name = "request_data", columnDefinition = "jsonb")
+    @Column(name = "request_data", columnDefinition = "TEXT")
     private String requestData;
 
     // Метрики
