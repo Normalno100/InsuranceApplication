@@ -39,6 +39,7 @@ jobs:
         uses: SonarSource/sonarcloud-github-action@v2
         with:
           args: >
+            -Dsonar.exclusions=**/*.html
             -Dsonar.projectKey=Normalno100_InsuranceApplication
             -Dsonar.organization=normalno100
             -Dsonar.host.url=https://sonarcloud.io
@@ -47,4 +48,3 @@ jobs:
             -Dsonar.issue.ignore.multicriteria=e1
             -Dsonar.issue.ignore.multicriteria.e1.ruleKey=Web:S5725
             -Dsonar.issue.ignore.multicriteria.e1.resourceKey=**/*.html
-            -Dsonar.exclusions=**/*.html
