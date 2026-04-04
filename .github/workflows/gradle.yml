@@ -29,6 +29,13 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v2
+        with:
+          args: >
+            -Dsonar.issue.ignore.multicriteria=e1
+            -Dsonar.issue.ignore.multicriteria.e1.ruleKey=Web:S5725
+            -Dsonar.issue.ignore.multicriteria.e1.resourceKey=**/*.html
 
       # Configure Gradle for optimal use in GitHub Actions, including caching of downloaded dependencies.
       # See: https://github.com/gradle/actions/blob/main/setup-gradle/README.md
