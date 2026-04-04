@@ -43,14 +43,42 @@
     -->
 
     <!-- ================================================================ -->
-    <!-- 022-01: underwriting_decisions.rule_results: jsonb → TEXT        -->
+    <!-- 022-01: Удалить GIN-индекс idx_underwriting_rule_results         -->
+    <!--         Создан в 007-01a. GIN на jsonb несовместим с TEXT.       -->
+    <!--         ДОЛЖЕН быть удалён ДО изменения типа колонки.            -->
     <!-- ================================================================ -->
-    <changeSet id="022-01-underwriting-rule-results-jsonb-to-text"
+    <changeSet id="022-01-drop-gin-index-underwriting-rule-results"
+               author="travel-insurance"
+               dbms="postgresql">
+
+        <comment>
+            Drop GIN index idx_underwriting_rule_results (created in 007-01a)
+            before converting rule_results column from jsonb to TEXT.
+            PostgreSQL cannot ALTER a column type while a GIN index exists on it.
+        </comment>
+
+        <sql>
+            DROP INDEX IF EXISTS idx_underwriting_rule_results;
+        </sql>
+
+        <rollback>
+            <sql>
+                CREATE INDEX idx_underwriting_rule_results
+                ON underwriting_decisions USING GIN (rule_results::jsonb);
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ================================================================ -->
+    <!-- 022-02: underwriting_decisions.rule_results: jsonb → TEXT        -->
+    <!-- ================================================================ -->
+    <changeSet id="022-02-underwriting-rule-results-jsonb-to-text"
                author="travel-insurance"
                dbms="postgresql">
 
         <comment>
             Convert underwriting_decisions.rule_results from jsonb to TEXT.
+            GIN index was removed in 022-01.
             Required for JsonStringConverter compatibility (task_133).
         </comment>
 
@@ -68,14 +96,15 @@
     </changeSet>
 
     <!-- ================================================================ -->
-    <!-- 022-02: underwriting_decisions.request_data: jsonb → TEXT        -->
+    <!-- 022-03: underwriting_decisions.request_data: jsonb → TEXT        -->
     <!-- ================================================================ -->
-    <changeSet id="022-02-underwriting-request-data-jsonb-to-text"
+    <changeSet id="022-03-underwriting-request-data-jsonb-to-text"
                author="travel-insurance"
                dbms="postgresql">
 
         <comment>
             Convert underwriting_decisions.request_data from jsonb to TEXT.
+            No GIN index existed on this column, so no pre-step needed.
             Required for JsonStringConverter compatibility (task_133).
         </comment>
 
@@ -93,18 +122,18 @@
     </changeSet>
 
     <!-- ================================================================ -->
-    <!-- 022-03: Удалить GIN-индекс idx_bundle_risks                      -->
-    <!--         (несовместим с TEXT без gin_trgm_ops)                    -->
+    <!-- 022-04: Удалить GIN-индекс idx_bundle_risks                      -->
+    <!--         Создан в 009-02. ДОЛЖЕН быть удалён ДО изменения типа.   -->
     <!-- ================================================================ -->
-    <changeSet id="022-03-drop-gin-index-bundle-risks"
+    <changeSet id="022-04-drop-gin-index-bundle-risks"
                author="travel-insurance"
                dbms="postgresql">
 
         <comment>
-            Drop GIN index idx_bundle_risks before converting required_risks to TEXT.
-            GIN index on jsonb is incompatible with TEXT type.
+            Drop GIN index idx_bundle_risks (created in 009-02)
+            before converting required_risks column from jsonb to TEXT.
             RiskBundleService loads all active bundles into memory and filters in Java,
-            so this index was not used for application queries.
+            so this index was not critical for application queries.
         </comment>
 
         <sql>
@@ -119,16 +148,16 @@
     </changeSet>
 
     <!-- ================================================================ -->
-    <!-- 022-04: risk_bundles.required_risks: jsonb → TEXT                -->
+    <!-- 022-05: risk_bundles.required_risks: jsonb → TEXT                -->
     <!-- ================================================================ -->
-    <changeSet id="022-04-risk-bundles-required-risks-jsonb-to-text"
+    <changeSet id="022-05-risk-bundles-required-risks-jsonb-to-text"
                author="travel-insurance"
                dbms="postgresql">
 
         <comment>
             Convert risk_bundles.required_risks from jsonb to TEXT.
+            GIN index was removed in 022-04.
             Required for JsonStringConverter compatibility (task_133).
-            GIN index was removed in 022-03.
         </comment>
 
         <sql>
@@ -147,7 +176,7 @@
     <!-- ================================================================ -->
     <!-- 022-05: Обновление комментариев к колонкам                       -->
     <!-- ================================================================ -->
-    <changeSet id="022-05-update-column-comments"
+    <changeSet id="022-06-update-column-comments"
                author="travel-insurance"
                dbms="postgresql">
 

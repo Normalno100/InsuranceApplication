@@ -1,5 +1,6 @@
 package org.javaguru.travel.insurance.infrastructure.web.config;
 
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -51,7 +52,7 @@ public class JacksonConfig {
         // ========================================
         
         // Отключаем научную нотацию (1.5E+3 → 1500.00)
-        objectMapper.configure(SerializationFeature.WRITE_BIGDECIMAL_AS_PLAIN, true);
+        objectMapper.configure(JsonGenerator.Feature.WRITE_BIGDECIMAL_AS_PLAIN, true);
         
         // Регистрируем кастомный модуль для BigDecimal
         SimpleModule bigDecimalModule = new SimpleModule("BigDecimalModule");

@@ -60,6 +60,9 @@ dependencies {
 		exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
 	}
 
+    testImplementation 'org.mockito:mockito-core:5.12.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.12.0'
+
 	// --- H2 ---
 	// task_133: H2 используется для изоляции тестов от PostgreSQL
 	testRuntimeOnly 'com.h2database:h2'
@@ -94,6 +97,11 @@ dependencies {
 /* =====================================================
  * UNIT TESTS
  * ===================================================== */
+configurations {
+    testImplementation {
+        exclude group: 'org.junit.vintage'
+    }
+}
 test {
 	useJUnitPlatform()
 
