@@ -47,3 +47,4 @@ jobs:
             -Dsonar.issue.ignore.multicriteria=e1
             -Dsonar.issue.ignore.multicriteria.e1.ruleKey=Web:S5725
             -Dsonar.issue.ignore.multicriteria.e1.resourceKey=**/*.html
+            -Dsonar.exclusions=**/*.html
